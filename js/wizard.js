@@ -14,7 +14,7 @@ function iniciarWizard(){
     racaNome:null, racaEscolhasAttr:[],
     racaEscolhaExtra:null, racaEscolhaExtraSub:null,
     racaPoderExtraNome:null, racaPoderExtraSub:null,
-    classeNome:null, periciaFixaEscolhas:{}, periciasExtra:[],
+    classeNome:null, periciaFixaEscolhas:{}, periciasExtraClasse:[], periciasExtraInt:[],
     origemNome:null,
     origemEscolhas:[],
     rolados:[null,null,null,null,null,null],
@@ -63,7 +63,8 @@ function periciasFinal(w){
   const ci = CLASSES_INICIAL[w.classeNome];
   if(ci){
     ci.fixas.forEach(f=> set.add(nomeBasePericia(resolvePericiaFixa(f,w))));
-    (w.periciasExtra||[]).forEach(p=> set.add(nomeBasePericia(p)));
+    (w.periciasExtraClasse||[]).forEach(p=> set.add(nomeBasePericia(p)));
+    (w.periciasExtraInt||[]).forEach(p=> set.add(nomeBasePericia(p)));
   }
   (w.origemEscolhas||[]).forEach(e=>{ if(e.tipo==='pericia') set.add(nomeBasePericia(e.valor)); });
   if(w.racaEscolhaExtra==='pericia' && w.racaEscolhaExtraSub) set.add(nomeBasePericia(w.racaEscolhaExtraSub));
@@ -225,7 +226,8 @@ function validarStep(stepId, w){
     const ci = CLASSES_INICIAL[w.classeNome];
     for(const f of ci.fixas){ if(f.includes(' ou ') && !w.periciaFixaEscolhas[f]) return false; }
     const bonusInt = Math.max(0, attrFinal(w).int||0);
-    if((w.periciasExtra||[]).length !== ci.extra + bonusInt) return false;
+    if((w.periciasExtraClasse||[]).length !== ci.extra) return false;
+    if((w.periciasExtraInt||[]).length !== bonusInt) return false;
     return true;
   }
   if(stepId==='origem'){
@@ -445,7 +447,7 @@ function stepClasse(w){
   const grid = el('div',{class:'option-grid'});
   Object.keys(CLASSES).forEach(nome=>{
     const ci = CLASSES_INICIAL[nome];
-    grid.appendChild(el('button',{class:'option-card '+(w.classeNome===nome?'selected':''), onclick:()=>{ w.classeNome=nome; w.periciaFixaEscolhas={}; w.periciasExtra=[]; render(); }},
+    grid.appendChild(el('button',{class:'option-card '+(w.classeNome===nome?'selected':''), onclick:()=>{ w.classeNome=nome; w.periciaFixaEscolhas={}; w.periciasExtraClasse=[]; w.periciasExtraInt=[]; render(); }},
       el('div',{class:'opt-nome'}, nome),
       el('div',{class:'opt-sub'}, ci.atributo+' · PV '+ci.pv1+' · PM '+ci.pm)
     ));
@@ -454,14 +456,18 @@ function stepClasse(w){
 
   const ci = CLASSES_INICIAL[w.classeNome];
   if(ci){
+    const fixasSemEscolha = ci.fixas.filter(f=> !f.includes(' ou '));
+    const fixasComEscolha = ci.fixas.filter(f=> f.includes(' ou '));
     wrap.appendChild(el('div',{class:'panel'},
       el('h2',{},'Papel e perícias de '+w.classeNome),
-      el('div',{class:'tip'}, el('b',{},'Papel'), CLASSES[w.classeNome].papel)
+      el('div',{class:'tip'}, el('b',{},'Papel'), CLASSES[w.classeNome].papel),
+      fixasSemEscolha.length ? el('div',{class:'tip'}, el('b',{},'Perícias iniciais'), 'Todo '+w.classeNome+' já começa treinado automaticamente em '+fixasSemEscolha.join(' e ')+' — não precisa escolher nada aqui, é garantido pela classe.') : null
     ));
     ci.fixas.forEach(f=>{
       if(f.includes(' ou ')){
         const [a,b] = f.split(' ou ');
         const wrapSel = el('div',{class:'panel'}, el('h2',{},'Perícia inicial: '+f));
+        wrapSel.appendChild(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Todo '+w.classeNome+' começa treinado em uma dessas duas — escolha qual.'));
         const row = el('div',{class:'row'});
         [a,b].forEach(opt=>{
           row.appendChild(el('button',{class:'option-card '+(w.periciaFixaEscolhas[f]===opt?'selected':''), onclick:()=>{ w.periciaFixaEscolhas[f]=opt; render(); }}, el('div',{class:'opt-nome'},opt)));
@@ -478,32 +484,41 @@ function stepClasse(w){
     const jaConhecidasFora = [...jaFixas, ...jaDeOrigemOuRaca];
     const listaRestrita = (PERICIAS_POR_CLASSE[w.classeNome]||[]).filter(p=> !jaConhecidasFora.includes(p));
     const bonusInt = Math.max(0, attrFinal(w).int||0);
-    const extraNecessarias = ci.extra + bonusInt;
-    if(w.periciasExtra && w.periciasExtra.length > extraNecessarias){
-      w.periciasExtra = w.periciasExtra.slice(0, extraNecessarias);
-    }
+
+    // Cada pool tem seu próprio limite e seu próprio array — nunca se misturam.
+    if(!w.periciasExtraClasse) w.periciasExtraClasse = [];
+    if(!w.periciasExtraInt) w.periciasExtraInt = [];
+    if(w.periciasExtraClasse.length > ci.extra) w.periciasExtraClasse = w.periciasExtraClasse.slice(0, ci.extra);
+    if(w.periciasExtraInt.length > bonusInt) w.periciasExtraInt = w.periciasExtraInt.slice(0, bonusInt);
+    // Se uma perícia acabou presente nos dois pools (por dado antigo/migração), prioriza o pool da classe.
+    w.periciasExtraInt = w.periciasExtraInt.filter(p=> !w.periciasExtraClasse.includes(p));
 
     const extraPanel = el('div',{class:'panel'}, el('h2',{}, 'Escolha '+ci.extra+' perícias da lista da classe'));
     if(jaDeOrigemOuRaca.length>0){
       extraPanel.appendChild(el('div',{class:'tip', style:'font-size:0.78rem;'}, el('b',{},'Já treinado por outra fonte: '), jaDeOrigemOuRaca.join(', ')+' — por isso não aparecem aqui pra escolher de novo.'));
     }
     if(bonusInt>0){
-      extraPanel.appendChild(el('div',{class:'tip'}, el('b',{},'Bônus de Inteligência'), '+'+bonusInt+' perícia(s) extra por Inteligência — essas podem ser QUALQUER perícia, não precisam estar na lista da classe.'));
+      extraPanel.appendChild(el('div',{class:'tip'}, el('b',{},'Bônus de Inteligência'), '+'+bonusInt+' perícia(s) extra por Inteligência — essas podem ser QUALQUER perícia, não precisam estar na lista da classe (escolha elas mais abaixo).'));
     }
     const grid2 = el('div',{class:'option-grid'});
     listaRestrita.forEach(p=>{
-      const marcado = (w.periciasExtra||[]).includes(p);
+      const marcado = w.periciasExtraClasse.includes(p);
+      const usadaNoOutroPool = w.periciasExtraInt.includes(p);
       const infoPericia = PERICIAS.find(x=>x.nome===p);
-      grid2.appendChild(el('button',{class:'option-card '+(marcado?'selected':''), onclick:()=>{
-        if(marcado){ w.periciasExtra = w.periciasExtra.filter(x=>x!==p); }
-        else if((w.periciasExtra||[]).length < extraNecessarias){ w.periciasExtra=[...(w.periciasExtra||[]), p]; }
+      const classe = marcado ? 'selected' : (usadaNoOutroPool ? 'used-elsewhere' : '');
+      grid2.appendChild(el('button',{class:'option-card '+classe, onclick:()=>{
+        if(usadaNoOutroPool) return; // já escolhida como perícia de Inteligência, não pode escolher de novo aqui
+        if(marcado){ w.periciasExtraClasse = w.periciasExtraClasse.filter(x=>x!==p); }
+        else if(w.periciasExtraClasse.length < ci.extra){ w.periciasExtraClasse = [...w.periciasExtraClasse, p]; }
         render();
       }},
         el('div',{class:'opt-nome'}, p),
-        infoPericia ? el('div',{class:'opt-sub'}, infoPericia.resumo) : null
+        infoPericia ? el('div',{class:'opt-sub'}, infoPericia.resumo) : null,
+        usadaNoOutroPool ? el('div',{class:'opt-sub', style:'color:var(--red-bright);'}, 'já escolhida como perícia de Inteligência') : null
       ));
     });
     extraPanel.appendChild(grid2);
+    extraPanel.appendChild(el('div',{class:'meta', style:'font-size:0.75rem;color:var(--ink-soft);margin-top:6px;'}, w.periciasExtraClasse.length+' / '+ci.extra+' escolhidas'));
     wrap.appendChild(extraPanel);
 
     if(bonusInt>0){
@@ -511,23 +526,26 @@ function stepClasse(w){
       const disponiveisLivres = LISTA_PERICIAS.filter(p=> !jaConhecidasFora.includes(p));
       const grid3 = el('div',{class:'option-grid'});
       disponiveisLivres.forEach(p=>{
-        const idxNaLista = w.periciasExtra.indexOf(p);
-        const marcadoComoLivre = idxNaLista >= ci.extra;
+        const marcado = w.periciasExtraInt.includes(p);
+        const usadaNoOutroPool = w.periciasExtraClasse.includes(p);
         const infoPericia = PERICIAS.find(x=>x.nome===p);
-        grid3.appendChild(el('button',{class:'option-card '+(marcadoComoLivre?'selected':''), onclick:()=>{
-          if(marcadoComoLivre){ w.periciasExtra.splice(idxNaLista,1); }
-          else if(w.periciasExtra.length < extraNecessarias && !w.periciasExtra.includes(p)){ w.periciasExtra.push(p); }
+        const classe = marcado ? 'selected' : (usadaNoOutroPool ? 'used-elsewhere' : '');
+        grid3.appendChild(el('button',{class:'option-card '+classe, onclick:()=>{
+          if(usadaNoOutroPool) return; // já escolhida como perícia da classe, não pode escolher de novo aqui
+          if(marcado){ w.periciasExtraInt = w.periciasExtraInt.filter(x=>x!==p); }
+          else if(w.periciasExtraInt.length < bonusInt){ w.periciasExtraInt = [...w.periciasExtraInt, p]; }
           render();
         }},
           el('div',{class:'opt-nome'}, p),
-          infoPericia ? el('div',{class:'opt-sub'}, infoPericia.resumo) : null
+          infoPericia ? el('div',{class:'opt-sub'}, infoPericia.resumo) : null,
+          usadaNoOutroPool ? el('div',{class:'opt-sub', style:'color:var(--red-bright);'}, 'já escolhida como perícia da classe') : null
         ));
       });
       livresPanel.appendChild(grid3);
+      livresPanel.appendChild(el('div',{class:'meta', style:'font-size:0.75rem;color:var(--ink-soft);margin-top:6px;'}, w.periciasExtraInt.length+' / '+bonusInt+' escolhidas'));
       wrap.appendChild(livresPanel);
     }
 
-    wrap.appendChild(el('div',{class:'meta', style:'font-size:0.75rem;color:var(--ink-soft);'}, (w.periciasExtra||[]).length+' / '+extraNecessarias+' escolhidas no total'));
   }
   return wrap;
 }
