@@ -929,7 +929,7 @@ function renderItensCompleto(){
     if(list.length===0) results.appendChild(el('div',{class:'empty'},'Nenhuma arma encontrada.'));
     list.forEach(w=>{
       const semProf = !proficienteComArma(f, w);
-      results.appendChild(renderItemColapsavel('arma-'+w.n, w.n+(semProf?' ⚠':''), w.cat, [
+      results.appendChild(renderItemAcordeao('itens-armas', w.n, w.n+(semProf?' ⚠':''), w.cat, [
         el('div',{class:'desc'}, 'Dano '+w.dano+' · Crítico '+w.critico+' · '+w.tipo+' · Alcance: '+w.alcance+' · '+w.cat+' · '+w.esp+' esp. · '+(w.maos>=2?'2 mãos':'1 mão')),
         semProf ? el('div',{class:'meta', style:'color:var(--red-bright);margin-top:4px;'}, '⚠ Sem proficiência — sofre –5 no teste de ataque') : null,
         el('div',{class:'row', style:'margin-top:8px;'},
@@ -948,7 +948,7 @@ function renderItensCompleto(){
     list.forEach(a=>{
       const isEscudo = a.cat==='Escudo';
       const semProf = isEscudo ? !prof.escudos : (a.cat==='Pesada' && !prof.armadurasPesadas);
-      results.appendChild(renderItemColapsavel('armadura-'+a.n, a.n+(semProf?' ⚠':''), a.cat, [
+      results.appendChild(renderItemAcordeao('itens-armaduras', a.n, a.n+(semProf?' ⚠':''), a.cat, [
         el('div',{class:'desc'}, 'Defesa +'+a.def+' · Penalidade '+a.pen+' · '+a.esp+' espaços · '+a.cat),
         semProf ? el('div',{class:'meta', style:'color:var(--red-bright);margin-top:4px;'}, '⚠ Sem proficiência — a penalidade ('+a.pen+') passa a valer em toda perícia de Força/Destreza') : null,
         el('div',{class:'row', style:'margin-top:8px;'},
@@ -965,7 +965,7 @@ function renderItensCompleto(){
     if(list.length===0) results.appendChild(el('div',{class:'empty'},'Nenhum esotérico encontrado.'));
     results.appendChild(el('div',{class:'tip', style:'font-size:0.8rem;'}, 'Itens esotéricos são empunhados (ocupam mão) para dar bônus mágicos enquanto você conjura — competem por espaço com armas e escudos.'));
     list.forEach(it=>{
-      results.appendChild(renderItemColapsavel('esoterico-'+it.n, it.n, it.maos+' mão'+(it.maos>1?'s':''), [
+      results.appendChild(renderItemAcordeao('itens-esotericos', it.n, it.n, it.maos+' mão'+(it.maos>1?'s':''), [
         el('div',{class:'desc'}, it.desc),
         el('div',{class:'meta'}, it.maos+' mão'+(it.maos>1?'s':'')+' · '+it.esp+' esp.'),
         el('div',{class:'row', style:'margin-top:8px;'},
@@ -987,7 +987,7 @@ function renderItensCompleto(){
     let list = itensDisponiveis.filter(i => (itf.categoria==='todas'||i.cat===itf.categoria) && (!itf.busca || i.n.toLowerCase().includes(itf.busca.toLowerCase())));
     if(list.length===0) results.appendChild(el('div',{class:'empty'},'Nenhum item encontrado.'));
     list.forEach(it=>{
-      results.appendChild(renderItemColapsavel('geral-'+it.n, it.n+(it.vestivel?' 👕':'')+(it.empunhavel?' 🎻':''), it.cat, [
+      results.appendChild(renderItemAcordeao('itens-gerais', it.n, it.n+(it.vestivel?' 👕':'')+(it.empunhavel?' 🎻':''), it.cat, [
         el('div',{class:'desc'}, it.desc),
         it.empunhavel ? el('div',{class:'meta'}, it.maos+' mão'+(it.maos>1?'s':'')+' — precisa ser empunhado pra dar o benefício') : null,
         el('div',{class:'row', style:'margin-top:8px;'},
@@ -1004,7 +1004,7 @@ function renderItensCompleto(){
     let list = POCOES_MAGICAS.filter(p => !itf.busca || p.nome.toLowerCase().includes(itf.busca.toLowerCase()));
     if(list.length===0) results.appendChild(el('div',{class:'empty'},'Nenhuma poção encontrada.'));
     list.slice().sort((a,b)=>a.preco-b.preco).forEach(p=>{
-      results.appendChild(renderItemColapsavel('pocao-'+p.nome, p.nome, p.circulo+'º círculo', [
+      results.appendChild(renderItemAcordeao('itens-pocoes', p.nome, p.nome, p.circulo+'º círculo', [
         el('div',{class:'desc'}, 'Contém a magia: '+p.magia),
         el('button',{class:'btn', style:'margin-top:8px;', onclick:()=>addItemMagicoGenerico(p.nome, 1)}, '+ Guardar na mochila')
       ]));
@@ -1023,14 +1023,14 @@ function renderItensCompleto(){
 
     if(!cat || cat==='Encantos de Arma'){
       ENCANTOS_ARMA.filter(e=>!busca || e.nome.toLowerCase().includes(busca)).forEach(e=>{
-        results.appendChild(renderItemColapsavel('encanto-arma-'+e.nome, e.nome, 'Encanto de Arma'+(e.dobraContagem?' (conta como 2)':''), [
+        results.appendChild(renderItemAcordeao('itens-magicos', 'encanto-arma-'+e.nome, e.nome, 'Encanto de Arma'+(e.dobraContagem?' (conta como 2)':''), [
           el('div',{class:'desc'}, e.efeito)
         ]));
       });
     }
     if(!cat || cat==='Armas Específicas'){
       ARMAS_ESPECIFICAS.filter(a=>!busca || a.nome.toLowerCase().includes(busca)).forEach(a=>{
-        results.appendChild(renderItemColapsavel('arma-esp-'+a.nome, a.nome, a.base, [
+        results.appendChild(renderItemAcordeao('itens-magicos', 'arma-esp-'+a.nome, a.nome, a.base, [
           el('div',{class:'desc'}, a.desc),
           el('button',{class:'btn', style:'margin-top:8px;', onclick:()=>addItemMagicoGenerico(a.nome, 1)}, '+ Guardar na mochila')
         ]));
@@ -1038,14 +1038,14 @@ function renderItensCompleto(){
     }
     if(!cat || cat==='Encantos de Armadura'){
       ENCANTOS_ARMADURA.filter(e=>!busca || e.nome.toLowerCase().includes(busca)).forEach(e=>{
-        results.appendChild(renderItemColapsavel('encanto-armadura-'+e.nome, e.nome, 'Encanto de Armadura'+(e.dobraContagem?' (conta como 2)':''), [
+        results.appendChild(renderItemAcordeao('itens-magicos', 'encanto-armadura-'+e.nome, e.nome, 'Encanto de Armadura'+(e.dobraContagem?' (conta como 2)':''), [
           el('div',{class:'desc'}, e.efeito)
         ]));
       });
     }
     if(!cat || cat==='Armaduras/Escudos Específicos'){
       ARMADURAS_ESPECIFICAS.filter(a=>!busca || a.nome.toLowerCase().includes(busca)).forEach(a=>{
-        results.appendChild(renderItemColapsavel('armadura-esp-'+a.nome, a.nome, a.base, [
+        results.appendChild(renderItemAcordeao('itens-magicos', 'armadura-esp-'+a.nome, a.nome, a.base, [
           el('div',{class:'desc'}, a.desc),
           el('button',{class:'btn', style:'margin-top:8px;', onclick:()=>addItemMagicoGenerico(a.nome, 1)}, '+ Guardar na mochila')
         ]));
@@ -1053,7 +1053,7 @@ function renderItensCompleto(){
     }
     if(!cat || cat==='Acessórios Menores'){
       ACESSORIOS_MENORES.filter(a=>!busca || a.nome.toLowerCase().includes(busca)).forEach(a=>{
-        results.appendChild(renderItemColapsavel('acessorio-menor-'+a.nome, a.nome, '', [
+        results.appendChild(renderItemAcordeao('itens-magicos', 'acessorio-menor-'+a.nome, a.nome, '', [
           el('div',{class:'desc'}, a.desc),
           el('button',{class:'btn', style:'margin-top:8px;', onclick:()=>addItemMagicoGenerico(a.nome, 1)}, '+ Guardar na mochila')
         ]));
@@ -1061,7 +1061,7 @@ function renderItensCompleto(){
     }
     if(!cat || cat==='Acessórios Médios'){
       ACESSORIOS_MEDIOS.filter(a=>!busca || a.nome.toLowerCase().includes(busca)).forEach(a=>{
-        results.appendChild(renderItemColapsavel('acessorio-medio-'+a.nome, a.nome, '', [
+        results.appendChild(renderItemAcordeao('itens-magicos', 'acessorio-medio-'+a.nome, a.nome, '', [
           el('div',{class:'desc'}, a.desc),
           el('button',{class:'btn', style:'margin-top:8px;', onclick:()=>addItemMagicoGenerico(a.nome, 1)}, '+ Guardar na mochila')
         ]));
@@ -1069,7 +1069,7 @@ function renderItensCompleto(){
     }
     if(!cat || cat==='Acessórios Maiores'){
       ACESSORIOS_MAIORES.filter(a=>!busca || a.nome.toLowerCase().includes(busca)).forEach(a=>{
-        results.appendChild(renderItemColapsavel('acessorio-maior-'+a.nome, a.nome, '', [
+        results.appendChild(renderItemAcordeao('itens-magicos', 'acessorio-maior-'+a.nome, a.nome, '', [
           el('div',{class:'desc'}, a.desc),
           el('button',{class:'btn', style:'margin-top:8px;', onclick:()=>addItemMagicoGenerico(a.nome, 1)}, '+ Guardar na mochila')
         ]));
@@ -1189,19 +1189,17 @@ function renderPericias(){
   if(!state._periciaBusca) state._periciaBusca = '';
   wrap.appendChild(el('input',{id:'busca-pericias', type:'text', placeholder:'buscar perícia...', value: state._periciaBusca, oninput:(e)=>{ state._periciaBusca=e.target.value; renderDebounced(); }}));
 
-  if(!state._periciasExpandidas) state._periciasExpandidas = {};
-
   const lista = PERICIAS.filter(p=> !state._periciaBusca || p.nome.toLowerCase().includes(state._periciaBusca.toLowerCase()));
   if(lista.length===0){
     wrap.appendChild(el('div',{class:'empty'},'Nenhuma perícia encontrada.'));
   }
   lista.forEach(p=>{
     const isTreinada = treinadas.has(p.nome);
-    const aberto = !!state._periciasExpandidas[p.nome];
+    const aberto = state._periciaAberta === p.nome;
     const valor = periciaValor(f, p);
     const nomeEl = el('div',{class:'pericia-nome'}, p.nome+' ');
     if(isTreinada) nomeEl.appendChild(el('span',{class:'pericia-estrela'},'★'));
-    const row = el('div',{class:'pericia-row'+(isTreinada?' treinada':''), onclick:()=>{ state._periciasExpandidas[p.nome]=!aberto; render(); }},
+    const row = el('div',{class:'pericia-row'+(isTreinada?' treinada':''), onclick:()=>{ state._periciaAberta = aberto ? null : p.nome; render(); }},
       el('div',{class:'pericia-total'}, (valor>=0?'+':'')+valor),
       el('div',{},
         nomeEl,
@@ -1247,12 +1245,12 @@ function renderCardMagia(s, grupoChave, aoAdicionar, aoRemover, fichaCtx){
   );
   if(!aberto) return card;
   card.appendChild(el('div',{class:'desc'}, s.d));
-  card.appendChild(el('div',{class:'tip', style:'font-size:0.85rem;'},
-    el('div',{}, el('b',{},'Execução: '), s.execucao||'—'),
-    el('div',{}, el('b',{},'Alcance: '), s.alcance||'—'),
-    el('div',{}, el('b',{},'Alvo/Área/Efeito: '), s.alvo||'—'),
-    el('div',{}, el('b',{},'Duração: '), s.duracao||'—'),
-    el('div',{}, el('b',{},'Resistência: '), s.resistencia||'—'),
+  card.appendChild(el('div',{class:'magia-info-grid'},
+    el('div',{}, el('span',{class:'magia-info-ico'},'⚡ Exec.'), el('span',{}, s.execucao||'—')),
+    el('div',{}, el('span',{class:'magia-info-ico'},'🎯 Alcance'), el('span',{}, s.alcance||'—')),
+    el('div',{}, el('span',{class:'magia-info-ico'},'🧿 Alvo'), el('span',{}, s.alvo||'—')),
+    el('div',{}, el('span',{class:'magia-info-ico'},'⏱ Duração'), el('span',{}, s.duracao||'—')),
+    el('div',{style:'grid-column:1/-1;'}, el('span',{class:'magia-info-ico'},'🛡 Resistência'), el('span',{}, s.resistencia||'—')),
   ));
   if(s.aprim && s.aprim.length>0){
     const aprimBox = el('div',{class:'tip'}, el('b',{},'Aprimoramentos'));
