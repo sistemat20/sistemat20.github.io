@@ -19,7 +19,7 @@ function fecharLevelUp(){
 
 function ctxFicha(f, classeQueEstaSubindo){
   const attrs = {for:f.for,des:f.des,con:f.con,int:f.int,sab:f.sab,car:f.car};
-  const pericias = new Set(f.periciasTreinadas||[]);
+  const pericias = periciasTreinadasComDivindade(f);
   const jaConjurador = (f.classesNiveis||[]).some(c=> CLASSES[c.classe] && CLASSES[c.classe].tradicao);
   const novaConjuradora = classeQueEstaSubindo && CLASSES[classeQueEstaSubindo] && CLASSES[classeQueEstaSubindo].tradicao;
   return {

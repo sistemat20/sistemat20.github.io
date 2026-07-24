@@ -38,6 +38,23 @@ function el(tag, attrs, ...children){
   return e;
 }
 
+// Ajusta a altura de uma textarea pro tamanho exato do conteúdo (sem barra de rolagem interna).
+function autoResizeTextarea(ta){
+  ta.style.height = 'auto';
+  ta.style.height = (ta.scrollHeight + 2) + 'px';
+}
+// Cria uma textarea que cresce sozinha pra baixo conforme o texto aumenta, em vez de ficar
+// com scroll interno numa caixinha fixa. Aceita os mesmos atributos de el('textarea', ...).
+function textareaAutoResize(attrs, valorInicial){
+  const attrsFinal = Object.assign({}, attrs, {
+    oninput:(e)=>{ if(attrs && attrs.oninput) attrs.oninput(e); autoResizeTextarea(e.target); },
+    style: (attrs && attrs.style ? attrs.style+';' : '') + 'resize:none;overflow-y:hidden;'
+  });
+  const ta = el('textarea', attrsFinal, valorInicial);
+  requestAnimationFrame(()=> autoResizeTextarea(ta));
+  return ta;
+}
+
 function custoPM(circulo){
   const tabela = {1:1, 2:3, 3:6, 4:10, 5:15};
   return tabela[circulo] || circulo*2;
@@ -173,6 +190,47 @@ function bonusPericiaDeRaca(f, periciaNome){
   return total;
 }
 
+// Poderes concedidos por divindade que dão bônus numérico INCONDICIONAL direto em perícias
+// específicas (os condicionais, que exigem gastar PM ou uma situação específica na mesa,
+// ficam só na descrição — o app não sabe o contexto da cena pra aplicar sozinho).
+const PODER_CONCEDIDO_BONUS_PERICIA = {
+  'Astúcia da Serpente': [['Enganação',2],['Furtividade',2],['Intuição',2]],
+  'Compreender os Ermos': [['Sobrevivência',2]],
+  'Golpista Divino': [['Enganação',2],['Jogatina',2],['Ladinagem',2]],
+  'Mente Analítica': [['Intuição',2],['Investigação',2],['Vontade',2]],
+  'Mente Vazia': [['Iniciativa',2],['Percepção',2],['Vontade',2]],
+  'Talento Artístico': [['Acrobacia',2],['Atuação',2],['Diplomacia',2]],
+};
+// Poderes concedidos por divindade que tornam o personagem treinado em perícia(s) — algumas são
+// fixas (sempre as mesmas), outras exigem escolha do jogador (guardada em f.poderConcedido.sub).
+const PODER_CONCEDIDO_TREINA_PERICIA_FIXA = {};
+const PODER_CONCEDIDO_TREINA_PERICIA_ESCOLHA = {
+  'Conhecimento Enciclopédico': { quantidade:2, filtroAttr:'Int', label:'Quais 2 perícias baseadas em Inteligência?' },
+};
+function bonusPericiaDeDivindade(f, periciaNome){
+  if(!f.poderConcedido || !f.poderConcedido.nome) return 0;
+  const regras = PODER_CONCEDIDO_BONUS_PERICIA[f.poderConcedido.nome];
+  if(!regras) return 0;
+  let total = 0;
+  regras.forEach(([alvo,valor])=>{ if(alvo===periciaNome) total += valor; });
+  return total;
+}
+// Retorna o conjunto EFETIVO de perícias treinadas, somando o que o poder concedido atual dá.
+// É calculado na hora (nunca gravado direto em f.periciasTreinadas), então trocar de divindade
+// ou de poder concedido nunca deixa treino "grudado" de uma escolha antiga, e escolher de novo
+// o mesmo poder nunca duplica nada.
+function periciasTreinadasComDivindade(f){
+  const set = new Set(f.periciasTreinadas||[]);
+  if(f.poderConcedido && f.poderConcedido.nome){
+    const fixa = PODER_CONCEDIDO_TREINA_PERICIA_FIXA[f.poderConcedido.nome];
+    if(fixa) fixa.forEach(p=>set.add(p));
+    if(PODER_CONCEDIDO_TREINA_PERICIA_ESCOLHA[f.poderConcedido.nome] && Array.isArray(f.poderConcedido.sub)){
+      f.poderConcedido.sub.forEach(p=>{ if(p) set.add(p); });
+    }
+  }
+  return set;
+}
+
 // Modificador de Furtividade por categoria de Tamanho (Tabela 1-21 do livro, pág. 107)
 const MODIFICADOR_FURTIVIDADE_TAMANHO = { 'Minúsculo':5, 'Pequeno':2, 'Médio':0, 'Grande':-2, 'Enorme':-5, 'Colossal':-10 };
 function bonusFurtividadeTamanho(f){
@@ -186,17 +244,18 @@ function periciaValor(f, p){
   const usaDesEmAtletismo = p.nome==='Atletismo' && racaObjPericia && racaObjPericia.atletismoUsaDestreza;
   const attrKey = usaDesEmAtletismo ? 'des' : (p.attr||'').toLowerCase().slice(0,3); // 'For'->'for','Des'->'des', etc.
   const attrVal = parseInt(f[attrKey])||0;
-  const treinada = (f.periciasTreinadas||[]).includes(p.nome);
+  const treinada = periciasTreinadasComDivindade(f).has(p.nome);
   const treino = treinada ? bonusTreinoPericia(nivel) : 0;
   const poderes = bonusPericiaDePoderes(f, p.nome);
   const itensVestidos = bonusPericiaDeItensVestidos(f, p.nome);
   const racaBonus = bonusPericiaDeRaca(f, p.nome);
+  const divindadeBonus = bonusPericiaDeDivindade(f, p.nome);
   const tamanhoBonus = (p.nome==='Furtividade') ? bonusFurtividadeTamanho(f) : 0;
   const penalidade = p.armadura ? penalidadeTotal(f) : 0; // penalidadeTotal já é negativa ou zero
   // Sem proficiência com a armadura/escudo equipado: a penalidade vale para TODA perícia de Força/Destreza
   // (não só as 3 marcadas com ‡), mesmo que a perícia normalmente não sofresse penalidade de armadura.
   const penalidadeExtra = (!p.armadura && (p.attr==='For' || p.attr==='Des')) ? penalidadeNaoProficienciaArmadura(f) : 0;
-  return metade + attrVal + treino + poderes + itensVestidos + racaBonus + tamanhoBonus + penalidade + penalidadeExtra;
+  return metade + attrVal + treino + poderes + itensVestidos + racaBonus + divindadeBonus + tamanhoBonus + penalidade + penalidadeExtra;
 }
 
 function bonusDefesaPoderes(f){
@@ -380,8 +439,16 @@ function ajustarPMTemp(f, delta){
 
 // Widget de PV/PM: uma caixa só. Mostra "máximo / atual". Toque na metade esquerda subtrai 1,
 // na direita soma 1 (sem passar do máximo nem ficar negativo). Barrinha de progresso discreta.
+// Escolhe uma faixa de cor pra barra de PV/PM conforme quanto ainda resta — dá pra "sentir" o
+// perigo numa olhada rápida, sem precisar ler o número.
+function faixaPerigoStat(pct){
+  if(pct <= 25) return 'critico';
+  if(pct <= 50) return 'atencao';
+  return 'saudavel';
+}
 function criarStatTracker(classeExtra, label, atual, max, onAjustar){
   const pct = max>0 ? Math.max(0, Math.min(100, (atual/max)*100)) : 0;
+  const faixa = faixaPerigoStat(pct);
   return el('div',{class:'stat-tracker '+classeExtra, onclick:(e)=>{
     const rect = e.currentTarget.getBoundingClientRect();
     const meio = rect.left + rect.width/2;
@@ -389,7 +456,7 @@ function criarStatTracker(classeExtra, label, atual, max, onAjustar){
   }},
     el('div',{class:'stat-nums'}, el('span',{class:'stat-max'}, max), el('span',{class:'stat-slash'},'/'), el('span',{class:'stat-atual'}, atual)),
     el('div',{class:'stat-label'}, label),
-    el('div',{class:'stat-bar'}, el('div',{class:'stat-bar-fill', style:'width:'+pct+'%;'})),
+    el('div',{class:'stat-bar'}, el('div',{class:'stat-bar-fill '+faixa, style:'width:'+pct+'%;'})),
     el('div',{class:'stat-hint'}, el('span',{},'−'), el('span',{},'+'))
   );
 }
@@ -714,10 +781,46 @@ async function carregarPerfis(){
 async function salvarPerfis(){
   await salvarPerfisArmazenamento(state.perfis);
 }
+// Personagens de TODOS os jogadores, só pras ferramentas do Mestre (iniciativa, grupo, tesouro).
+async function carregarPerfisTodosParaMestre(){
+  state.perfisTodos = await carregarTodosPersonagensMestre();
+}
+
+// ---- Modo Mesa (alto contraste) ----
+const CHAVE_TEMA = 'painel_aventureiro_tema';
+function aplicarTemaSalvo(){
+  try{
+    if(localStorage.getItem(CHAVE_TEMA) === 'mesa') document.documentElement.dataset.tema = 'mesa';
+  }catch(e){}
+}
+function alternarTemaMesa(){
+  const ativo = document.documentElement.dataset.tema === 'mesa';
+  if(ativo){ delete document.documentElement.dataset.tema; }
+  else{ document.documentElement.dataset.tema = 'mesa'; }
+  try{ localStorage.setItem(CHAVE_TEMA, ativo ? 'padrao' : 'mesa'); }catch(e){}
+  render();
+}
+function botaoTema(){
+  const ativo = document.documentElement.dataset.tema === 'mesa';
+  return el('button',{class:'btn ghost', style:'width:auto;flex-shrink:0;padding:6px 10px;background:transparent;border-color:#f4efe2;color:#f4efe2;', onclick:alternarTemaMesa, title:'Alternar Modo Mesa (alto contraste)'}, ativo?'☀️':'🌓');
+}
 
 async function iniciar(){
+  aplicarTemaSalvo();
   if(precisaCodigoJogador() && !obterCodigoJogador()){
     render(); // mostra a tela de código sem tentar carregar nada ainda
+    return;
+  }
+  if(precisaCodigoJogador() && ehCodigoMestre(obterCodigoJogador())){
+    // Reabrindo o app já logado como Mestre (código salvo de uma visita anterior) — vai
+    // direto pra tela de ferramentas do mestre, sem passar pela tela de "meus personagens".
+    state.screen = 'mestre';
+    state.mestreTab = 'bestiario';
+    state._carregandoInicial = true;
+    render();
+    await carregarPerfisTodosParaMestre();
+    state._carregandoInicial = false;
+    render();
     return;
   }
   // Mostra os personagens salvos localmente (se tiver uma cópia de uma visita anterior) na hora,
@@ -777,6 +880,11 @@ async function confirmarCodigoJogador(){
   definirCodigoJogador(codigo);
   if(ehCodigoMestre(codigo)){
     state.screen = 'mestre';
+    state.mestreTab = 'bestiario';
+    state._carregandoInicial = true;
+    render();
+    await carregarPerfisTodosParaMestre();
+    state._carregandoInicial = false;
     render();
     return;
   }
@@ -863,6 +971,7 @@ function render(){
 // ============ TELA DE PERFIS ============
 function renderPerfisScreen(){
   const wrap = el('div',{class:'perfis-screen'});
+  wrap.appendChild(el('div',{style:'align-self:flex-end;'}, botaoTema()));
   wrap.appendChild(el('div',{class:'tormenta-logo'}, 'Tormenta'));
   wrap.appendChild(el('div',{class:'perfis-title'},'Painel do Aventureiro'));
 

@@ -18,6 +18,9 @@ function renderMenuOverlay(){
       el('span',{class:'ico'}, ico), el('span',{}, label)
     ));
   });
+  sheet.appendChild(el('button',{class:'menu-item', onclick:alternarTemaMesa},
+    el('span',{class:'ico'}, document.documentElement.dataset.tema==='mesa'?'☀️':'🌓'), el('span',{}, document.documentElement.dataset.tema==='mesa'?'Modo Padrão':'Modo Mesa (alto contraste)')
+  ));
   sheet.appendChild(el('button',{class:'menu-close', onclick:()=>{ state._menuAberto=false; render(); }}, 'Fechar'));
   overlay.appendChild(sheet);
   return overlay;
@@ -70,6 +73,11 @@ function renderFichaScreen(){
   }
   if(state.levelUp && state.levelUp.aberto){
     wrap.appendChild(renderLevelUpPopup(fichaAtual()));
+  }
+  if(sobrecarregado(f) && !state._menuAberto && !state._divindadeFluxo && !state._cropperFoto && !(state.levelUp&&state.levelUp.aberto)){
+    wrap.appendChild(el('div',{class:'aviso-sobrecarga', onclick:()=>{ state.tab='personagem'; state.personagemTab='mochila'; render(); }},
+      '⚠ Sobrecarregado — toque pra ver a Mochila (−5 de penalidade, −3m de deslocamento já aplicados)'
+    ));
   }
 
   const main = el('main',{});
@@ -418,11 +426,17 @@ function renderPopupDivindade(f, fluxo){
       const aberto = state._poderExpandido === nomePoder;
       const item = el('button',{class:'menu-item'+(aberto?' active':''), onclick:()=>{
         if(aberto){
-          f.divindade = deus.nome;
-          f.poderConcedido = {nome: nomePoder, deus: deus.nome};
-          state._divindadeFluxo = null;
+          const escolhaInfo = PODER_CONCEDIDO_TREINA_PERICIA_ESCOLHA[nomePoder];
+          if(escolhaInfo){
+            state._divindadeFluxo = {passo:'escolhaPericia', deus:deus.nome, poder:nomePoder};
+            state._divindadeEscolhaSub = [];
+          } else {
+            f.divindade = deus.nome;
+            f.poderConcedido = {nome: nomePoder, deus: deus.nome};
+            state._divindadeFluxo = null;
+            salvarPerfis();
+          }
           state._poderExpandido = null;
-          salvarPerfis();
         } else {
           state._poderExpandido = nomePoder;
         }
@@ -435,6 +449,34 @@ function renderPopupDivindade(f, fluxo){
     });
     sheet.appendChild(el('div',{class:'tip', style:'margin:8px 14px;font-size:0.75rem;'}, 'Toque pra ver a descrição, toque de novo pra confirmar.'));
     sheet.appendChild(el('button',{class:'menu-close', onclick:()=>{ state._divindadeFluxo=null; state._poderExpandido=null; render(); }}, 'Cancelar'));
+  } else if(fluxo.passo==='escolhaPericia'){
+    const deus = DEUSES.find(d=>d.nome===fluxo.deus);
+    const escolhaInfo = PODER_CONCEDIDO_TREINA_PERICIA_ESCOLHA[fluxo.poder];
+    sheet.appendChild(el('div',{class:'wizard-title', style:'padding:6px 14px 0;'}, escolhaInfo.label));
+    if(!state._divindadeEscolhaSub) state._divindadeEscolhaSub = [];
+    const subGrid = el('div',{class:'option-grid', style:'margin:8px 14px;'});
+    PERICIAS.filter(p=> p.attr===escolhaInfo.filtroAttr).forEach(p=>{
+      const marcado = state._divindadeEscolhaSub.includes(p.nome);
+      subGrid.appendChild(el('button',{class:'option-card '+(marcado?'selected':''), onclick:()=>{
+        if(marcado){ state._divindadeEscolhaSub = state._divindadeEscolhaSub.filter(x=>x!==p.nome); }
+        else if(state._divindadeEscolhaSub.length < escolhaInfo.quantidade){ state._divindadeEscolhaSub = [...state._divindadeEscolhaSub, p.nome]; }
+        render();
+      }}, el('div',{class:'opt-nome'}, p.nome)));
+    });
+    sheet.appendChild(subGrid);
+    sheet.appendChild(el('div',{class:'tip', style:'margin:0 14px 8px;font-size:0.75rem;'}, state._divindadeEscolhaSub.length+' / '+escolhaInfo.quantidade+' escolhidas'));
+    const completo = state._divindadeEscolhaSub.length === escolhaInfo.quantidade;
+    sheet.appendChild(el('button',{class:'btn', style: 'margin:0 14px 8px; ' + (completo?'':'opacity:0.5;'), onclick:()=>{
+      if(!completo) return;
+      f.divindade = deus.nome;
+      f.poderConcedido = {nome: fluxo.poder, deus: deus.nome, sub: state._divindadeEscolhaSub.slice()};
+      state._divindadeFluxo = null;
+      state._poderExpandido = null;
+      state._divindadeEscolhaSub = null;
+      salvarPerfis();
+      render();
+    }}, 'Confirmar'));
+    sheet.appendChild(el('button',{class:'menu-close', onclick:()=>{ state._divindadeFluxo=null; state._poderExpandido=null; state._divindadeEscolhaSub=null; render(); }}, 'Cancelar'));
   }
   overlay.appendChild(sheet);
   return overlay;
@@ -454,8 +496,10 @@ function renderPersonagemFicha(){
       el('div',{class:'meta'}, f.foto ? 'Toque na foto pra trocar' : 'Toque pra adicionar uma foto')
     ),
     el('div',{class:'row'},
-      el('div',{}, el('label',{},'Jogador'), bindInput(f,'jogador')),
+      el('div',{style:'flex:1;'}, el('label',{},'Jogador'), bindInput(f,'jogador')),
+      el('div',{style:'flex:1;'}, el('label',{},'Mesa (código do Mestre)'), bindInput(f,'grupo')),
     ),
+    f.grupo ? null : el('div',{class:'meta', style:'font-size:0.68rem;margin-top:-6px;margin-bottom:8px;'}, 'Se seu Mestre roda mais de uma mesa nessa mesma planilha, peça o código da mesa pra ele e coloque aqui — assim as ferramentas dele (Grupo, Iniciativa, Tesouro) só mostram quem é dessa campanha.'),
     el('div',{class:'row'},
       el('div',{}, el('label',{},'Raça'), el('div',{class:'valor-fixo'}, f.raca||'—')),
       el('div',{}, el('label',{},'Origem'), el('div',{class:'valor-fixo'}, f.origem||'—')),
@@ -643,19 +687,17 @@ function renderPersonagemNotas(){
   if(!f.habilidadesIniciais || f.habilidadesIniciais.length===0){
     habPanel.appendChild(el('div',{class:'empty'},'Nada registrado ainda.'));
   } else {
-    const table = el('table',{class:'ataque-table'},
-      el('tr',{}, el('th',{},'Fonte'), el('th',{},'Habilidade'), el('th',{},'Descrição'))
-    );
-    f.habilidadesIniciais.forEach(h=>{
-      table.appendChild(el('tr',{}, el('td',{style:'white-space:nowrap;'}, h.fonte), el('td',{}, el('b',{},h.nome)), el('td',{}, h.desc)));
+    f.habilidadesIniciais.forEach((h, idx)=>{
+      habPanel.appendChild(renderItemColapsavel('habinicial-'+idx+'-'+h.nome, h.nome, h.fonte, [
+        el('div',{class:'desc'}, h.desc)
+      ]));
     });
-    habPanel.appendChild(el('div',{class:'table-scroll'}, table));
   }
   wrap.appendChild(habPanel);
 
   wrap.appendChild(el('div',{class:'panel'},
     el('h2',{},'Anotações'),
-    el('textarea',{oninput:(e)=>f.notas=e.target.value, placeholder:'magias preparadas, poderes escolhidos, tesouro, etc.'}, f.notas)
+    textareaAutoResize({oninput:(e)=>f.notas=e.target.value, placeholder:'magias preparadas, poderes escolhidos, tesouro, etc.'}, f.notas)
   ));
 
   return wrap;
@@ -961,10 +1003,10 @@ function renderItensCompleto(){
 // ---- ITENS (catálogo) ----
 // Card colapsável genérico para catálogos: mostra só nome + info curta por padrão,
 // e ao clicar expande descrição/avisos/botões — economiza espaço em listas longas.
-function renderItemColapsavel(chave, nomeExibido, metaTopo, corpoElementos){
+function renderItemColapsavel(chave, nomeExibido, metaTopo, corpoElementos, corAcento){
   if(!state._itensExpandidos) state._itensExpandidos = {};
   const aberto = !!state._itensExpandidos[chave];
-  const card = el('div',{class:'spell-card'},
+  const card = el('div',{class:'spell-card', style: corAcento ? ('border-left:4px solid '+corAcento+';') : ''},
     el('div',{class:'head', style:'cursor:pointer;', onclick:()=>{ state._itensExpandidos[chave]=!aberto; render(); }},
       el('span',{class:'name'}, nomeExibido),
       el('span',{class:'meta'}, metaTopo)
@@ -999,17 +1041,18 @@ function renderPainelCarga(f){
   const maxima = cargaMaxima(f);
   const passouLimite = usada > limite;
   const passouMaxima = usada > maxima;
-  let estado, cor;
+  let estado, cor, faixa;
   if(passouMaxima){
     estado = 'Você não pode carregar tudo isso! O máximo absoluto para sua Força é '+maxima+' espaços — remova itens.';
-    cor = 'var(--red-bright)';
+    cor = 'var(--red-bright)'; faixa = 'critico';
   } else if(passouLimite){
     estado = 'Sobrecarregado: −5 de penalidade de armadura (afeta Acrobacia, Furtividade e Ladinagem) e −3m de deslocamento — já aplicado automaticamente.';
-    cor = 'var(--gold)';
+    cor = 'var(--gold)'; faixa = 'atencao';
   } else {
     estado = 'Dentro do limite, sem penalidades.';
-    cor = 'var(--ink-soft)';
+    cor = 'var(--ink-soft)'; faixa = 'saudavel';
   }
+  const pct = maxima>0 ? Math.max(0, Math.min(100, (usada/maxima)*100)) : 0;
   return el('div',{class:'panel'},
     el('h2',{},'Carga'),
     el('div',{class:'row3'},
@@ -1017,6 +1060,7 @@ function renderPainelCarga(f){
       el('div',{class:'attr-box'}, el('div',{class:'lbl'},'Limite'), el('div',{style:'font-weight:800;'}, limite)),
       el('div',{class:'attr-box'}, el('div',{class:'lbl'},'Máxima'), el('div',{style:'font-weight:800;'}, maxima)),
     ),
+    el('div',{class:'stat-bar', style:'margin-top:8px;'}, el('div',{class:'stat-bar-fill '+faixa, style:'width:'+pct+'%;'})),
     el('div',{style:'margin-top:8px;color:'+cor+';font-size:0.8rem;font-weight:600;'}, estado),
     el('div',{style:'margin-top:4px;font-size:0.7rem;color:var(--ink-soft);'}, 'Limite = 10 + 2×Força (ou 10 − Força, se negativa). Máxima = limite × 2 (regra do livro, pág. 146).')
   );
@@ -1052,7 +1096,7 @@ function renderPainelVestidos(f){
 function renderPericias(){
   const wrap = el('div',{});
   const f = fichaAtual();
-  const treinadas = new Set(f.periciasTreinadas||[]);
+  const treinadas = periciasTreinadasComDivindade(f);
   const nivel = nivelTotal(f);
 
   wrap.appendChild(el('div',{class:'tip'},
@@ -1087,8 +1131,9 @@ function renderPericias(){
     const wrapRow = el('div',{}, row);
     if(aberto){
       const bonusPoder = bonusPericiaDePoderes(f, p.nome);
+      const bonusDivindade = bonusPericiaDeDivindade(f, p.nome);
       const detalhe = el('div',{class:'tip', style:'margin-top:-4px;margin-bottom:8px;'},
-        el('div',{}, el('b',{},'Cálculo: '), '1/2 nível ('+Math.floor(nivel/2)+') + '+p.attr+' ('+(parseInt(f[p.attr.toLowerCase()])||0)+')'+(isTreinada?' + treino ('+bonusTreinoPericia(nivel)+')':'')+(bonusPoder?' + poderes ('+bonusPoder+')':'')+(bonusPericiaDeRaca(f,p.nome)?' + raça ('+bonusPericiaDeRaca(f,p.nome)+')':'')+(p.nome==='Furtividade'&&bonusFurtividadeTamanho(f)?' + tamanho ('+bonusFurtividadeTamanho(f)+')':'')+(p.armadura && penalidadeTotal(f)?' + penalidade de armadura ('+penalidadeTotal(f)+')':'')+' = '+valor),
+        el('div',{}, el('b',{},'Cálculo: '), '1/2 nível ('+Math.floor(nivel/2)+') + '+p.attr+' ('+(parseInt(f[p.attr.toLowerCase()])||0)+')'+(isTreinada?' + treino ('+bonusTreinoPericia(nivel)+')':'')+(bonusPoder?' + poderes ('+bonusPoder+')':'')+(bonusPericiaDeRaca(f,p.nome)?' + raça ('+bonusPericiaDeRaca(f,p.nome)+')':'')+(bonusDivindade?' + divindade ('+bonusDivindade+')':'')+(p.nome==='Furtividade'&&bonusFurtividadeTamanho(f)?' + tamanho ('+bonusFurtividadeTamanho(f)+')':'')+(p.armadura && penalidadeTotal(f)?' + penalidade de armadura ('+penalidadeTotal(f)+')':'')+' = '+valor),
         el('div',{class:'desc', style:'margin-top:6px;'}, p.resumo),
         el('div',{style:'margin-top:6px;'}, el('b',{},'Principais usos:'), ...p.usos.map(u=> el('div',{style:'margin-top:2px;'}, '• '+u)))
       );

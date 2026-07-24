@@ -243,7 +243,13 @@ function validarStep(stepId, w){
   }
   if(stepId==='divindade'){
     if(!w.divindadeNome) return true; // seguir sem fé é uma escolha válida
-    return !!w.poderConcedidoEscolhido;
+    if(!w.poderConcedidoEscolhido) return false;
+    const escolhaInfo = PODER_CONCEDIDO_TREINA_PERICIA_ESCOLHA[w.poderConcedidoEscolhido];
+    if(escolhaInfo){
+      const sub = w.poderConcedidoEscolhaSub||[];
+      if(sub.filter(Boolean).length !== escolhaInfo.quantidade) return false;
+    }
+    return true;
   }
   return true;
 }
@@ -256,6 +262,9 @@ function stepNome(w){
     el('input',{type:'text', value:w.nome, oninput:(e)=>{w.nome=e.target.value; sincronizarBotaoWizard();}}),
     el('label',{},'Seu nome (jogador)'),
     el('input',{type:'text', value:w.jogador, oninput:(e)=>{w.jogador=e.target.value;}}),
+    el('label',{},'Mesa (código do Mestre) — opcional'),
+    el('input',{type:'text', placeholder:'peça pro seu mestre, se ele usar', value:w.grupo||'', oninput:(e)=>{w.grupo=e.target.value;}}),
+    el('div',{class:'meta', style:'font-size:0.7rem;'}, 'Se o seu Mestre roda mais de uma mesa na mesma planilha, esse código separa sua ficha das outras campanhas nas ferramentas dele. Se não souber, pode deixar em branco e preencher depois.'),
   );
 }
 
@@ -732,13 +741,13 @@ function stepDivindade(w){
   } else {
     const deus = DEUSES.find(d=>d.nome===w.divindadeNome);
     wrap.appendChild(el('div',{class:'identidade-nome'}, 'Devoto de '+deus.nome));
-    wrap.appendChild(el('button',{class:'btn ghost', style:'margin-bottom:12px;', onclick:()=>{ w.divindadeNome=''; w.poderConcedidoEscolhido=null; render(); }}, 'Trocar divindade'));
+    wrap.appendChild(el('button',{class:'btn ghost', style:'margin-bottom:12px;', onclick:()=>{ w.divindadeNome=''; w.poderConcedidoEscolhido=null; w.poderConcedidoEscolhaSub=[]; render(); }}, 'Trocar divindade'));
     const podPanel = el('div',{class:'panel'}, el('h2',{},'Escolha o poder concedido'));
     const grid = el('div',{class:'option-grid'});
     deus.poderes.forEach(nomePoder=>{
       const info = PODERES_CONCEDIDOS.find(p=>p.nome===nomePoder);
       const aberto = w._poderExpandido === nomePoder;
-      const card = el('button',{class:'option-card '+(w.poderConcedidoEscolhido===nomePoder?'selected':''), onclick:()=>{ w.poderConcedidoEscolhido=nomePoder; w._poderExpandido=nomePoder; render(); }},
+      const card = el('button',{class:'option-card '+(w.poderConcedidoEscolhido===nomePoder?'selected':''), onclick:()=>{ w.poderConcedidoEscolhido=nomePoder; w._poderExpandido=nomePoder; w.poderConcedidoEscolhaSub=[]; render(); }},
         el('div',{class:'opt-nome'}, nomePoder)
       );
       if(aberto) card.appendChild(el('div',{class:'opt-sub'}, info?info.desc:''));
@@ -746,6 +755,24 @@ function stepDivindade(w){
     });
     podPanel.appendChild(grid);
     wrap.appendChild(podPanel);
+
+    const escolhaInfo = w.poderConcedidoEscolhido ? PODER_CONCEDIDO_TREINA_PERICIA_ESCOLHA[w.poderConcedidoEscolhido] : null;
+    if(escolhaInfo){
+      if(!w.poderConcedidoEscolhaSub) w.poderConcedidoEscolhaSub = [];
+      const subPanel = el('div',{class:'panel'}, el('h2',{}, escolhaInfo.label));
+      const subGrid = el('div',{class:'option-grid'});
+      PERICIAS.filter(p=> p.attr===escolhaInfo.filtroAttr).forEach(p=>{
+        const marcado = w.poderConcedidoEscolhaSub.includes(p.nome);
+        subGrid.appendChild(el('button',{class:'option-card '+(marcado?'selected':''), onclick:()=>{
+          if(marcado){ w.poderConcedidoEscolhaSub = w.poderConcedidoEscolhaSub.filter(x=>x!==p.nome); }
+          else if(w.poderConcedidoEscolhaSub.length < escolhaInfo.quantidade){ w.poderConcedidoEscolhaSub = [...w.poderConcedidoEscolhaSub, p.nome]; }
+          render();
+        }}, el('div',{class:'opt-nome'}, p.nome)));
+      });
+      subPanel.appendChild(subGrid);
+      subPanel.appendChild(el('div',{class:'meta', style:'font-size:0.75rem;color:var(--ink-soft);margin-top:6px;'}, w.poderConcedidoEscolhaSub.length+' / '+escolhaInfo.quantidade+' escolhidas'));
+      wrap.appendChild(subPanel);
+    }
   }
   return wrap;
 }
@@ -786,10 +813,10 @@ async function finalizarCriacao(){
   const racaObj = RACAS.find(r=>r.nome===w.racaNome);
   const f = fichaVazia();
   f.id = uid();
-  f.jogador = w.jogador; f.nome = w.nome;
+  f.jogador = w.jogador; f.nome = w.nome; f.grupo = (w.grupo||'').trim();
   f.raca = w.racaNome; f.origem = w.origemNome || '(sem origem)';
   f.divindade = w.divindadeNome || '';
-  f.poderConcedido = w.poderConcedidoEscolhido ? {nome: w.poderConcedidoEscolhido, deus: w.divindadeNome} : null;
+  f.poderConcedido = w.poderConcedidoEscolhido ? {nome: w.poderConcedidoEscolhido, deus: w.divindadeNome, sub: (w.poderConcedidoEscolhaSub||[]).slice()} : null;
   f.classesNiveis = [{classe:w.classeNome, nivel:1}];
   f.for=finais.for; f.des=finais.des; f.con=finais.con; f.int=finais.int; f.sab=finais.sab; f.car=finais.car;
   f.deslocamento = racaObj ? racaObj.deslocamento : 9;

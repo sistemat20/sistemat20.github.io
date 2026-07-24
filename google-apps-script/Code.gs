@@ -60,6 +60,9 @@ function autorizarAcessoAoDrive() {
 }
 
 // GET /exec?playerId=XXXX — devolve todos os personagens ligados a esse código de acesso
+// GET /exec?mestre=true — devolve TODOS os personagens de TODOS os jogadores (uso exclusivo das
+// ferramentas do Mestre: rastreador de iniciativa, visão geral do grupo, envio de tesouro).
+// Cada personagem vem com um campo extra "_playerId" indicando o dono, pra saber pra quem escrever depois.
 function doGet(e) {
   if (!e || !e.parameter) {
     // Rodou pelo botão "Executar" do editor, sem uma requisição de verdade por trás.
@@ -68,12 +71,29 @@ function doGet(e) {
       .setMimeType(ContentService.MimeType.JSON);
   }
   const sheet = getOuCriarAba_();
+  const dados = sheet.getDataRange().getValues();
+
+  if (String(e.parameter.mestre || '').trim() === 'true') {
+    const todos = [];
+    for (let i = 1; i < dados.length; i++) {
+      const linha = dados[i];
+      if (linha[3]) {
+        try {
+          const personagem = JSON.parse(linha[3]);
+          personagem._playerId = String(linha[1]);
+          todos.push(personagem);
+        } catch (err) { /* linha corrompida, ignora */ }
+      }
+    }
+    return ContentService.createTextOutput(JSON.stringify({ ok: true, personagens: todos }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
   const playerId = (e.parameter.playerId || '').trim();
   if (!playerId) {
     return ContentService.createTextOutput(JSON.stringify({ ok: false, erro: 'playerId ausente' }))
       .setMimeType(ContentService.MimeType.JSON);
   }
-  const dados = sheet.getDataRange().getValues();
   const personagens = [];
   for (let i = 1; i < dados.length; i++) {
     const linha = dados[i];
@@ -98,6 +118,10 @@ function doPost(e) {
 
   if (body.action === 'uploadFoto') {
     return tratarUploadFoto_(body);
+  }
+
+  if (body.action === 'mestreAtualizarPersonagem') {
+    return tratarMestreAtualizarPersonagem_(body);
   }
 
   const sheet = getOuCriarAba_();
@@ -125,6 +149,36 @@ function doPost(e) {
 
   return ContentService.createTextOutput(JSON.stringify({ ok: true, salvos: personagens.length }))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+// Ação exclusiva do Mestre: atualiza o DadosJSON de UM personagem específico, de QUALQUER
+// jogador, sem precisar do código de acesso dele — encontra a linha pelo ID do personagem.
+// Corpo esperado: { action: "mestreAtualizarPersonagem", personagemId: "...", dadosJSON: {...} }
+// Usado por exemplo pra mandar tesouro/loot direto pra mochila de um jogador específico.
+function tratarMestreAtualizarPersonagem_(body) {
+  try {
+    const personagemId = String(body.personagemId || '').trim();
+    if (!personagemId) {
+      return ContentService.createTextOutput(JSON.stringify({ ok: false, erro: 'personagemId ausente' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    const sheet = getOuCriarAba_();
+    const dados = sheet.getDataRange().getValues();
+    for (let i = 1; i < dados.length; i++) {
+      if (String(dados[i][0]) === personagemId) {
+        const novoJSON = JSON.stringify(body.dadosJSON);
+        sheet.getRange(i + 1, 4).setValue(novoJSON); // coluna D = DadosJSON
+        sheet.getRange(i + 1, 5).setValue(new Date()); // coluna E = AtualizadoEm
+        return ContentService.createTextOutput(JSON.stringify({ ok: true }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+    }
+    return ContentService.createTextOutput(JSON.stringify({ ok: false, erro: 'personagem não encontrado' }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ ok: false, erro: String(err) }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
 }
 
 function tratarUploadFoto_(body) {

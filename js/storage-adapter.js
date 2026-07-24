@@ -128,3 +128,54 @@ function carregarDoLocalStorage(){
 function salvarNoLocalStorage(perfis){
   try{ localStorage.setItem('painel_aventureiro_perfis', JSON.stringify(perfis)); }catch(e){ /* ignora */ }
 }
+
+// ---- Ferramentas do Mestre: ver e editar personagens de QUALQUER jogador ----
+// No modo planilha, isso chama um endpoint separado do backend (?mestre=true) que ignora o
+// isolamento por código de acesso. No modo Claude não existe separação por jogador nenhuma —
+// todo mundo já divide o mesmo "perfis" — então só devolve a lista normal, com um dono genérico.
+async function carregarTodosPersonagensMestre(){
+  if(usandoStorageDoClaude()){
+    const lista = await carregarPerfisArmazenamento();
+    return lista.map(p=> Object.assign({}, p, {_playerId: p._playerId || 'local'}));
+  }
+  if(SHEETS_API_URL){
+    try{
+      const resp = await fetch(SHEETS_API_URL + '?mestre=true');
+      const data = await resp.json();
+      if(data && data.ok) return data.personagens || [];
+      return [];
+    }catch(e){
+      console.error('Falha ao carregar personagens de todos os jogadores.', e);
+      return [];
+    }
+  }
+  return [];
+}
+
+// Atualiza (ou cria) UM personagem específico, direto do Mestre, sem precisar do código do dono.
+async function mestreAtualizarPersonagem(personagem){
+  const copia = Object.assign({}, personagem);
+  delete copia._playerId; // campo interno só de leitura, não faz parte da ficha em si
+  if(usandoStorageDoClaude()){
+    const lista = await carregarPerfisArmazenamento();
+    const idx = lista.findIndex(p=>p.id===copia.id);
+    if(idx>=0) lista[idx] = copia; else lista.push(copia);
+    await salvarPerfisArmazenamento(lista);
+    return true;
+  }
+  if(SHEETS_API_URL){
+    try{
+      const resp = await fetch(SHEETS_API_URL, {
+        method: 'POST',
+        headers: {'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify({ action:'mestreAtualizarPersonagem', personagemId: copia.id, dadosJSON: copia })
+      });
+      const data = await resp.json();
+      return !!(data && data.ok);
+    }catch(e){
+      console.error('Falha ao mandar atualização de personagem via Mestre.', e);
+      return false;
+    }
+  }
+  return false;
+}

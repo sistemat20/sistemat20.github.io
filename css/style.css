@@ -17,6 +17,23 @@
     --line: rgba(166,129,47,0.32);
     --shadow: rgba(0,0,0,0.5);
   }
+  /* "Modo Mesa": alto contraste pra jogar com pouca luz na mesa física, sem precisar forçar a
+     vista pra ler dourado sobre marrom-escuro por horas. Preto puro + branco + amarelo vivo. */
+  [data-tema="mesa"]{
+    --bg: #000000;
+    --bg-2: #000000;
+    --ink: #ffffff;
+    --ink-soft: #d8d8d8;
+    --red: #ff4438;
+    --red-deep: #cc2018;
+    --red-bright: #ff6a5c;
+    --gold: #ffd700;
+    --gold-deep: #ffb700;
+    --card: rgba(24,24,24,0.96);
+    --card-2: rgba(10,10,10,0.98);
+    --line: rgba(255,215,0,0.55);
+    --shadow: rgba(0,0,0,0.85);
+  }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0; overflow-x:hidden; width:100%;}
   body{
@@ -53,6 +70,13 @@
     text-shadow:0 2px 0 rgba(0,0,0,0.5);
   }
   header.top .sub{font-family:'Cormorant Garamond',serif; font-size:1.05rem; opacity:0.85; margin-top:4px; font-style:italic; color:var(--gold);}
+.aviso-sobrecarga{
+  background:linear-gradient(90deg, rgba(224,69,58,0.22), rgba(224,69,58,0.1));
+  border-bottom:1px solid var(--red-bright);
+  color:#ffd8d0; text-align:center; font-size:0.78rem; font-weight:700;
+  padding:8px 14px; cursor:pointer;
+}
+.aviso-sobrecarga:active{ opacity:0.8; }
 
   /* ===== Menu principal (substitui a antiga barra de abas fixa) ===== */
   .menu-trigger{
@@ -480,10 +504,21 @@
 .stat-tracker.pm .stat-nums .stat-atual{ color:#9cc7e8; }
 .stat-hint{ display:flex; justify-content:space-between; padding:0 4px; margin-top:4px; opacity:0.45; pointer-events:none; }
 .stat-hint span{ font-family:'Cinzel',serif; font-weight:800; font-size:0.85rem; color:var(--gold); }
-.stat-bar{ height:3px; border-radius:2px; background:rgba(255,255,255,0.08); margin-top:6px; overflow:hidden; }
-.stat-bar-fill{ height:100%; border-radius:2px; transition:width 200ms ease; }
-.stat-tracker.pv .stat-bar-fill{ background:linear-gradient(90deg, #6fae4e, #9bd67a); }
-.stat-tracker.pm .stat-bar-fill{ background:linear-gradient(90deg, #3d7ea6, #6fb3e0); }
+.stat-bar{ height:7px; border-radius:4px; background:rgba(255,255,255,0.08); margin-top:6px; overflow:hidden; box-shadow:inset 0 1px 2px rgba(0,0,0,0.4); }
+.iniciativa-timeline{ display:flex; gap:8px; overflow-x:auto; padding:4px 2px 10px; margin-bottom:8px; -webkit-overflow-scrolling:touch; }
+.iniciativa-chip{
+  flex-shrink:0; width:64px; display:flex; flex-direction:column; align-items:center; gap:2px;
+  background:var(--card-2); border:1px solid var(--line); border-radius:10px; padding:6px 4px; cursor:pointer;
+}
+.iniciativa-chip.atual{ border-color:var(--red-bright); box-shadow:0 0 0 1px var(--red-bright) inset, 0 0 10px rgba(224,69,58,0.4); }
+.iniciativa-chip-icone{ font-size:1.2rem; }
+.iniciativa-chip-nome{ font-size:0.62rem; font-family:'Cinzel',serif; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:56px; }
+.iniciativa-chip-num{ font-size:0.7rem; font-weight:800; color:var(--gold); }
+.stat-bar-fill{ height:100%; border-radius:4px; transition:width 200ms ease, background 200ms ease; }
+.stat-bar-fill.saudavel{ background:linear-gradient(90deg, #4a8a3a, #7fc45f); }
+.stat-bar-fill.atencao{ background:linear-gradient(90deg, #b8862e, #e0b04a); }
+.stat-bar-fill.critico{ background:linear-gradient(90deg, #8a2020, #e0453a); box-shadow:0 0 8px rgba(224,69,58,0.6); animation: pulso-critico 1.4s ease-in-out infinite; }
+@keyframes pulso-critico{ 0%,100%{ opacity:1; } 50%{ opacity:0.6; } }
 
 /* Barra de PV/PM temporário — discreta, some quando zero */
 .stat-temp-row{ display:flex; gap:10px; margin-bottom:14px; }
