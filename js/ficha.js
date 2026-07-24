@@ -986,7 +986,13 @@ function renderItensCompleto(){
 
     let list = itensDisponiveis.filter(i => (itf.categoria==='todas'||i.cat===itf.categoria) && (!itf.busca || i.n.toLowerCase().includes(itf.busca.toLowerCase())));
     if(list.length===0) results.appendChild(el('div',{class:'empty'},'Nenhum item encontrado.'));
+    list = list.slice().sort((a,b)=> a.cat.localeCompare(b.cat) || a.n.localeCompare(b.n));
+    let ultimaCategoria = null;
     list.forEach(it=>{
+      if(itf.categoria==='todas' && it.cat!==ultimaCategoria){
+        ultimaCategoria = it.cat;
+        results.appendChild(el('div',{class:'lista-secao-titulo'}, it.cat));
+      }
       results.appendChild(renderItemAcordeao('itens-gerais', it.n, it.n+(it.vestivel?' 👕':'')+(it.empunhavel?' 🎻':''), it.cat, [
         el('div',{class:'desc'}, it.desc),
         it.empunhavel ? el('div',{class:'meta'}, it.maos+' mão'+(it.maos>1?'s':'')+' — precisa ser empunhado pra dar o benefício') : null,
@@ -1373,7 +1379,12 @@ function renderMagias(){
   if(list.length===0){
     results.appendChild(el('div',{class:'empty'},'Nenhuma magia encontrada com esses filtros.'));
   } else {
+    let ultimoCirculo = null;
     list.forEach(s=>{
+      if(mf.circulo==='todos' && s.c!==ultimoCirculo){
+        ultimoCirculo = s.c;
+        results.appendChild(el('div',{class:'lista-secao-titulo'}, s.c+'º Círculo'));
+      }
       results.appendChild(renderCardMagia(s, 'lista', ()=>addMagiaFicha(s, mf.trad)));
     });
   }

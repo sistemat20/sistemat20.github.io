@@ -283,6 +283,11 @@
 
   ::placeholder{color:#8a7a5c;}
   .empty{text-align:center; color:var(--ink-soft); font-family:'Cormorant Garamond',serif; font-size:1.1rem; padding:20px 0;}
+  .lista-secao-titulo{
+    font-family:'Cinzel',serif; font-size:0.72rem; text-transform:uppercase; letter-spacing:0.06em;
+    color:var(--gold); border-bottom:1px solid var(--line); padding:10px 2px 4px; margin-top:6px;
+  }
+  .lista-secao-titulo:first-child{ margin-top:0; }
   .valor-fixo{ padding:9px 0 8px; font-weight:700; margin-bottom:10px; }
 
   .foto-upload{

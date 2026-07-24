@@ -570,9 +570,16 @@ function fichaVazia(){
 
 // Helpers de classe/nível (multiclasse)
 function nivelTotal(f){ return (f.classesNiveis||[]).reduce((s,c)=>s+c.nivel,0) || 1; }
+// Um ícone por classe, só pra dar identidade visual rápida na ficha — puramente estético.
+const ICONE_CLASSE = {
+  'Arcanista':'🔮', 'Bárbaro':'🪓', 'Bardo':'🎵', 'Bucaneiro':'🏴‍☠️', 'Caçador':'🏹',
+  'Cavaleiro':'🐴', 'Clérigo':'🙏', 'Druida':'🌿', 'Guerreiro':'⚔️', 'Inventor':'⚙️',
+  'Ladino':'🗡️', 'Lutador':'👊', 'Nobre':'👑', 'Paladino':'🛡️',
+};
+function iconeClasse(nomeClasse){ return ICONE_CLASSE[nomeClasse] || '✦'; }
 function classeDisplay(f){
   if(!f.classesNiveis || f.classesNiveis.length===0) return '—';
-  return f.classesNiveis.map(c=>c.classe+' '+c.nivel).join(' / ');
+  return f.classesNiveis.map(c=>iconeClasse(c.classe)+' '+c.classe+' '+c.nivel).join(' / ');
 }
 function primeiraClasse(f){ return f.classesNiveis && f.classesNiveis[0] ? f.classesNiveis[0].classe : null; }
 

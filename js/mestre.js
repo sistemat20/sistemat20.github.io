@@ -357,6 +357,106 @@ function renderEncontroAleatorio(combate){
   return panel;
 }
 
+// ---- BIBLIOTECA DE ENCONTROS SALVOS (+ construtor manual) ----
+// O Mestre monta um encontro escolhendo criaturas do bestiário (com quantidade cada), dá um
+// nome, e salva — fica guardado só no navegador dele (localStorage), pra usar em qualquer sessão
+// futura sem precisar montar tudo de novo. "Usar agora" joga tudo direto na Iniciativa atual.
+const CHAVE_MESTRE_ENCONTROS = 'painel_aventureiro_mestre_encontros';
+function carregarEncontrosSalvos(){
+  if(state._mestreEncontrosSalvos) return;
+  try{
+    const raw = localStorage.getItem(CHAVE_MESTRE_ENCONTROS);
+    state._mestreEncontrosSalvos = raw ? JSON.parse(raw) : [];
+  }catch(e){ state._mestreEncontrosSalvos = []; }
+}
+function salvarEncontrosLocal(){
+  try{ localStorage.setItem(CHAVE_MESTRE_ENCONTROS, JSON.stringify(state._mestreEncontrosSalvos||[])); }catch(e){}
+}
+
+function renderEncontrosSalvos(combate){
+  carregarEncontrosSalvos();
+  const wrap = el('div',{class:'panel'}, el('h2',{},'Encontros Salvos'));
+
+  if(state._mestreEncontroRascunho){
+    // ---- Modo construtor: montando um encontro novo ----
+    const rasc = state._mestreEncontroRascunho;
+    wrap.appendChild(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Busque criaturas do bestiário inteiro e monte a combinação que quiser. Dá pra repetir a mesma criatura (ex: 3 goblins).'));
+    wrap.appendChild(el('label',{},'Nome do encontro'));
+    wrap.appendChild(el('input',{id:'nome-encontro-rascunho', type:'text', placeholder:'ex: Emboscada de Goblins', value:rasc.nome, oninput:(e)=>{rasc.nome=e.target.value;}}));
+
+    if(rasc.criaturas.length>0){
+      wrap.appendChild(el('div',{class:'meta', style:'margin-top:8px;'}, 'Nesse encontro:'));
+      rasc.criaturas.forEach((c,idx)=>{
+        wrap.appendChild(el('div',{class:'row', style:'align-items:center;margin-top:4px;'},
+          el('div',{style:'flex:1;'}, c.nome+' (ND '+ndTexto(c.nd)+')'),
+          el('button',{class:'remove-x', onclick:()=>{ rasc.criaturas.splice(idx,1); render(); }},'✕')
+        ));
+      });
+    }
+
+    if(!state._mestreEncontroRascunhoBusca) state._mestreEncontroRascunhoBusca = '';
+    wrap.appendChild(el('input',{id:'busca-encontro-rascunho', type:'text', placeholder:'buscar criatura pra adicionar...', style:'margin-top:10px;', value:state._mestreEncontroRascunhoBusca, oninput:(e)=>{state._mestreEncontroRascunhoBusca=e.target.value; renderDebounced();}}));
+    if(state._mestreEncontroRascunhoBusca.length>=2){
+      const encontrados = todasCriaturasCompletas().filter(m=> m.nome.toLowerCase().includes(state._mestreEncontroRascunhoBusca.toLowerCase())).slice(0,8);
+      encontrados.forEach(m=>{
+        wrap.appendChild(el('button',{class:'option-card', style:'width:100%;margin-top:6px;text-align:left;border-left:4px solid '+corPorTipoCriatura(m.tipo)+';', onclick:()=>{
+          rasc.criaturas.push({nome:m.nome, nd:m.nd, pv:m.pv, sentidos:m.sentidos});
+          state._mestreEncontroRascunhoBusca='';
+          render();
+        }},
+          el('div',{class:'opt-nome'}, m.nome),
+          el('div',{class:'opt-sub'}, 'ND '+ndTexto(m.nd)+' · PV '+m.pv)
+        ));
+      });
+      if(encontrados.length===0) wrap.appendChild(el('div',{class:'empty'},'Nenhuma criatura encontrada.'));
+    }
+
+    wrap.appendChild(el('div',{class:'row', style:'margin-top:12px;'},
+      el('button',{class:'btn', onclick:()=>{
+        if(!rasc.nome.trim() || rasc.criaturas.length===0) return;
+        state._mestreEncontrosSalvos.push({id:'enc'+Date.now(), nome:rasc.nome.trim(), criaturas:rasc.criaturas});
+        salvarEncontrosLocal();
+        state._mestreEncontroRascunho = null;
+        render();
+      }}, 'Salvar Encontro'),
+      el('button',{class:'btn ghost', onclick:()=>{ state._mestreEncontroRascunho=null; render(); }}, 'Cancelar')
+    ));
+    return wrap;
+  }
+
+  // ---- Modo normal: lista de encontros salvos + botão de montar um novo ----
+  if(state._mestreEncontrosSalvos.length===0){
+    wrap.appendChild(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Nenhum encontro salvo ainda. Monte um escolhendo criaturas do bestiário — depois é só usar de novo sem precisar montar tudo outra vez.'));
+  }
+  state._mestreEncontrosSalvos.forEach(enc=>{
+    const ndTotal = enc.criaturas.reduce((s,c)=>s+ (c.nd===20.5?20:c.nd), 0);
+    wrap.appendChild(el('div',{class:'row', style:'align-items:center;margin-top:6px;'},
+      el('div',{style:'flex:1;'},
+        el('div',{style:'font-weight:700;'}, enc.nome),
+        el('div',{class:'meta'}, enc.criaturas.length+' criatura'+(enc.criaturas.length>1?'s':'')+': '+enc.criaturas.map(c=>c.nome).join(', '))
+      ),
+      el('button',{class:'btn ghost', style:'width:auto;padding:6px 12px;flex-shrink:0;', onclick:()=>{
+        enc.criaturas.forEach(c=>{
+          const bonus = extrairBonusIniciativa(c.sentidos);
+          combate.combatentes.push(novoCombatente(c.nome, 'monstro', bonus, c.pv, c.pv));
+        });
+        render();
+      }}, 'Usar agora ⚔️'),
+      el('button',{class:'remove-x', onclick:()=>{
+        if(!confirm('Excluir o encontro "'+enc.nome+'"?')) return;
+        state._mestreEncontrosSalvos = state._mestreEncontrosSalvos.filter(x=>x.id!==enc.id);
+        salvarEncontrosLocal();
+        render();
+      }},'✕')
+    ));
+  });
+  wrap.appendChild(el('button',{class:'btn', style:'margin-top:10px;', onclick:()=>{
+    state._mestreEncontroRascunho = {nome:'', criaturas:[]};
+    render();
+  }}, 'Montar Encontro Manual +'));
+  return wrap;
+}
+
 function renderMestreIniciativa(){
   const wrap = el('div',{});
   if(!state._mestreIniciativa) state._mestreIniciativa = {combatentes:[], turnoIdx:0, rodada:1};
@@ -367,6 +467,7 @@ function renderMestreIniciativa(){
   if(filtroEl) wrap.appendChild(filtroEl);
 
   wrap.appendChild(renderEncontroAleatorio(combate));
+  wrap.appendChild(renderEncontrosSalvos(combate));
 
   const ordenados = combate.combatentes.slice().sort((a,b)=> b.iniciativa - a.iniciativa);
 
