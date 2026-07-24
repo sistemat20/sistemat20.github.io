@@ -313,22 +313,12 @@ function ajustarPV(f, delta){
 // Teste de Constituição (CD 15) de quem está a 0 PV ou menos, sangrando. Passar estabiliza
 // (não precisa testar de novo, a menos que perca mais PV). Falhar custa 1d6 PV a mais — o que
 // pode ser fatal, dependendo de quanto já perdeu.
-function testarMorte(f){
-  const constituicao = parseInt(f.con)||0;
-  const rolagem = 1+Math.floor(Math.random()*20);
-  const total = rolagem + constituicao;
-  if(total >= 15){
-    f.estabilizado = true;
-    flashMsg('🎲 '+rolagem+'+'+constituicao+' = '+total+' — Passou! Estabilizado, não precisa testar de novo (a menos que perca mais PV).');
-  } else {
-    const perda = 1+Math.floor(Math.random()*6);
-    ajustarPV(f, -perda);
-    if(estaMorto(f)){
-      flashMsg('🎲 '+rolagem+'+'+constituicao+' = '+total+' — Falhou, perdeu mais '+perda+' PV... e não resistiu.');
-    } else {
-      flashMsg('🎲 '+rolagem+'+'+constituicao+' = '+total+' — Falhou, perdeu mais '+perda+' PV. Precisa testar de novo no próximo turno.');
-    }
-  }
+// Vocês rolam o teste de Constituição (CD 15) e o dano de falha (1d6) nos dados de verdade, na
+// mesa — o app só marca "passou" (estabiliza) quando você confirmar. Se falhar, é só tirar o
+// dano rolado direto no PV normal (o mesmo −/+ de sempre), sem precisar de nada aqui.
+function estabilizarPersonagem(f){
+  f.estabilizado = true;
+  flashMsg('✅ Estabilizado — não sangra mais, mas continua inconsciente até ganhar PV de novo.');
   salvarPerfis(); render();
 }
 function ajustarPM(f, delta){

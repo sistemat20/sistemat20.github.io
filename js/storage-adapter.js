@@ -48,11 +48,25 @@ function sugerirCodigoJogador(){
 }
 
 // ---- Carregar ----
+// Remove duplicatas por ID, mantendo sempre o primeiro que aparecer — proteção extra caso
+// alguma corrida rara no salvamento (dois salvamentos quase ao mesmo tempo) chegue a duplicar
+// uma linha na planilha antes da correção com travamento no backend.
+function removerPersonagensDuplicados(lista){
+  const vistos = new Set();
+  return lista.filter(p=>{
+    const id = p && p.id;
+    if(!id) return true; // sem id (não deveria acontecer), deixa passar
+    if(vistos.has(id)) return false;
+    vistos.add(id);
+    return true;
+  });
+}
+
 async function carregarPerfisArmazenamento(){
   if(usandoStorageDoClaude()){
     try{
       const r = await window.storage.get('perfis', false);
-      return (r && r.value) ? JSON.parse(r.value) : [];
+      return removerPersonagensDuplicados((r && r.value) ? JSON.parse(r.value) : []);
     }catch(e){ return []; }
   }
   if(SHEETS_API_URL){
@@ -61,14 +75,14 @@ async function carregarPerfisArmazenamento(){
     try{
       const resp = await fetch(SHEETS_API_URL + '?playerId=' + encodeURIComponent(codigo));
       const data = await resp.json();
-      if(data && data.ok) return data.personagens || [];
+      if(data && data.ok) return removerPersonagensDuplicados(data.personagens || []);
       return [];
     }catch(e){
       console.error('Falha ao carregar da planilha, usando cópia local salva no navegador.', e);
-      return carregarDoLocalStorage();
+      return removerPersonagensDuplicados(carregarDoLocalStorage());
     }
   }
-  return carregarDoLocalStorage();
+  return removerPersonagensDuplicados(carregarDoLocalStorage());
 }
 
 // ---- Salvar ----
@@ -142,7 +156,7 @@ async function carregarTodosPersonagensMestre(){
     try{
       const resp = await fetch(SHEETS_API_URL + '?mestre=true');
       const data = await resp.json();
-      if(data && data.ok) return data.personagens || [];
+      if(data && data.ok) return removerPersonagensDuplicados(data.personagens || []);
       return [];
     }catch(e){
       console.error('Falha ao carregar personagens de todos os jogadores.', e);

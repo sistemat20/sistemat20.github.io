@@ -219,7 +219,7 @@ function renderMestreGrupo(){
           condicoesAtivas(p).length>0 ? el('div',{style:'color:var(--gold);font-size:0.75rem;margin-top:2px;'}, '🩹 '+condicoesAtivas(p).join(', ')) : null
         )
       ),
-      (estaInconsciente(p) && !p.estabilizado) ? el('button',{class:'btn ghost', style:'margin-top:8px;', onclick:()=>{ testarMorte(p); salvarAjustePersonagemMestre(p); render(); }}, 'Fazer teste de Constituição 🎲') : null,
+      (estaInconsciente(p) && !p.estabilizado) ? el('button',{class:'btn ghost', style:'margin-top:8px;', onclick:()=>{ estabilizarPersonagem(p); salvarAjustePersonagemMestre(p); render(); }}, '✅ Passou — Estabilizar') : null,
       el('div',{class:'row3', style:'margin-top:10px;'},
         el('div',{},
           el('label',{},'PV'),

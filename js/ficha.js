@@ -82,8 +82,8 @@ function renderFichaScreen(){
       wrap.appendChild(el('div',{class:'aviso-sobrecarga'}, '😵 Inconsciente, mas estabilizado — precisa de cura (ou descanso) pra recobrar a consciência.'));
     } else {
       wrap.appendChild(el('div',{class:'aviso-sobrecarga', style:'cursor:default;'},
-        el('div',{}, '🩸 Inconsciente e sangrando — teste de Constituição (CD 15) no início do turno.'),
-        el('button',{class:'btn', style:'margin-top:6px;width:auto;padding:6px 14px;', onclick:(e)=>{ e.stopPropagation(); testarMorte(f); }}, 'Fazer teste 🎲')
+        el('div',{}, '🩸 Inconsciente e sangrando — teste de Constituição (CD 15) no início do turno. Se falhar, tire o dano de 1d6 direto no PV.'),
+        el('button',{class:'btn', style:'margin-top:6px;width:auto;padding:6px 14px;', onclick:(e)=>{ e.stopPropagation(); estabilizarPersonagem(f); }}, '✅ Passou — Estabilizar')
       ));
     }
   }

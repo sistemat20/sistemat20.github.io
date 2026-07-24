@@ -133,19 +133,53 @@ function doPost(e) {
       .setMimeType(ContentService.MimeType.JSON);
   }
 
-  // remove as linhas antigas desse playerId (de baixo pra cima, pra não bagunçar os índices)
-  const dados = sheet.getDataRange().getValues();
-  for (let i = dados.length - 1; i >= 1; i--) {
-    if (String(dados[i][1]) === playerId) {
-      sheet.deleteRow(i + 1);
-    }
+  // Trava a execução enquanto mexe na planilha — sem isso, dois salvamentos quase simultâneos
+  // (bem comum, já que quase todo campo da ficha salva sozinho ao editar) podiam se cruzar no
+  // meio do processo e duplicar linhas do mesmo personagem. Espera até 10s pela vez de rodar.
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+  } catch (e) {
+    return ContentService.createTextOutput(JSON.stringify({ ok: false, erro: 'Ocupado salvando outra alteração, tenta de novo em instantes.' }))
+      .setMimeType(ContentService.MimeType.JSON);
   }
+  try {
+    const dados = sheet.getDataRange().getValues();
+    const idsRecebidos = {};
+    personagens.forEach(function (p) { idsRecebidos[String(p.id || '')] = true; });
+    const agora = new Date();
 
-  // insere a "foto" atual de personagens desse jogador
-  const agora = new Date();
-  personagens.forEach(function (p) {
-    sheet.appendRow([p.id || '', playerId, p.nome || '', JSON.stringify(p), agora]);
-  });
+    // Atualiza no lugar quem já existe (por ID), e marca quais IDs já têm linha na planilha.
+    const idsExistentes = {};
+    for (let i = 1; i < dados.length; i++) {
+      const linhaId = String(dados[i][0]);
+      if (String(dados[i][1]) === playerId && linhaId) {
+        idsExistentes[linhaId] = true;
+        if (idsRecebidos[linhaId]) {
+          const p = personagens.find(function (x) { return String(x.id || '') === linhaId; });
+          sheet.getRange(i + 1, 3).setValue(p.nome || '');
+          sheet.getRange(i + 1, 4).setValue(JSON.stringify(p));
+          sheet.getRange(i + 1, 5).setValue(agora);
+        }
+      }
+    }
+    // Insere quem ainda não tinha linha (personagem novo).
+    personagens.forEach(function (p) {
+      const id = String(p.id || '');
+      if (!idsExistentes[id]) {
+        sheet.appendRow([id, playerId, p.nome || '', JSON.stringify(p), agora]);
+      }
+    });
+    // Remove linhas de personagens desse jogador que não vieram mais na lista (foram apagados).
+    for (let i = dados.length - 1; i >= 1; i--) {
+      const linhaId = String(dados[i][0]);
+      if (String(dados[i][1]) === playerId && linhaId && !idsRecebidos[linhaId]) {
+        sheet.deleteRow(i + 1);
+      }
+    }
+  } finally {
+    lock.releaseLock();
+  }
 
   return ContentService.createTextOutput(JSON.stringify({ ok: true, salvos: personagens.length }))
     .setMimeType(ContentService.MimeType.JSON);
@@ -162,19 +196,30 @@ function tratarMestreAtualizarPersonagem_(body) {
       return ContentService.createTextOutput(JSON.stringify({ ok: false, erro: 'personagemId ausente' }))
         .setMimeType(ContentService.MimeType.JSON);
     }
-    const sheet = getOuCriarAba_();
-    const dados = sheet.getDataRange().getValues();
-    for (let i = 1; i < dados.length; i++) {
-      if (String(dados[i][0]) === personagemId) {
-        const novoJSON = JSON.stringify(body.dadosJSON);
-        sheet.getRange(i + 1, 4).setValue(novoJSON); // coluna D = DadosJSON
-        sheet.getRange(i + 1, 5).setValue(new Date()); // coluna E = AtualizadoEm
-        return ContentService.createTextOutput(JSON.stringify({ ok: true }))
-          .setMimeType(ContentService.MimeType.JSON);
-      }
+    const lock = LockService.getScriptLock();
+    try {
+      lock.waitLock(10000);
+    } catch (e) {
+      return ContentService.createTextOutput(JSON.stringify({ ok: false, erro: 'Ocupado salvando outra alteração, tenta de novo em instantes.' }))
+        .setMimeType(ContentService.MimeType.JSON);
     }
-    return ContentService.createTextOutput(JSON.stringify({ ok: false, erro: 'personagem não encontrado' }))
-      .setMimeType(ContentService.MimeType.JSON);
+    try {
+      const sheet = getOuCriarAba_();
+      const dados = sheet.getDataRange().getValues();
+      for (let i = 1; i < dados.length; i++) {
+        if (String(dados[i][0]) === personagemId) {
+          const novoJSON = JSON.stringify(body.dadosJSON);
+          sheet.getRange(i + 1, 4).setValue(novoJSON); // coluna D = DadosJSON
+          sheet.getRange(i + 1, 5).setValue(new Date()); // coluna E = AtualizadoEm
+          return ContentService.createTextOutput(JSON.stringify({ ok: true }))
+            .setMimeType(ContentService.MimeType.JSON);
+        }
+      }
+      return ContentService.createTextOutput(JSON.stringify({ ok: false, erro: 'personagem não encontrado' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    } finally {
+      lock.releaseLock();
+    }
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({ ok: false, erro: String(err) }))
       .setMimeType(ContentService.MimeType.JSON);
@@ -214,4 +259,36 @@ function tratarUploadFoto_(body) {
     return ContentService.createTextOutput(JSON.stringify({ ok: false, erro: String(err) }))
       .setMimeType(ContentService.MimeType.JSON);
   }
+}
+
+// ---- FUNÇÃO DE MANUTENÇÃO (rode manualmente, uma vez, se desconfiar de personagens duplicados) ----
+// Pra rodar: abra o editor do Apps Script, escolha "limparPersonagensDuplicados" no menu de funções
+// (ao lado do botão ▷ Executar), clique em Executar, e confira o log (Ver → Registros de execução).
+// Não precisa rodar isso toda hora — só se notar duas cópias do mesmo personagem em algum momento.
+// Mantém sempre a linha mais recente (AtualizadoEm mais novo) de cada ID e apaga as outras.
+function limparPersonagensDuplicados() {
+  const sheet = getOuCriarAba_();
+  const dados = sheet.getDataRange().getValues();
+  const maisRecentePorId = {}; // id -> {linha, atualizadoEm}
+  for (let i = 1; i < dados.length; i++) {
+    const id = String(dados[i][0]);
+    if (!id) continue;
+    const atualizadoEm = dados[i][4] instanceof Date ? dados[i][4].getTime() : 0;
+    if (!maisRecentePorId[id] || atualizadoEm > maisRecentePorId[id].atualizadoEm) {
+      maisRecentePorId[id] = { linha: i + 1, atualizadoEm: atualizadoEm };
+    }
+  }
+  const linhasParaManter = {};
+  Object.keys(maisRecentePorId).forEach(function (id) {
+    linhasParaManter[maisRecentePorId[id].linha] = true;
+  });
+  let removidas = 0;
+  for (let i = dados.length; i >= 2; i--) {
+    const id = String(dados[i - 1][0]);
+    if (id && !linhasParaManter[i]) {
+      sheet.deleteRow(i);
+      removidas++;
+    }
+  }
+  Logger.log('Linhas duplicadas removidas: ' + removidas);
 }

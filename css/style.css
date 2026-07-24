@@ -16,6 +16,9 @@
     --card-2: rgba(20,15,11,0.9);
     --line: rgba(166,129,47,0.32);
     --shadow: rgba(0,0,0,0.5);
+    --input-bg: rgba(0,0,0,0.28);
+    --pv-accent: #f0a8a8;
+    --pm-accent: #9cc7e8;
   }
   /* "Modo Mesa": alto contraste pra jogar com pouca luz (ou luz de sobra) na mesa física, sem
      forçar a vista lendo dourado sobre marrom-escuro por horas — fundo bem claro, texto bem
@@ -34,6 +37,9 @@
     --card-2: rgba(238,230,216,0.95);
     --line: rgba(122,90,18,0.4);
     --shadow: rgba(0,0,0,0.18);
+    --input-bg: rgba(0,0,0,0.045);
+    --pv-accent: #a3271f;
+    --pm-accent: #1f5a8a;
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0; overflow-x:hidden; width:100%;}
@@ -176,7 +182,7 @@
   label{display:block; font-size:0.68rem; text-transform:uppercase; letter-spacing:0.04em; color:var(--ink-soft); margin-bottom:3px; font-weight:600;}
   input[type=text], input[type=number], select, textarea{
     width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:7px;
-    background:rgba(0,0,0,0.28); color:var(--ink); font-family:'Inter',sans-serif; font-size:0.92rem;
+    background:var(--input-bg); color:var(--ink); font-family:'Inter',sans-serif; font-size:0.92rem;
     margin-bottom:10px; transition:border-color 150ms ease, box-shadow 150ms ease;
   }
   input:focus, select:focus, textarea:focus{
@@ -281,7 +287,7 @@
 
   .foto-upload{
     width:120px; height:120px; border-radius:14px; overflow:hidden; cursor:pointer; flex-shrink:0;
-    border:2px solid var(--gold-deep); background:rgba(0,0,0,0.3);
+    border:2px solid var(--gold-deep); background:var(--card-2);
     display:flex; align-items:center; justify-content:center;
     transition: border-color 200ms ease, transform 200ms ease, box-shadow 200ms ease;
   }
@@ -364,15 +370,14 @@
   padding:12px 6px 10px;
   text-align:center;
   border-radius:10px;
-  color:#f4efe2;
-  background:
-    linear-gradient(160deg, rgba(36,29,23,0.88), rgba(20,15,11,0.94));
+  color:var(--ink);
+  background: linear-gradient(160deg, var(--card), var(--card-2));
   -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
-  border:1px solid rgba(166,129,47,0.55); /* moldura dourada envelhecida */
+  border:1px solid var(--line); /* moldura dourada envelhecida */
   box-shadow:
     inset 0 0 0 1px rgba(166,129,47,0.12),
-    0 1px 2px rgba(0,0,0,0.35);
+    0 1px 2px var(--shadow);
   transform: translateY(0);
   transition: transform 220ms cubic-bezier(.22,.9,.32,1.28), box-shadow 260ms ease, border-color 260ms ease;
   will-change: transform;
@@ -380,13 +385,11 @@
 .attr-box .lbl{
   display:block; font-family:'Cinzel',serif; font-weight:700; font-size:0.68rem;
   letter-spacing:0.08em; text-transform:uppercase;
-  color:#d8bd74; /* dourado envelhecido, mais claro que a borda, pra legibilidade */
-  text-shadow:0 1px 1px rgba(0,0,0,0.6);
+  color:var(--gold);
   margin-bottom:4px;
 }
 .attr-box .valor, .attr-box input{
-  font-family:'Cinzel',serif; font-weight:800; font-size:1.35rem; color:#f7f1e3;
-  text-shadow:0 1px 2px rgba(0,0,0,0.55);
+  font-family:'Cinzel',serif; font-weight:800; font-size:1.35rem; color:var(--ink);
   background:transparent; border:none; text-align:center; width:100%; margin:0; padding:0;
 }
 /* Hover (mouse) e :active (dedo no celular) — sobe levemente e ganha brilho vermelho rubi na borda */
@@ -415,12 +418,11 @@
 .defesa-shield{ display:flex; align-items:center; gap:14px; }
 .defesa-circle{
   flex-shrink:0; width:68px; height:68px; border-radius:50%;
-  background: radial-gradient(circle at 35% 30%, rgba(60,45,30,0.95), rgba(18,13,10,0.97));
-  border:2px solid rgba(166,129,47,0.65);
+  background: linear-gradient(160deg, var(--card), var(--card-2));
+  border:2px solid var(--line);
   display:flex; align-items:center; justify-content:center;
-  font-family:'Cinzel',serif; font-weight:800; font-size:1.6rem; color:#f7f1e3;
-  text-shadow:0 1px 2px rgba(0,0,0,0.6);
-  box-shadow: inset 0 0 0 2px rgba(166,129,47,0.15), inset 0 0 10px rgba(0,0,0,0.5), 0 0 10px rgba(212,60,60,0.25);
+  font-family:'Cinzel',serif; font-weight:800; font-size:1.6rem; color:var(--ink);
+  box-shadow: inset 0 0 0 2px rgba(166,129,47,0.15), 0 0 10px rgba(212,60,60,0.25);
   transition: box-shadow 260ms ease;
 }
 .defesa-breakdown{ flex:1; display:grid; grid-template-columns:repeat(2,1fr); gap:4px 10px; font-size:0.78rem; }
@@ -500,26 +502,25 @@
 .stat-tracker-row{ display:flex; gap:10px; margin-bottom:10px; }
 .stat-tracker{
   flex:1; position:relative; text-align:center; padding:12px 8px 10px; border-radius:12px; cursor:pointer;
-  background: linear-gradient(160deg, rgba(36,29,23,0.9), rgba(20,15,11,0.95));
-  border:1px solid rgba(166,129,47,0.55);
-  box-shadow: inset 0 0 0 1px rgba(166,129,47,0.12), 0 1px 3px rgba(0,0,0,0.3);
+  background: linear-gradient(160deg, var(--card), var(--card-2));
+  border:1px solid var(--line);
+  box-shadow: inset 0 0 0 1px rgba(166,129,47,0.12), 0 1px 3px var(--shadow);
   -webkit-user-select:none; user-select:none;
   transition: transform 150ms ease, border-color 200ms ease, box-shadow 200ms ease;
 }
 .stat-tracker:active{ transform:scale(0.98); border-color:rgba(224,69,58,0.7); box-shadow:0 0 12px rgba(224,69,58,0.3); }
 .stat-nums{ display:flex; align-items:baseline; justify-content:center; gap:3px; }
 .stat-nums .stat-atual{
-  font-family:'Cinzel',serif; font-weight:800; font-size:1.55rem; color:#f7f1e3;
-  text-shadow:0 1px 2px rgba(0,0,0,0.55);
+  font-family:'Cinzel',serif; font-weight:800; font-size:1.55rem; color:var(--ink);
 }
-.stat-nums .stat-slash{ color:#8a7a5c; font-size:1.15rem; }
-.stat-nums .stat-max{ color:#c9bb98; font-family:'Cinzel',serif; font-weight:700; font-size:1.15rem; }
+.stat-nums .stat-slash{ color:var(--ink-soft); font-size:1.15rem; }
+.stat-nums .stat-max{ color:var(--ink-soft); font-family:'Cinzel',serif; font-weight:700; font-size:1.15rem; }
 .stat-label{
   font-family:'Cinzel',serif; font-size:0.65rem; text-transform:uppercase; letter-spacing:0.08em;
-  color:#d8bd74; margin-top:2px;
+  color:var(--gold); margin-top:2px;
 }
-.stat-tracker.pv .stat-nums .stat-atual{ color:#f0a8a8; }
-.stat-tracker.pm .stat-nums .stat-atual{ color:#9cc7e8; }
+.stat-tracker.pv .stat-nums .stat-atual{ color:var(--pv-accent); }
+.stat-tracker.pm .stat-nums .stat-atual{ color:var(--pm-accent); }
 .stat-hint{ display:flex; justify-content:space-between; padding:0 4px; margin-top:4px; opacity:0.45; pointer-events:none; }
 .stat-hint span{ font-family:'Cinzel',serif; font-weight:800; font-size:0.85rem; color:var(--gold); }
 .stat-bar{ height:7px; border-radius:4px; background:rgba(255,255,255,0.08); margin-top:6px; overflow:hidden; box-shadow:inset 0 1px 2px rgba(0,0,0,0.4); }
