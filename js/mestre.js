@@ -57,47 +57,127 @@ function corPorTipoCriatura(tipo){
   return COR_POR_TIPO_CRIATURA[primeira] || 'var(--line)';
 }
 
-// ---- FILTRO POR MESA (pra quando o Mestre roda mais de uma campanha na mesma planilha) ----
-// Cada personagem pode ter um campo "grupo" (o jogador preenche na criação, opcional). As
-// ferramentas do Mestre (Grupo, Iniciativa, Tesouro) sempre respeitam o filtro atual, guardado
-// tanto na memória quanto no navegador — assim o Mestre não precisa escolher de novo toda hora.
+// ---- GRUPOS (controlados 100% pelo Mestre — nada muda na ficha do jogador) ----
+// O Mestre cria um grupo com um nome e escolhe, entre os personagens já existentes no banco,
+// quais fazem parte dele. Fica salvo só no navegador do Mestre (localStorage), sem tocar em
+// nenhuma ficha de jogador. As ferramentas (Grupo, Iniciativa, Tesouro) sempre respeitam o
+// grupo selecionado no momento.
+const CHAVE_MESTRE_GRUPOS = 'painel_aventureiro_mestre_grupos';
 const CHAVE_MESTRE_GRUPO_FILTRO = 'painel_aventureiro_mestre_grupo_filtro';
-function gruposDisponiveis(){
-  const nomes = new Set();
-  (state.perfisTodos||[]).forEach(p=>{ if(p.grupo && p.grupo.trim()) nomes.add(p.grupo.trim()); });
-  return Array.from(nomes).sort();
+function carregarGruposSalvos(){
+  if(state._mestreGrupos) return;
+  try{
+    const raw = localStorage.getItem(CHAVE_MESTRE_GRUPOS);
+    state._mestreGrupos = raw ? JSON.parse(raw) : [];
+  }catch(e){ state._mestreGrupos = []; }
+}
+function salvarGruposLocal(){
+  try{ localStorage.setItem(CHAVE_MESTRE_GRUPOS, JSON.stringify(state._mestreGrupos||[])); }catch(e){}
 }
 function personagensDoGrupoAtual(){
+  carregarGruposSalvos();
   const todos = state.perfisTodos || [];
   if(!state._mestreGrupoFiltro || state._mestreGrupoFiltro==='__todos__') return todos;
-  if(state._mestreGrupoFiltro==='__sem_mesa__') return todos.filter(p=>!p.grupo || !p.grupo.trim());
-  return todos.filter(p=> (p.grupo||'').trim() === state._mestreGrupoFiltro);
+  const grupo = state._mestreGrupos.find(g=>g.id===state._mestreGrupoFiltro);
+  if(!grupo) return todos;
+  return todos.filter(p=> grupo.membrosIds.includes(p.id));
 }
 function renderFiltroMesa(){
+  carregarGruposSalvos();
   if(state._mestreGrupoFiltro==null){
     try{ state._mestreGrupoFiltro = localStorage.getItem(CHAVE_MESTRE_GRUPO_FILTRO) || '__todos__'; }
     catch(e){ state._mestreGrupoFiltro = '__todos__'; }
   }
-  const grupos = gruposDisponiveis();
-  if(grupos.length===0) return null; // ninguém usa código de mesa ainda — não precisa mostrar o filtro
-  const temSemMesa = (state.perfisTodos||[]).some(p=>!p.grupo || !p.grupo.trim());
+  if(state._mestreGrupos.length===0) return null; // nenhum grupo criado ainda — filtro não faz sentido mostrar
   const sel = el('select',{onchange:(e)=>{
     state._mestreGrupoFiltro = e.target.value;
     try{ localStorage.setItem(CHAVE_MESTRE_GRUPO_FILTRO, e.target.value); }catch(err){}
     render();
   }},
-    el('option',{value:'__todos__', ...(state._mestreGrupoFiltro==='__todos__'?{selected:'selected'}:{})}, 'Todas as mesas'),
-    ...grupos.map(g=> el('option',{value:g, ...(state._mestreGrupoFiltro===g?{selected:'selected'}:{})}, 'Mesa: '+g)),
-    temSemMesa ? el('option',{value:'__sem_mesa__', ...(state._mestreGrupoFiltro==='__sem_mesa__'?{selected:'selected'}:{})}, 'Sem mesa definida') : null,
+    el('option',{value:'__todos__', ...(state._mestreGrupoFiltro==='__todos__'?{selected:'selected'}:{})}, 'Todos os personagens'),
+    ...state._mestreGrupos.map(g=> el('option',{value:g.id, ...(state._mestreGrupoFiltro===g.id?{selected:'selected'}:{})}, g.nome)),
   );
   return el('div',{style:'margin-bottom:10px;'}, sel);
+}
+
+// Painel de criar/editar um grupo — escolhe nome e marca quais personagens (de todo o banco)
+// fazem parte. state._mestreGrupoEditando guarda {id, nome, membrosIds} enquanto edita (id=null
+// se for um grupo novo ainda não salvo).
+function renderGerenciarGrupos(){
+  carregarGruposSalvos();
+  const wrap = el('div',{class:'panel'});
+
+  if(state._mestreGrupoEditando){
+    const ge = state._mestreGrupoEditando;
+    wrap.appendChild(el('h2',{}, ge.id ? 'Editando grupo' : 'Criar novo grupo'));
+    wrap.appendChild(el('label',{},'Nome do grupo'));
+    wrap.appendChild(el('input',{id:'nome-novo-grupo', type:'text', placeholder:'ex: Mesa de Sexta', value:ge.nome, oninput:(e)=>{ge.nome=e.target.value;}}));
+    wrap.appendChild(el('div',{class:'meta', style:'margin-top:10px;'}, 'Quem faz parte:'));
+    const todos = state.perfisTodos || [];
+    if(todos.length===0){
+      wrap.appendChild(el('div',{class:'empty'},'Nenhum personagem encontrado no banco ainda.'));
+    }
+    todos.forEach(p=>{
+      const marcado = ge.membrosIds.includes(p.id);
+      wrap.appendChild(el('button',{class:'option-card '+(marcado?'selected':''), style:'width:100%;text-align:left;margin-top:6px;', onclick:()=>{
+        ge.membrosIds = marcado ? ge.membrosIds.filter(id=>id!==p.id) : [...ge.membrosIds, p.id];
+        render();
+      }},
+        el('div',{class:'opt-nome'}, p.nome),
+        el('div',{class:'opt-sub'}, p.jogador||p._playerId||'?')
+      ));
+    });
+    wrap.appendChild(el('div',{class:'row', style:'margin-top:10px;'},
+      el('button',{class:'btn', onclick:()=>{
+        if(!ge.nome.trim()) return;
+        if(ge.id){
+          const idx = state._mestreGrupos.findIndex(g=>g.id===ge.id);
+          if(idx>=0) state._mestreGrupos[idx] = {id:ge.id, nome:ge.nome.trim(), membrosIds:ge.membrosIds};
+        } else {
+          state._mestreGrupos.push({id:'g'+Date.now(), nome:ge.nome.trim(), membrosIds:ge.membrosIds});
+        }
+        salvarGruposLocal();
+        state._mestreGrupoEditando = null;
+        render();
+      }}, 'Salvar grupo'),
+      el('button',{class:'btn ghost', onclick:()=>{ state._mestreGrupoEditando=null; render(); }}, 'Cancelar')
+    ));
+    return wrap;
+  }
+
+  wrap.appendChild(el('h2',{},'Grupos'));
+  if(state._mestreGrupos.length===0){
+    wrap.appendChild(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Nenhum grupo criado ainda. Se você só roda uma mesa, não precisa criar nenhum — todos os personagens já aparecem juntos. Crie grupos só se administrar mais de uma mesa no mesmo banco.'));
+  }
+  state._mestreGrupos.forEach(g=>{
+    wrap.appendChild(el('div',{class:'row', style:'align-items:center;margin-top:6px;'},
+      el('div',{style:'flex:1;font-weight:700;'}, g.nome+' ('+g.membrosIds.length+' personagem'+(g.membrosIds.length!==1?'ns':'')+')'),
+      el('button',{class:'btn ghost', style:'width:auto;padding:4px 10px;', onclick:()=>{ state._mestreGrupoEditando = {id:g.id, nome:g.nome, membrosIds:g.membrosIds.slice()}; render(); }}, 'Editar'),
+      el('button',{class:'remove-x', onclick:()=>{
+        if(!confirm('Excluir o grupo "'+g.nome+'"? Isso não apaga nenhum personagem, só o agrupamento.')) return;
+        state._mestreGrupos = state._mestreGrupos.filter(x=>x.id!==g.id);
+        salvarGruposLocal();
+        if(state._mestreGrupoFiltro===g.id) state._mestreGrupoFiltro='__todos__';
+        render();
+      }},'✕')
+    ));
+  });
+  wrap.appendChild(el('button',{class:'btn', style:'margin-top:10px;', onclick:()=>{
+    state._mestreGrupoEditando = {id:null, nome:'', membrosIds:[]};
+    render();
+  }}, 'Criar novo grupo +'));
+  return wrap;
 }
 
 // ---- VISÃO GERAL DO GRUPO ----
 function ajustarValorMestre(p, campo, campoMax, delta){
   const atual = parseInt(p[campo])||0;
   const max = campoMax ? (parseInt(p[campoMax])||atual) : Infinity;
-  p[campo] = Math.max(0, Math.min(max, atual+delta));
+  const minimo = (campo==='pvatual') ? limiteMortePv(p) : 0;
+  const novo = Math.max(minimo, Math.min(max, atual+delta));
+  if(campo==='pvatual' && delta<0 && novo<=0) p.estabilizado = false;
+  if(campo==='pvatual' && novo>0) p.estabilizado = false;
+  p[campo] = novo;
 }
 async function salvarAjustePersonagemMestre(p){
   const ok = await mestreAtualizarPersonagem(p);
@@ -107,6 +187,8 @@ async function salvarAjustePersonagemMestre(p){
 function renderMestreGrupo(){
   const wrap = el('div',{});
   wrap.appendChild(el('div',{class:'tip'}, el('b',{},'Como usar'), 'Toque nos números de PV/PM pra ajustar na hora — as mudanças já vão direto pra ficha do jogador. Útil pra aplicar dano em massa ou conferir quem está no vermelho sem pedir pra cada um.'));
+
+  wrap.appendChild(renderGerenciarGrupos());
 
   const filtroEl = renderFiltroMesa();
   if(filtroEl) wrap.appendChild(filtroEl);
@@ -131,9 +213,13 @@ function renderMestreGrupo(){
         ),
         el('div',{style:'flex:1;min-width:0;'},
           el('div',{style:'font-family:Cinzel,serif;font-weight:700;'}, p.nome),
-          el('div',{class:'meta'}, (p.jogador||p._playerId||'?')+' · Nível '+nivel+' · '+classesTxt)
+          el('div',{class:'meta'}, (p.jogador||p._playerId||'?')+' · Nível '+nivel+' · '+classesTxt),
+          estaMorto(p) ? el('div',{style:'color:var(--red-bright);font-weight:700;font-size:0.78rem;margin-top:2px;'}, '💀 Morto') :
+          estaInconsciente(p) ? el('div',{style:'color:var(--red-bright);font-weight:700;font-size:0.78rem;margin-top:2px;'}, p.estabilizado ? '😵 Inconsciente (estabilizado)' : '🩸 Inconsciente e sangrando') : null,
+          condicoesAtivas(p).length>0 ? el('div',{style:'color:var(--gold);font-size:0.75rem;margin-top:2px;'}, '🩹 '+condicoesAtivas(p).join(', ')) : null
         )
       ),
+      (estaInconsciente(p) && !p.estabilizado) ? el('button',{class:'btn ghost', style:'margin-top:8px;', onclick:()=>{ testarMorte(p); salvarAjustePersonagemMestre(p); render(); }}, 'Fazer teste de Constituição 🎲') : null,
       el('div',{class:'row3', style:'margin-top:10px;'},
         el('div',{},
           el('label',{},'PV'),
@@ -185,10 +271,20 @@ function extrairBonusIniciativa(sentidos){
 }
 function rolarD20(){ return 1 + Math.floor(Math.random()*20); }
 
-function novoCombatente(nome, tipo, bonusIniciativa, pv, pvMax){
+// Mostra a foto de verdade do jogador (quando existe) em vez de um ícone genérico — só monstros
+// e avulsos (sem ficha) usam o emoji mesmo.
+function avatarCombatente(c, tamanho){
+  if(c.foto){
+    return el('img',{src:c.foto, style:'width:'+tamanho+'px;height:'+tamanho+'px;border-radius:50%;object-fit:cover;'});
+  }
+  const icone = c.tipo==='pj' ? '🧑' : (c.tipo==='monstro' ? '👹' : '❔');
+  return el('div',{style:'font-size:'+(tamanho*0.75)+'px;line-height:1;'}, icone);
+}
+
+function novoCombatente(nome, tipo, bonusIniciativa, pv, pvMax, foto){
   return {
     id: 'c'+Date.now()+Math.floor(Math.random()*10000),
-    nome, tipo, // 'pj' | 'monstro' | 'custom'
+    nome, tipo, foto: foto||null, // 'pj' | 'monstro' | 'custom'
     iniciativa: rolarD20() + (bonusIniciativa||0),
     pv: pv!=null ? pv : 0,
     pvMax: pvMax!=null ? pvMax : (pv!=null?pv:0),
@@ -295,9 +391,8 @@ function renderMestreIniciativa(){
     const timeline = el('div',{class:'iniciativa-timeline'});
     ordenados.forEach((c, idx)=>{
       const noTurno = idx === combate.turnoIdx;
-      const icone = c.tipo==='pj' ? '🧑' : (c.tipo==='monstro' ? '👹' : '❔');
       timeline.appendChild(el('div',{class:'iniciativa-chip'+(noTurno?' atual':''), onclick:()=>{ combate.turnoIdx=idx; render(); }},
-        el('div',{class:'iniciativa-chip-icone'}, icone),
+        el('div',{class:'iniciativa-chip-icone'}, avatarCombatente(c, 28)),
         el('div',{class:'iniciativa-chip-nome'}, c.nome.length>10 ? c.nome.slice(0,9)+'…' : c.nome),
         el('div',{class:'iniciativa-chip-num'}, c.iniciativa)
       ));
@@ -306,17 +401,16 @@ function renderMestreIniciativa(){
 
     ordenados.forEach((c, idx)=>{
       const noTurno = idx === combate.turnoIdx;
-      const icone = c.tipo==='pj' ? '🧑' : (c.tipo==='monstro' ? '👹' : '❔');
       const linha = el('div',{class:'panel', style:'display:flex;align-items:center;gap:10px;padding:10px 12px;margin-bottom:6px;'+(noTurno?'border-color:var(--red-bright);box-shadow:0 0 0 1px var(--red-bright) inset;':'')},
-        el('div',{style:'font-size:1.3rem;flex-shrink:0;'}, noTurno?'▶':icone),
+        el('div',{style:'flex-shrink:0;display:flex;align-items:center;justify-content:center;width:34px;'}, noTurno ? '▶' : avatarCombatente(c, 34)),
         el('div',{style:'flex-shrink:0;width:52px;'},
-          el('input',{type:'number', value:c.iniciativa, style:'margin:0;padding:4px 2px;text-align:center;font-weight:800;', oninput:(e)=>{c.iniciativa=parseInt(e.target.value)||0;}, onchange:render})
+          el('input',{id:'iniciativa-num-'+c.id, type:'number', value:c.iniciativa, style:'margin:0;padding:4px 2px;text-align:center;font-weight:800;', oninput:(e)=>{c.iniciativa=parseInt(e.target.value)||0;}, onchange:render})
         ),
         el('div',{style:'flex:1;min-width:0;'},
           el('div',{style:'font-weight:700;font-family:Cinzel,serif;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'}, c.nome),
           el('div',{style:'display:flex;align-items:center;gap:4px;font-size:0.75rem;color:var(--ink-soft);'},
             'PV ',
-            el('input',{type:'number', value:c.pv, style:'margin:0;padding:2px 4px;width:52px;font-size:0.78rem;', oninput:(e)=>{c.pv=parseInt(e.target.value)||0;}, onchange:render}),
+            el('input',{id:'pv-num-'+c.id, type:'number', value:c.pv, style:'margin:0;padding:2px 4px;width:52px;font-size:0.78rem;', oninput:(e)=>{c.pv=parseInt(e.target.value)||0;}, onchange:render}),
             ' / '+c.pvMax
           )
         ),
@@ -347,7 +441,7 @@ function renderMestreIniciativa(){
       if(!p) return;
       const iniciativaObj = PERICIAS.find(x=>x.nome==='Iniciativa');
       const bonus = iniciativaObj ? periciaValor(p, iniciativaObj) : 0;
-      combate.combatentes.push(novoCombatente(p.nome, 'pj', bonus, p.pvatual, p.pvmax));
+      combate.combatentes.push(novoCombatente(p.nome, 'pj', bonus, p.pvatual, p.pvmax, p.foto));
       render();
     }}, 'Adicionar com iniciativa rolada 🎲'));
   }
@@ -356,7 +450,7 @@ function renderMestreIniciativa(){
   // ---- Adicionar Monstro ----
   const monstroPanel = el('div',{class:'panel'}, el('h2',{},'Adicionar monstro'));
   if(!state._mestreIniciativaBusca) state._mestreIniciativaBusca = '';
-  monstroPanel.appendChild(el('input',{type:'text', placeholder:'buscar criatura pelo nome...', value:state._mestreIniciativaBusca, oninput:(e)=>{state._mestreIniciativaBusca=e.target.value; renderDebounced();}}));
+  monstroPanel.appendChild(el('input',{id:'busca-iniciativa-monstro', type:'text', placeholder:'buscar criatura pelo nome...', value:state._mestreIniciativaBusca, oninput:(e)=>{state._mestreIniciativaBusca=e.target.value; renderDebounced();}}));
   if(state._mestreIniciativaBusca.length>=2){
     const encontrados = todasCriaturasParaBusca().filter(m=> m.nome.toLowerCase().includes(state._mestreIniciativaBusca.toLowerCase())).slice(0,8);
     encontrados.forEach(m=>{
@@ -378,8 +472,8 @@ function renderMestreIniciativa(){
   const customPanel = el('div',{class:'panel'}, el('h2',{},'Adicionar avulso (aliado, refém, armadilha...)'));
   if(!state._mestreIniciativaCustom) state._mestreIniciativaCustom = {nome:'', pv:''};
   const cc = state._mestreIniciativaCustom;
-  customPanel.appendChild(el('input',{type:'text', placeholder:'nome', value:cc.nome, oninput:(e)=>{cc.nome=e.target.value;}}));
-  customPanel.appendChild(el('input',{type:'number', placeholder:'PV (opcional)', value:cc.pv, style:'margin-top:6px;', oninput:(e)=>{cc.pv=e.target.value;}}));
+  customPanel.appendChild(el('input',{id:'custom-combatente-nome', type:'text', placeholder:'nome', value:cc.nome, oninput:(e)=>{cc.nome=e.target.value;}}));
+  customPanel.appendChild(el('input',{id:'custom-combatente-pv', type:'number', placeholder:'PV (opcional)', value:cc.pv, style:'margin-top:6px;', oninput:(e)=>{cc.pv=e.target.value;}}));
   customPanel.appendChild(el('button',{class:'btn', style:'margin-top:8px;', onclick:()=>{
     if(!cc.nome.trim()) return;
     const pv = cc.pv!=='' ? parseInt(cc.pv)||0 : 0;
@@ -609,6 +703,40 @@ function aplicarTesouroEmPersonagem(personagem, tesouro){
   return copia;
 }
 
+// Seletor compartilhado de "pra quem enviar" — usado tanto no Tesouro quanto na Loja/Itens.
+// Guarda a escolha em state._mestreEnvioAlvo, comum às 3 telas (trocar numa reflete nas outras).
+function renderSeletorAlvoEnvio(){
+  const todos = personagensDoGrupoAtual();
+  if(todos.length===0){
+    return el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Nenhum personagem de jogador encontrado ainda pra enviar direto — os jogadores precisam ter criado a ficha pelo menos uma vez.');
+  }
+  if(!state._mestreEnvioAlvo || !todos.some(p=>p.id===state._mestreEnvioAlvo)) state._mestreEnvioAlvo = todos[0].id;
+  const sel = el('select',{onchange:(e)=>{state._mestreEnvioAlvo=e.target.value; render();}});
+  todos.forEach(p=> sel.appendChild(el('option',{value:p.id, ...(state._mestreEnvioAlvo===p.id?{selected:'selected'}:{})}, p.nome+' ('+(p.jogador||p._playerId||'?')+')')));
+  return el('div',{},
+    el('div',{class:'meta', style:'margin-bottom:4px;'}, 'Enviar itens direto pra mochila de:'),
+    sel
+  );
+}
+// Manda UM item avulso (nome + preço, texto livre) pra mochila do personagem selecionado no
+// seletor acima. Usado nos botões "Enviar" da Loja e do catálogo de Itens do Mestre.
+async function enviarItemAvulsoParaAlvo(nomeItem, precoTxt){
+  const todos = personagensDoGrupoAtual();
+  const alvo = todos.find(p=>p.id===state._mestreEnvioAlvo);
+  if(!alvo){ flashMsg('⚠ Escolha um personagem primeiro.'); return; }
+  const copia = JSON.parse(JSON.stringify(alvo));
+  if(!copia.equip) copia.equip = [];
+  copia.equip.push({tipo:'geral', item:nomeItem+' (recebido do Mestre)', qtd:'1', carga:'—'});
+  const ok = await mestreAtualizarPersonagem(copia);
+  if(ok){
+    Object.assign(alvo, copia);
+    flashMsg('✅ '+nomeItem+' enviado pra '+alvo.nome+'!');
+  } else {
+    flashMsg('⚠ Não consegui enviar agora — tenta de novo em instantes.');
+  }
+  render();
+}
+
 function renderMestreTesouro(){
   const wrap = el('div',{});
   wrap.appendChild(el('div',{class:'tip'}, el('b',{},'Como usar'), 'Escolha o Nível de Desafio do encontro (ou do tesouro que quer gerar) e toque em "Gerar". Usa as tabelas 8-1 a 8-4 do livro, já rolando os dados pra você.'));
@@ -667,11 +795,21 @@ function renderMestreTesouro(){
 
 // ---- GERADOR DE LOJA / TAVERNA ----
 const TIPOS_LOJA = {
-  'Ferreiro': ()=> [...pickRandom(ARMAS,4), ...pickRandom([...ARMADURAS,...ESCUDOS],3)],
-  'Alquimista': ()=> pickRandom(ITENS_GERAIS.filter(i=>['Alquímico','Catalisador','Veneno'].includes(i.cat)), 6),
-  'Loja Geral': ()=> pickRandom(ITENS_GERAIS.filter(i=>['Aventura','Ferramenta','Vestuário','Munição'].includes(i.cat)), 7),
-  'Taverna': ()=> pickRandom(ITENS_GERAIS.filter(i=>['Alimentação','Serviço'].includes(i.cat)), 6),
-  'Loja Mágica': ()=> pickRandom(ITENS_ESOTERICOS, 4),
+  'Ferreiro (armas)': (qtd)=> pickRandom(ARMAS, qtd),
+  'Armaria (defesas)': (qtd)=> pickRandom([...ARMADURAS,...ESCUDOS], qtd),
+  'Alquimista': (qtd)=> pickRandom(ITENS_GERAIS.filter(i=>['Alquímico','Catalisador','Veneno'].includes(i.cat)), qtd),
+  'Loja Geral': (qtd)=> pickRandom(ITENS_GERAIS.filter(i=>['Aventura','Ferramenta','Vestuário','Munição'].includes(i.cat)), qtd),
+  'Taverna': (qtd)=> pickRandom(ITENS_GERAIS.filter(i=>i.cat==='Alimentação'), qtd),
+  'Loja Mágica (esotéricos)': (qtd)=> pickRandom(ITENS_ESOTERICOS, qtd),
+  'Boticário (poções)': (qtd)=> pickRandom(POCOES_MAGICAS, qtd).map(p=>({n:p.nome, preco:'T$ '+p.preco})),
+  'Armeiro de Fogo': (qtd)=> pickRandom(ARMAS.filter(a=>a.cat==='Arma de Fogo'), qtd),
+  'Curiosidades e Achados': (qtd)=> {
+    const nomes = pickRandom(ITENS_DIVERSOS_TABELA, qtd).map(x=>x[2]);
+    return nomes.map(nome=>{
+      const encontrado = ITENS_GERAIS.find(i=>i.n===nome);
+      return encontrado || {n:nome, preco:'variável'};
+    });
+  },
 };
 function pickRandom(lista, qtd){
   const copia = lista.slice();
@@ -685,27 +823,38 @@ function pickRandom(lista, qtd){
 
 function renderMestreLoja(){
   const wrap = el('div',{});
-  wrap.appendChild(el('div',{class:'tip'}, el('b',{},'Como usar'), 'Escolha o tipo de estabelecimento e gere um estoque aleatório na hora, usando os itens e preços já cadastrados no app.'));
+  wrap.appendChild(el('div',{class:'tip'}, el('b',{},'Como usar'), 'Escolha o tipo de estabelecimento, defina quantos itens quer no estoque e toque em "Gerar". Usa os itens e preços já cadastrados no app.'));
 
-  if(!state._mestreLojaTipo) state._mestreLojaTipo = 'Ferreiro';
+  if(!state._mestreLojaTipo) state._mestreLojaTipo = Object.keys(TIPOS_LOJA)[0];
   const tabsRow = el('div',{class:'tab-grid'});
   Object.keys(TIPOS_LOJA).forEach(tipo=>{
     tabsRow.appendChild(el('button',{class: state._mestreLojaTipo===tipo?'on':'', onclick:()=>{state._mestreLojaTipo=tipo; render();}}, tipo));
   });
   wrap.appendChild(tabsRow);
 
+  if(!state._mestreLojaQtd) state._mestreLojaQtd = 6;
+  wrap.appendChild(el('label',{style:'margin-top:10px;'},'Quantos itens no estoque?'));
+  wrap.appendChild(el('input',{id:'mestre-loja-qtd', type:'number', min:'1', max:'30', value:state._mestreLojaQtd, oninput:(e)=>{state._mestreLojaQtd=parseInt(e.target.value)||1;}}));
+
   wrap.appendChild(el('button',{class:'btn', style:'margin-top:10px;', onclick:()=>{
-    state._mestreLojaEstoque = TIPOS_LOJA[state._mestreLojaTipo]();
+    state._mestreLojaEstoque = TIPOS_LOJA[state._mestreLojaTipo](state._mestreLojaQtd);
     render();
   }}, 'Gerar Estoque 🎲'));
 
   if(state._mestreLojaEstoque){
     const panel = el('div',{class:'panel faixa'}, el('h2',{}, state._mestreLojaTipo));
-    const table = el('table',{class:'ataque-table'}, el('tr',{}, el('th',{},'Item'), el('th',{},'Preço')));
-    state._mestreLojaEstoque.forEach(it=>{
-      table.appendChild(el('tr',{}, el('td',{}, it.n), el('td',{}, it.preco)));
+    panel.appendChild(renderSeletorAlvoEnvio());
+    state._mestreLojaEstoque.forEach((it,idx)=>{
+      panel.appendChild(el('div',{class:'spell-card', style:'margin-top:8px;'},
+        el('div',{class:'head'},
+          el('span',{class:'name'}, it.n),
+          el('span',{class:'meta'}, it.preco)
+        ),
+        el('div',{style:'padding:0 12px 10px;'},
+          el('button',{class:'btn ghost', onclick:()=> enviarItemAvulsoParaAlvo(it.n, it.preco)}, 'Enviar pra mochila 📦')
+        )
+      ));
     });
-    panel.appendChild(el('div',{class:'table-scroll'}, table));
     wrap.appendChild(panel);
   }
   return wrap;
@@ -726,6 +875,7 @@ function renderMestreItens(){
   wrap.appendChild(tabsRow);
 
   wrap.appendChild(el('input',{id:'busca-mestre-itens', type:'text', placeholder:'buscar item pelo nome...', value:itf.busca, oninput:(e)=>{itf.busca=e.target.value; renderDebounced();}}));
+  wrap.appendChild(el('div',{style:'margin-top:8px;'}, renderSeletorAlvoEnvio()));
 
   const results = el('div',{});
 
@@ -738,7 +888,8 @@ function renderMestreItens(){
     if(list.length===0) results.appendChild(el('div',{class:'empty'},'Nenhuma arma encontrada.'));
     list.forEach(w=>{
       results.appendChild(renderItemColapsavel('mestre-arma-'+w.n, w.n, w.preco, [
-        el('div',{class:'desc'}, 'Dano '+w.dano+' · Crítico '+w.critico+' · '+w.tipo+' · Alcance: '+w.alcance+' · '+w.cat+' · '+w.esp+' esp. · '+(w.maos>=2?'2 mãos':'1 mão'))
+        el('div',{class:'desc'}, 'Dano '+w.dano+' · Crítico '+w.critico+' · '+w.tipo+' · Alcance: '+w.alcance+' · '+w.cat+' · '+w.esp+' esp. · '+(w.maos>=2?'2 mãos':'1 mão')),
+        el('button',{class:'btn ghost', style:'margin-top:8px;', onclick:()=> enviarItemAvulsoParaAlvo(w.n, w.preco)}, 'Enviar pra mochila 📦')
       ]));
     });
   }
@@ -748,7 +899,8 @@ function renderMestreItens(){
     if(list.length===0) results.appendChild(el('div',{class:'empty'},'Nenhuma armadura/escudo encontrada.'));
     list.forEach(a=>{
       results.appendChild(renderItemColapsavel('mestre-armadura-'+a.n, a.n, a.preco, [
-        el('div',{class:'desc'}, 'Defesa +'+a.def+' · Penalidade '+a.pen+' · '+a.esp+' espaços · '+a.cat)
+        el('div',{class:'desc'}, 'Defesa +'+a.def+' · Penalidade '+a.pen+' · '+a.esp+' espaços · '+a.cat),
+        el('button',{class:'btn ghost', style:'margin-top:8px;', onclick:()=> enviarItemAvulsoParaAlvo(a.n, a.preco)}, 'Enviar pra mochila 📦')
       ]));
     });
   }
@@ -759,7 +911,8 @@ function renderMestreItens(){
     list.forEach(it=>{
       results.appendChild(renderItemColapsavel('mestre-esoterico-'+it.n, it.n, it.preco, [
         el('div',{class:'desc'}, it.desc),
-        el('div',{class:'meta'}, it.maos+' mão'+(it.maos>1?'s':'')+' · '+it.esp+' esp.')
+        el('div',{class:'meta'}, it.maos+' mão'+(it.maos>1?'s':'')+' · '+it.esp+' esp.'),
+        el('button',{class:'btn ghost', style:'margin-top:8px;', onclick:()=> enviarItemAvulsoParaAlvo(it.n, it.preco)}, 'Enviar pra mochila 📦')
       ]));
     });
   }
@@ -770,7 +923,8 @@ function renderMestreItens(){
     if(list.length===0) results.appendChild(el('div',{class:'empty'},'Nenhuma poção encontrada.'));
     list.slice().sort((a,b)=>a.preco-b.preco).forEach(p=>{
       results.appendChild(renderItemColapsavel('mestre-pocao-'+p.nome, p.nome, 'T$ '+p.preco, [
-        el('div',{class:'desc'}, 'Contém a magia: '+p.magia+' ('+p.circulo+'º círculo)')
+        el('div',{class:'desc'}, 'Contém a magia: '+p.magia+' ('+p.circulo+'º círculo)'),
+        el('button',{class:'btn ghost', style:'margin-top:8px;', onclick:()=> enviarItemAvulsoParaAlvo(p.nome, 'T$ '+p.preco)}, 'Enviar pra mochila 📦')
       ]));
     });
   }
@@ -784,7 +938,8 @@ function renderMestreItens(){
     if(list.length===0) results.appendChild(el('div',{class:'empty'},'Nenhum item encontrado.'));
     list.forEach(it=>{
       results.appendChild(renderItemColapsavel('mestre-geral-'+it.n, it.n+(it.vestivel?' 👕':''), it.preco+' · '+it.cat, [
-        el('div',{class:'desc'}, it.desc)
+        el('div',{class:'desc'}, it.desc),
+        el('button',{class:'btn ghost', style:'margin-top:8px;', onclick:()=> enviarItemAvulsoParaAlvo(it.n, it.preco)}, 'Enviar pra mochila 📦')
       ]));
     });
   }

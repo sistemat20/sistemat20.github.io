@@ -262,9 +262,6 @@ function stepNome(w){
     el('input',{type:'text', value:w.nome, oninput:(e)=>{w.nome=e.target.value; sincronizarBotaoWizard();}}),
     el('label',{},'Seu nome (jogador)'),
     el('input',{type:'text', value:w.jogador, oninput:(e)=>{w.jogador=e.target.value;}}),
-    el('label',{},'Mesa (código do Mestre) — opcional'),
-    el('input',{type:'text', placeholder:'peça pro seu mestre, se ele usar', value:w.grupo||'', oninput:(e)=>{w.grupo=e.target.value;}}),
-    el('div',{class:'meta', style:'font-size:0.7rem;'}, 'Se o seu Mestre roda mais de uma mesa na mesma planilha, esse código separa sua ficha das outras campanhas nas ferramentas dele. Se não souber, pode deixar em branco e preencher depois.'),
   );
 }
 
@@ -813,7 +810,7 @@ async function finalizarCriacao(){
   const racaObj = RACAS.find(r=>r.nome===w.racaNome);
   const f = fichaVazia();
   f.id = uid();
-  f.jogador = w.jogador; f.nome = w.nome; f.grupo = (w.grupo||'').trim();
+  f.jogador = w.jogador; f.nome = w.nome;
   f.raca = w.racaNome; f.origem = w.origemNome || '(sem origem)';
   f.divindade = w.divindadeNome || '';
   f.poderConcedido = w.poderConcedidoEscolhido ? {nome: w.poderConcedidoEscolhido, deus: w.divindadeNome, sub: (w.poderConcedidoEscolhaSub||[]).slice()} : null;

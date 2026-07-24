@@ -290,10 +290,45 @@ function penalidadeArmaduraRaca(f){
   return (racaObj && racaObj.penalidadeArmaduraFixa) ? racaObj.penalidadeArmaduraFixa : 0;
 }
 // Ajuste rápido de PV/PM (toque no + ou -) — nunca passa do máximo nem fica negativo
+// ---- Ferimentos & Morte (regra da pág. 236 do livro básico) ----
+// Morre em -10 PV ou em -metade do PV máximo, o que for MAIS BAIXO (mais negativo).
+function limiteMortePv(f){
+  const max = parseInt(f.pvmax)||0;
+  return Math.min(-10, -Math.floor(max/2));
+}
+function estaMorto(f){ return (parseInt(f.pvatual)||0) <= limiteMortePv(f); }
+function estaInconsciente(f){ const pv = parseInt(f.pvatual)||0; return pv<=0 && !estaMorto(f); }
 function ajustarPV(f, delta){
   const max = parseInt(f.pvmax)||0;
   const atual = parseInt(f.pvatual)||0;
-  f.pvatual = Math.max(0, Math.min(max, atual+delta));
+  const limiteMorte = limiteMortePv(f);
+  const novo = Math.max(limiteMorte, Math.min(max, atual+delta));
+  // Perder PV estando a 0 ou menos (ou cair a 0 ou menos agora) exige um novo teste de
+  // Constituição — "sangrando de novo", não fica estabilizado de graça.
+  if(delta<0 && novo<=0) f.estabilizado = false;
+  if(novo>0) f.estabilizado = false; // volta consciente, o estado de sangramento não importa mais
+  f.pvatual = novo;
+  salvarPerfis(); render();
+}
+// Teste de Constituição (CD 15) de quem está a 0 PV ou menos, sangrando. Passar estabiliza
+// (não precisa testar de novo, a menos que perca mais PV). Falhar custa 1d6 PV a mais — o que
+// pode ser fatal, dependendo de quanto já perdeu.
+function testarMorte(f){
+  const constituicao = parseInt(f.con)||0;
+  const rolagem = 1+Math.floor(Math.random()*20);
+  const total = rolagem + constituicao;
+  if(total >= 15){
+    f.estabilizado = true;
+    flashMsg('🎲 '+rolagem+'+'+constituicao+' = '+total+' — Passou! Estabilizado, não precisa testar de novo (a menos que perca mais PV).');
+  } else {
+    const perda = 1+Math.floor(Math.random()*6);
+    ajustarPV(f, -perda);
+    if(estaMorto(f)){
+      flashMsg('🎲 '+rolagem+'+'+constituicao+' = '+total+' — Falhou, perdeu mais '+perda+' PV... e não resistiu.');
+    } else {
+      flashMsg('🎲 '+rolagem+'+'+constituicao+' = '+total+' — Falhou, perdeu mais '+perda+' PV. Precisa testar de novo no próximo turno.');
+    }
+  }
   salvarPerfis(); render();
 }
 function ajustarPM(f, delta){
@@ -632,6 +667,127 @@ function proficienciasPersonagem(f){
     escudos: c.escudos || p.escudos,
   };
 }
+// Resume, numa frase só, se algum item EQUIPADO (armas, armadura, escudo) está sem
+// proficiência — usado no banner de aviso visível em qualquer aba da ficha.
+// Lista de condições oficiais (Apêndice, pág. 394-395). Deixei de fora Inconsciente, Sangrando
+// e Sobrecarregado porque esses três já são calculados automaticamente em outro lugar do app.
+const CONDICOES_LISTA = [
+  ['Abalado','–2 em testes de perícia. Se ficar abalado de novo, vira Apavorado.'],
+  ['Agarrado','Desprevenido e imóvel, –2 em ataque, só ataca com armas leves.'],
+  ['Alquebrado','Custo em PM das habilidades aumenta em +1.'],
+  ['Apavorado','–5 em perícias, não se aproxima da fonte do medo.'],
+  ['Atordoado','Desprevenido e não pode fazer ações.'],
+  ['Caído','–5 Defesa corpo a corpo (+5 à distância), –5 em ataques corpo a corpo, deslocamento 1,5m.'],
+  ['Cego','Desprevenido, lento, –5 em perícias de Força/Destreza, sem Percepção visual.'],
+  ['Confuso','Comportamento aleatório (1d6 no início do turno).'],
+  ['Debilitado','–5 em For/Des/Con e perícias baseadas. Se de novo, vira Inconsciente.'],
+  ['Desprevenido','–5 na Defesa e em Reflexos.'],
+  ['Doente','Sob efeito de uma doença.'],
+  ['Em Chamas','1d6 de fogo no início do turno; apaga com ação padrão ou água.'],
+  ['Enfeitiçado','Fica prestativo com a fonte; ela ganha +10 Diplomacia.'],
+  ['Enjoado','Só uma ação padrão OU de movimento por rodada.'],
+  ['Enredado','Lento, vulnerável, –2 em ataque.'],
+  ['Envenenado','Efeito varia do veneno (perda de vida, fraco, enjoado...).'],
+  ['Esmorecido','–5 em Int/Sab/Car e perícias baseadas.'],
+  ['Exausto','Debilitado + lento + vulnerável. Se de novo, vira Inconsciente.'],
+  ['Fascinado','–5 Percepção, só observa o que o fascinou.'],
+  ['Fatigado','Fraco + vulnerável. Se de novo, vira Exausto.'],
+  ['Fraco','–2 em For/Des/Con e perícias baseadas. Se de novo, vira Debilitado.'],
+  ['Frustrado','–2 em Int/Sab/Car e perícias baseadas. Se de novo, vira Esmorecido.'],
+  ['Imóvel','Deslocamento reduzido a 0m.'],
+  ['Indefeso','Desprevenido, –10 Defesa, falha automática em Reflexos.'],
+  ['Lento','Deslocamento pela metade, não corre nem investe.'],
+  ['Ofuscado','–2 em ataque e Percepção.'],
+  ['Paralisado','Imóvel e indefeso, só ações mentais.'],
+  ['Pasmo','Não pode fazer ações.'],
+  ['Petrificado','Inconsciente + redução de dano 8.'],
+  ['Surdo','Sem Percepção auditiva, –5 Iniciativa, condição ruim pra magia.'],
+  ['Surpreendido','Desprevenido e não pode fazer ações.'],
+  ['Vulnerável','–2 na Defesa.'],
+];
+function condicoesAtivas(f){ return f.condicoesAtivas || []; }
+function alternarCondicao(f, nome){
+  if(!f.condicoesAtivas) f.condicoesAtivas = [];
+  const idx = f.condicoesAtivas.indexOf(nome);
+  if(idx>=0) f.condicoesAtivas.splice(idx,1); else f.condicoesAtivas.push(nome);
+  salvarPerfis(); render();
+}
+// ---- Uso limitado de poderes ("1x/cena", "1x/dia") ----
+// Detecta pela própria descrição do poder se ele tem limite de uso, sem precisar marcar cada
+// poder manualmente nos dados — só procura "por cena" ou "por dia" no texto.
+function tipoLimiteUso(desc){
+  if(!desc) return null;
+  if(/por dia/i.test(desc)) return 'dia';
+  if(/por cena/i.test(desc)) return 'cena';
+  return null;
+}
+function poderFoiUsado(f, nomePoder){ return !!(f.poderesUsados && f.poderesUsados[nomePoder]); }
+function alternarUsoPoder(f, nomePoder){
+  if(!f.poderesUsados) f.poderesUsados = {};
+  f.poderesUsados[nomePoder] = !f.poderesUsados[nomePoder];
+  salvarPerfis(); render();
+}
+// Junta todos os poderes do personagem (classe, geral, raça, concedido) que têm descrição
+// disponível, pra detectar o limite de uso e resetar na hora certa.
+function buscarDescPoderClasse(nome){
+  for(const classe in PODERES_CLASSE_COMPLETO){
+    const achado = PODERES_CLASSE_COMPLETO[classe].find(p=>p.nome===nome);
+    if(achado) return achado.desc;
+  }
+  return '';
+}
+function todosOsPoderesComDesc(f){
+  const lista = [];
+  (f.poderesClasse||[]).forEach(p=>{ lista.push({nome:p.nome, desc: buscarDescPoderClasse(p.nome)}); });
+  if(f.poderGeral){ const info = PODERES_GERAIS.find(x=>x.nome===f.poderGeral.nome); lista.push({nome:f.poderGeral.nome, desc:(info&&info.desc)||''}); }
+  if(f.poderGeralExtra){ const info = PODERES_GERAIS.find(x=>x.nome===f.poderGeralExtra.nome); lista.push({nome:f.poderGeralExtra.nome, desc:(info&&info.desc)||''}); }
+  if(f.poderRaca){ const info = PODERES_GERAIS.find(x=>x.nome===f.poderRaca.nome); lista.push({nome:f.poderRaca.nome, desc:(info&&info.desc)||''}); }
+  if(f.poderConcedido){ const info = (typeof PODERES_CONCEDIDOS!=='undefined') ? PODERES_CONCEDIDOS.find(x=>x.nome===f.poderConcedido.nome) : null; lista.push({nome:f.poderConcedido.nome, desc:(info&&info.desc)||''}); }
+  return lista;
+}
+function poderesComLimiteUso(f){
+  return todosOsPoderesComDesc(f).map(p=> ({nome:p.nome, tipo:tipoLimiteUso(p.desc)})).filter(p=>p.tipo);
+}
+// Zera o "usado" de poderes de um tipo específico (chamado por Nova Cena e pelo Descanso).
+function resetarUsoPoderes(f, tipos){
+  if(!f.poderesUsados) return;
+  poderesComLimiteUso(f).forEach(p=>{
+    if(tipos.includes(p.tipo)) delete f.poderesUsados[p.nome];
+  });
+}
+
+// ---- Descanso (regra da pág. 106 — não existe "curto/longo" no T20, só uma noite de sono
+// com 4 níveis de qualidade, cada um recuperando um múltiplo do nível em PV e PM) ----
+const QUALIDADE_DESCANSO = {
+  'Ruim': 0.5,        // dormir ao relento, sem acampamento — metade do nível
+  'Normal': 1,         // estalagem comum — igual ao nível
+  'Confortável': 2,    // dobro do nível
+  'Luxuosa': 3,        // triplo do nível
+};
+function aplicarDescanso(f, qualidade){
+  const nivel = nivelTotal(f);
+  const mult = QUALIDADE_DESCANSO[qualidade] || 1;
+  const recuperacao = Math.floor(nivel*mult);
+  f.pvatual = Math.min(parseInt(f.pvmax)||0, (parseInt(f.pvatual)||0)+recuperacao);
+  f.pmatual = Math.min(parseInt(f.pmmax)||0, (parseInt(f.pmatual)||0)+recuperacao);
+  if((parseInt(f.pvatual)||0) > 0) f.estabilizado = false;
+  resetarUsoPoderes(f, ['cena','dia']); // uma noite de sono também encerra a cena atual
+  salvarPerfis(); render();
+  flashMsg('🌙 Descanso '+qualidade.toLowerCase()+': +'+recuperacao+' PV e +'+recuperacao+' PM (nível '+nivel+' × '+mult+').');
+}
+function novaCena(f){
+  resetarUsoPoderes(f, ['cena']);
+  salvarPerfis(); render();
+  flashMsg('🎬 Nova cena — poderes de uso "por cena" já podem ser usados de novo.');
+}
+
+function itensSemProficiencia(f){
+  const semProf = [];
+  (f.armas||[]).forEach(a=>{ if(!proficienteComArma(f,a)) semProf.push(a.nome); });
+  if(!proficienteComArmadura(f)) semProf.push(f.armadura.nome);
+  if(!proficienteComEscudo(f)) semProf.push(f.escudo.nome);
+  return semProf;
+}
 function proficienteComArma(f, arma){
   const racaObj = getRacaObj(f);
   if(racaObj && racaObj.armasComoSimples && racaObj.armasComoSimples.includes(arma.n||arma.nome)) return true;
@@ -968,6 +1124,22 @@ function render(){
   proximoQuadro(()=>{ reaplicar(); proximoQuadro(reaplicar); });
 }
 
+// Frases de clima pra tela de carregamento — nada oficial do livro, só pra dar uma cara de
+// Arton enquanto a planilha do Google "acorda". Escolhida uma por sessão, não fica trocando.
+const FRASES_CARREGAMENTO = [
+  'Afiando espadas e recarregando mochilas...',
+  'Consultando os arquivos de Valkaria...',
+  'A Tormenta espera, mas os heróis não...',
+  'Rolando iniciativa nos bastidores...',
+  'Acordando o escriba da planilha...',
+  'Reunindo os aventureiros na taverna...',
+  'Verificando o mapa de Arton...',
+];
+function fraseCarregamentoAtual(){
+  if(!state._fraseCarregamento) state._fraseCarregamento = FRASES_CARREGAMENTO[Math.floor(Math.random()*FRASES_CARREGAMENTO.length)];
+  return state._fraseCarregamento;
+}
+
 // ============ TELA DE PERFIS ============
 function renderPerfisScreen(){
   const wrap = el('div',{class:'perfis-screen'});
@@ -976,9 +1148,9 @@ function renderPerfisScreen(){
   wrap.appendChild(el('div',{class:'perfis-title'},'Painel do Aventureiro'));
 
   if(state._carregandoInicial){
-    wrap.appendChild(el('div',{class:'panel faixa', style:'max-width:380px;text-align:center;'},
-      el('div',{style:'font-size:2rem;margin-bottom:8px;'}, '⏳'),
-      el('div',{class:'wizard-title', style:'font-size:1rem;'}, 'Carregando seus personagens...'),
+    wrap.appendChild(el('div',{class:'panel faixa splash-carregando', style:'max-width:380px;text-align:center;'},
+      el('div',{class:'splash-dado'}, '⟠'),
+      el('div',{class:'wizard-title', style:'font-size:1rem;'}, fraseCarregamentoAtual()),
       state._carregandoDemorando ? el('div',{class:'tip', style:'margin-top:10px;'}, 'Isso está demorando mais que o normal — o Google às vezes leva alguns segundos pra "acordar" depois de um tempo sem uso. Aguenta mais um pouco.') : null
     ));
     return wrap;

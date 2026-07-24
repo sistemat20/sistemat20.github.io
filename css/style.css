@@ -17,22 +17,23 @@
     --line: rgba(166,129,47,0.32);
     --shadow: rgba(0,0,0,0.5);
   }
-  /* "Modo Mesa": alto contraste pra jogar com pouca luz na mesa física, sem precisar forçar a
-     vista pra ler dourado sobre marrom-escuro por horas. Preto puro + branco + amarelo vivo. */
+  /* "Modo Mesa": alto contraste pra jogar com pouca luz (ou luz de sobra) na mesa física, sem
+     forçar a vista lendo dourado sobre marrom-escuro por horas — fundo bem claro, texto bem
+     escuro, como uma folha de papel impressa. */
   [data-tema="mesa"]{
-    --bg: #000000;
-    --bg-2: #000000;
-    --ink: #ffffff;
-    --ink-soft: #d8d8d8;
-    --red: #ff4438;
-    --red-deep: #cc2018;
-    --red-bright: #ff6a5c;
-    --gold: #ffd700;
-    --gold-deep: #ffb700;
-    --card: rgba(24,24,24,0.96);
-    --card-2: rgba(10,10,10,0.98);
-    --line: rgba(255,215,0,0.55);
-    --shadow: rgba(0,0,0,0.85);
+    --bg: #f4efe6;
+    --bg-2: #ffffff;
+    --ink: #201812;
+    --ink-soft: #4a3c30;
+    --red: #a3271f;
+    --red-deep: #7c1f1f;
+    --red-bright: #c02a20;
+    --gold: #7a5a12;
+    --gold-deep: #5c4310;
+    --card: rgba(255,255,255,0.94);
+    --card-2: rgba(238,230,216,0.95);
+    --line: rgba(122,90,18,0.4);
+    --shadow: rgba(0,0,0,0.18);
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0; overflow-x:hidden; width:100%;}
@@ -47,6 +48,13 @@
     font-family:'Inter',sans-serif;
     -webkit-font-smoothing:antialiased;
     min-height:100vh;
+  }
+  [data-tema="mesa"] body{
+    background:
+      radial-gradient(ellipse 700px 420px at 12% 6%, rgba(163,39,31,0.05), transparent 60%),
+      radial-gradient(ellipse 600px 500px at 90% 96%, rgba(122,90,18,0.05), transparent 55%),
+      linear-gradient(160deg, #ffffff 0%, #f4efe6 60%, #ede4d3 100%);
+    background-attachment:fixed;
   }
   img, svg{ max-width:100%; }
   .display{font-family:'Cinzel',serif;}
@@ -77,6 +85,10 @@
   padding:8px 14px; cursor:pointer;
 }
 .aviso-sobrecarga:active{ opacity:0.8; }
+.aviso-morte{ background:linear-gradient(90deg, rgba(0,0,0,0.5), rgba(224,69,58,0.25)); border-bottom:2px solid var(--red-bright); font-size:0.9rem; cursor:default; }
+.splash-carregando{ display:flex; flex-direction:column; align-items:center; gap:6px; }
+.splash-dado{ font-size:2.6rem; color:var(--gold); margin-bottom:4px; animation: girar-dado 2.2s linear infinite; }
+@keyframes girar-dado{ 0%{ transform:rotate(0deg) scale(1); } 50%{ transform:rotate(180deg) scale(1.08); } 100%{ transform:rotate(360deg) scale(1); } }
 
   /* ===== Menu principal (substitui a antiga barra de abas fixa) ===== */
   .menu-trigger{

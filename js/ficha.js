@@ -74,9 +74,33 @@ function renderFichaScreen(){
   if(state.levelUp && state.levelUp.aberto){
     wrap.appendChild(renderLevelUpPopup(fichaAtual()));
   }
-  if(sobrecarregado(f) && !state._menuAberto && !state._divindadeFluxo && !state._cropperFoto && !(state.levelUp&&state.levelUp.aberto)){
+  const semMenuAberto = !state._menuAberto && !state._divindadeFluxo && !state._cropperFoto && !(state.levelUp&&state.levelUp.aberto);
+  if(estaMorto(f) && semMenuAberto){
+    wrap.appendChild(el('div',{class:'aviso-sobrecarga aviso-morte'}, '💀 '+(f.nome||'Personagem')+' morreu.'));
+  } else if(estaInconsciente(f) && semMenuAberto){
+    if(f.estabilizado){
+      wrap.appendChild(el('div',{class:'aviso-sobrecarga'}, '😵 Inconsciente, mas estabilizado — precisa de cura (ou descanso) pra recobrar a consciência.'));
+    } else {
+      wrap.appendChild(el('div',{class:'aviso-sobrecarga', style:'cursor:default;'},
+        el('div',{}, '🩸 Inconsciente e sangrando — teste de Constituição (CD 15) no início do turno.'),
+        el('button',{class:'btn', style:'margin-top:6px;width:auto;padding:6px 14px;', onclick:(e)=>{ e.stopPropagation(); testarMorte(f); }}, 'Fazer teste 🎲')
+      ));
+    }
+  }
+  if(sobrecarregado(f) && semMenuAberto){
     wrap.appendChild(el('div',{class:'aviso-sobrecarga', onclick:()=>{ state.tab='personagem'; state.personagemTab='mochila'; render(); }},
       '⚠ Sobrecarregado — toque pra ver a Mochila (−5 de penalidade, −3m de deslocamento já aplicados)'
+    ));
+  }
+  const semProf = itensSemProficiencia(f);
+  if(semProf.length>0 && semMenuAberto){
+    wrap.appendChild(el('div',{class:'aviso-sobrecarga', onclick:()=>{ state.tab='personagem'; state.personagemTab='ficha'; render(); }},
+      '⚠ Sem proficiência com '+semProf.join(', ')+' — penalidade já aplicada, toque pra ver'
+    ));
+  }
+  if(condicoesAtivas(f).length>0 && semMenuAberto){
+    wrap.appendChild(el('div',{class:'aviso-sobrecarga', style:'background:linear-gradient(90deg, rgba(122,90,18,0.25), rgba(122,90,18,0.1));border-bottom-color:var(--gold);', onclick:()=>{ state.tab='personagem'; state.personagemTab='ficha'; render(); }},
+      '🩹 Condições ativas: '+condicoesAtivas(f).join(', ')
     ));
   }
 
@@ -497,9 +521,7 @@ function renderPersonagemFicha(){
     ),
     el('div',{class:'row'},
       el('div',{style:'flex:1;'}, el('label',{},'Jogador'), bindInput(f,'jogador')),
-      el('div',{style:'flex:1;'}, el('label',{},'Mesa (código do Mestre)'), bindInput(f,'grupo')),
     ),
-    f.grupo ? null : el('div',{class:'meta', style:'font-size:0.68rem;margin-top:-6px;margin-bottom:8px;'}, 'Se seu Mestre roda mais de uma mesa nessa mesma planilha, peça o código da mesa pra ele e coloque aqui — assim as ferramentas dele (Grupo, Iniciativa, Tesouro) só mostram quem é dessa campanha.'),
     el('div',{class:'row'},
       el('div',{}, el('label',{},'Raça'), el('div',{class:'valor-fixo'}, f.raca||'—')),
       el('div',{}, el('label',{},'Origem'), el('div',{class:'valor-fixo'}, f.origem||'—')),
@@ -594,9 +616,50 @@ function renderPersonagemFicha(){
     )
   ));
 
+  wrap.appendChild(renderPainelCondicoes(f));
   wrap.appendChild(renderItensEquipados());
   wrap.appendChild(renderPainelVestidos(f));
 
+  return wrap;
+}
+
+// Painel de condições ativas — toque pra ligar/desligar. Mostra só o nome nas escolhidas de
+// cara; toda a lista só aparece quando o jogador toca em "Gerenciar condições".
+function renderPainelCondicoes(f){
+  const ativas = condicoesAtivas(f);
+  const wrap = el('div',{class:'panel faixa'}, el('h2',{},'Condições Ativas'));
+  if(!state._gerenciandoCondicoes){
+    if(ativas.length===0){
+      wrap.appendChild(el('div',{class:'empty'},'Nenhuma condição ativa agora.'));
+    } else {
+      const row = el('div',{class:'option-grid'});
+      ativas.forEach(nome=>{
+        const info = CONDICOES_LISTA.find(c=>c[0]===nome);
+        row.appendChild(el('button',{class:'option-card selected', onclick:()=>alternarCondicao(f,nome)},
+          el('div',{class:'opt-nome'}, nome+' ✕'),
+          info ? el('div',{class:'opt-sub'}, info[1]) : null
+        ));
+      });
+      wrap.appendChild(row);
+    }
+    wrap.appendChild(el('button',{class:'btn ghost', style:'margin-top:10px;', onclick:()=>{ state._gerenciandoCondicoes=true; render(); }}, 'Gerenciar condições'));
+    if(f.condicoesNota){
+      wrap.appendChild(el('div',{class:'meta', style:'margin-top:8px;color:var(--gold);'}, '📝 '+f.condicoesNota));
+    }
+  } else {
+    const row = el('div',{class:'option-grid'});
+    CONDICOES_LISTA.forEach(([nome,desc])=>{
+      const marcado = ativas.includes(nome);
+      row.appendChild(el('button',{class:'option-card '+(marcado?'selected':''), onclick:()=>alternarCondicao(f,nome)},
+        el('div',{class:'opt-nome'}, nome),
+        el('div',{class:'opt-sub'}, desc)
+      ));
+    });
+    wrap.appendChild(row);
+    wrap.appendChild(el('label',{style:'margin-top:10px;'},'Nota livre (ex: "Veneno 2d6/turno", "Sangramento leve")'));
+    wrap.appendChild(el('input',{id:'condicoes-nota', type:'text', value:f.condicoesNota||'', oninput:(e)=>{f.condicoesNota=e.target.value;}, onchange:()=>{salvarPerfis();}}));
+    wrap.appendChild(el('button',{class:'btn ghost', style:'margin-top:10px;', onclick:()=>{ state._gerenciandoCondicoes=false; render(); }}, 'Fechar'));
+  }
   return wrap;
 }
 
@@ -620,38 +683,52 @@ function renderPersonagemNotas(){
     el('div',{class:'meta', style:'font-size:0.7rem;color:var(--ink-soft);margin-top:6px;'}, 'Usar arma sem proficiência: –5 no teste de ataque. Vestir armadura/escudo sem proficiência: a penalidade dele passa a valer em toda perícia de Força e Destreza (não só Acrobacia/Furtividade/Ladinagem).')
   ));
 
+  const descansoPanel = el('div',{class:'panel'}, el('h2',{},'Descanso'));
+  descansoPanel.appendChild(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Uma noite de sono (8h+) recupera PV e PM iguais ao seu nível ('+nivelTotal(f)+') vezes a qualidade do descanso, e reinicia poderes de uso "por cena" e "por dia" (pág. 106 do livro).'));
+  const rowDescanso = el('div',{class:'option-grid', style:'margin-top:8px;'});
+  Object.keys(QUALIDADE_DESCANSO).forEach(qualidade=>{
+    rowDescanso.appendChild(el('button',{class:'option-card', onclick:()=>aplicarDescanso(f, qualidade)},
+      el('div',{class:'opt-nome'}, qualidade),
+      el('div',{class:'opt-sub'}, '+'+Math.floor(nivelTotal(f)*QUALIDADE_DESCANSO[qualidade])+' PV/PM')
+    ));
+  });
+  descansoPanel.appendChild(rowDescanso);
+  descansoPanel.appendChild(el('button',{class:'btn ghost', style:'margin-top:10px;', onclick:()=>novaCena(f)}, 'Nova Cena 🎬 (só reinicia poderes "por cena", sem recuperar PV/PM)'));
+  wrap.appendChild(descansoPanel);
+
   const poderesPanel = el('div',{class:'panel'}, el('h2',{},'Poderes'));
   const entradasPoderes = [];
   if(f.poderGeral && f.poderGeral.nome){
     const pInfo = PODERES_GERAIS.find(p=>p.nome===f.poderGeral.nome);
-    entradasPoderes.push({nome: f.poderGeral.nome + (f.poderGeral.sub? (' — '+f.poderGeral.sub):''), fonte:'Origem: '+f.origem, desc: pInfo?pInfo.desc:''});
+    entradasPoderes.push({nome: f.poderGeral.nome + (f.poderGeral.sub? (' — '+f.poderGeral.sub):''), chaveBase:f.poderGeral.nome, fonte:'Origem: '+f.origem, desc: pInfo?pInfo.desc:''});
   }
   if(f.poderGeralExtra && f.poderGeralExtra.nome){
     const pInfo = PODERES_GERAIS.find(p=>p.nome===f.poderGeralExtra.nome);
-    entradasPoderes.push({nome: f.poderGeralExtra.nome + (f.poderGeralExtra.sub? (' — '+f.poderGeralExtra.sub):''), fonte:'Origem: '+f.origem, desc: pInfo?pInfo.desc:''});
+    entradasPoderes.push({nome: f.poderGeralExtra.nome + (f.poderGeralExtra.sub? (' — '+f.poderGeralExtra.sub):''), chaveBase:f.poderGeralExtra.nome, fonte:'Origem: '+f.origem, desc: pInfo?pInfo.desc:''});
   }
   if(f.origemPoderCategoria && f.origemPoderCategoria.nome){
     if(f.origemPoderCategoria.sub){
       const pInfoCat = PODERES_GERAIS.find(p=>p.nome===f.origemPoderCategoria.sub);
       entradasPoderes.push({
         nome: f.origemPoderCategoria.sub + (f.origemPoderCategoria.subEscolha? (' — '+f.origemPoderCategoria.subEscolha):''),
+        chaveBase: f.origemPoderCategoria.sub,
         fonte:'Origem: '+f.origem+' ('+f.origemPoderCategoria.nome+')',
         desc: pInfoCat?pInfoCat.desc:''
       });
     } else {
-      entradasPoderes.push({nome: f.origemPoderCategoria.nome, fonte:'Origem: '+f.origem, desc:'Combine com o mestre qual poder específico esse será e anote nas Notas.'});
+      entradasPoderes.push({nome: f.origemPoderCategoria.nome, chaveBase:f.origemPoderCategoria.nome, fonte:'Origem: '+f.origem, desc:'Combine com o mestre qual poder específico esse será e anote nas Notas.'});
     }
   }
   if(f.poderRaca && f.poderRaca.nome){
     const pInfo = PODERES_GERAIS.find(p=>p.nome===f.poderRaca.nome);
-    entradasPoderes.push({nome: f.poderRaca.nome + (f.poderRaca.sub? (' — '+f.poderRaca.sub):''), fonte:'Raça: '+f.raca, desc: pInfo?pInfo.desc:'Perícia/poder concedido pela raça.'});
+    entradasPoderes.push({nome: f.poderRaca.nome + (f.poderRaca.sub? (' — '+f.poderRaca.sub):''), chaveBase:f.poderRaca.nome, fonte:'Raça: '+f.raca, desc: pInfo?pInfo.desc:'Perícia/poder concedido pela raça.'});
   }
   if(f.origemPoder && f.origemPoder.nome){
-    entradasPoderes.push({nome: f.origemPoder.nome, fonte:'Origem: '+f.origem+' (único)', desc: f.origemPoder.desc||''});
+    entradasPoderes.push({nome: f.origemPoder.nome, chaveBase:f.origemPoder.nome, fonte:'Origem: '+f.origem+' (único)', desc: f.origemPoder.desc||''});
   }
   if(f.poderConcedido && f.poderConcedido.nome){
     const pInfo = PODERES_CONCEDIDOS.find(p=>p.nome===f.poderConcedido.nome);
-    entradasPoderes.push({nome: f.poderConcedido.nome, fonte:'Devoto de '+f.poderConcedido.deus, desc: pInfo?pInfo.desc:''});
+    entradasPoderes.push({nome: f.poderConcedido.nome, chaveBase:f.poderConcedido.nome, fonte:'Devoto de '+f.poderConcedido.deus, desc: pInfo?pInfo.desc:''});
   }
   (f.poderesClasse||[]).forEach(p=>{
     let desc = '';
@@ -669,14 +746,17 @@ function renderPersonagemNotas(){
         desc = found ? found[1] : '';
       }
     }
-    entradasPoderes.push({nome: p.nome + (p.sub?(' — '+p.sub):''), fonte:'Nível '+p.nivel+' de '+p.classe+(p.trocaPorGeral?' (trocado)':''), desc});
+    entradasPoderes.push({nome: p.nome + (p.sub?(' — '+p.sub):''), chaveBase:p.nome, fonte:'Nível '+p.nivel+' de '+p.classe+(p.trocaPorGeral?' (trocado)':''), desc});
   });
   if(entradasPoderes.length===0){
     poderesPanel.appendChild(el('div',{class:'empty'},'Nenhum poder registrado ainda.'));
   } else {
     entradasPoderes.forEach((entrada, idx)=>{
-      poderesPanel.appendChild(renderItemColapsavel('poder-'+idx+'-'+entrada.nome, entrada.nome, entrada.fonte, [
-        el('div',{class:'desc'}, entrada.desc)
+      const limite = tipoLimiteUso(entrada.desc);
+      const usado = limite ? poderFoiUsado(f, entrada.chaveBase) : false;
+      poderesPanel.appendChild(renderItemColapsavel('poder-'+idx+'-'+entrada.nome, entrada.nome+(usado?' (usado)':''), entrada.fonte, [
+        el('div',{class:'desc'}, entrada.desc),
+        limite ? el('button',{class:'btn ghost', style:'margin-top:8px;'+(usado?'opacity:0.6;':''), onclick:(e)=>{ e.stopPropagation(); alternarUsoPoder(f, entrada.chaveBase); }}, usado ? '↺ Marcar como disponível de novo' : '✓ Marcar como usado ('+limite+')') : null
       ]));
     });
   }
@@ -764,38 +844,40 @@ function renderPersonagemMochila(){
   if(!f.equip || f.equip.length===0){
     eqPanel.appendChild(el('div',{class:'empty'},'Mochila vazia. Vá no Menu → Itens pra buscar itens no catálogo.'));
   } else {
-    const table = el('table',{class:'ataque-table'},
-      el('tr',{}, el('th',{},'Item'), el('th',{},'Qtd'), el('th',{},'Espaço'), el('th',{}))
-    );
     f.equip.forEach((row, idx)=>{
       const podeEquipar = row.tipo==='arma' || row.tipo==='armadura' || row.tipo==='escudo' || row.tipo==='esoterico';
       const rotulo = {arma:'Arma', armadura:'Armadura', escudo:'Escudo', esoterico:'Esotérico', geral:'Item'}[row.tipo] || 'Item';
+      const corpo = [];
       if(row.tipo==='geral'){
         const itemCatalogo = ITENS_GERAIS.find(i=>i.n===row.item);
         const ehVestivel = itemCatalogo && itemCatalogo.vestivel;
-        table.appendChild(el('tr',{},
-          el('td',{}, el('input',{type:'text', style:'margin:0;padding:4px 6px;font-size:0.8rem;', value:row.item, oninput:(e)=>{row.item=e.target.value;}, onchange:()=>{salvarPerfis(); render();}}),
-            row.vestido ? el('div',{class:'meta', style:'color:var(--gold);'},'👕 vestido') : null),
-          el('td',{}, el('input',{type:'text', style:'margin:0;padding:4px 6px;width:44px;font-size:0.8rem;', value:row.qtd, oninput:(e)=>{row.qtd=e.target.value;}, onchange:()=>{salvarPerfis(); render();}})),
-          el('td',{}, el('input',{type:'text', style:'margin:0;padding:4px 6px;width:44px;font-size:0.8rem;', value:row.carga, oninput:(e)=>{row.carga=e.target.value;}, onchange:()=>{salvarPerfis(); render();}})),
-          el('td',{}, el('div',{style:'display:flex;gap:4px;'},
-            ehVestivel ? el('button',{class:'btn ghost', style:'padding:4px 8px;font-size:0.68rem;', onclick:()=>{ row.vestido=!row.vestido; salvarPerfis(); render(); }}, row.vestido?'Guardar':'Vestir') : null,
-            el('button',{class:'remove-x', onclick:()=>{ f.equip.splice(idx,1); salvarPerfis(); render(); }},'✕')
-          ))
-        ));
+        corpo.push(
+          el('label',{},'Nome'),
+          el('input',{id:'mochila-nome-'+idx, type:'text', value:row.item, oninput:(e)=>{row.item=e.target.value;}, onchange:()=>{salvarPerfis(); render();}}),
+          el('div',{class:'row', style:'margin-top:8px;'},
+            el('div',{style:'flex:1;'}, el('label',{},'Quantidade'), el('input',{id:'mochila-qtd-'+idx, type:'text', value:row.qtd, oninput:(e)=>{row.qtd=e.target.value;}, onchange:()=>{salvarPerfis(); render();}})),
+            el('div',{style:'flex:1;'}, el('label',{},'Espaço'), el('input',{id:'mochila-carga-'+idx, type:'text', value:row.carga, oninput:(e)=>{row.carga=e.target.value;}, onchange:()=>{salvarPerfis(); render();}})),
+          ),
+          row.vestido ? el('div',{class:'meta', style:'color:var(--gold);margin-top:4px;'},'👕 vestido') : null,
+          el('div',{class:'row', style:'margin-top:8px;'},
+            ehVestivel ? el('button',{class:'btn ghost', onclick:()=>{ row.vestido=!row.vestido; salvarPerfis(); render(); }}, row.vestido?'Guardar':'Vestir') : null,
+            el('button',{class:'btn ghost', onclick:()=>{ f.equip.splice(idx,1); salvarPerfis(); render(); }}, 'Remover 🗑️')
+          )
+        );
       } else {
-        table.appendChild(el('tr',{},
-          el('td',{}, el('b',{}, row.item), el('div',{class:'meta'}, rotulo)),
-          el('td',{}, row.qtd),
-          el('td',{}, row.carga),
-          el('td',{}, el('div',{style:'display:flex;gap:4px;'},
-            podeEquipar ? el('button',{class:'btn ghost', style:'padding:4px 8px;font-size:0.68rem;', onclick:()=> row.tipo==='esoterico' ? equiparEsotericoDaMochila(idx) : equiparDaMochila(idx)}, 'Equipar') : null,
-            el('button',{class:'remove-x', onclick:()=>{ f.equip.splice(idx,1); salvarPerfis(); render(); }},'✕')
-          ))
-        ));
+        corpo.push(
+          el('div',{class:'row'},
+            el('div',{style:'flex:1;'}, el('label',{},'Quantidade'), el('input',{id:'mochila-qtd-'+idx, type:'text', value:row.qtd, oninput:(e)=>{row.qtd=e.target.value;}, onchange:()=>{salvarPerfis(); render();}})),
+            el('div',{style:'flex:1;'}, el('label',{},'Espaço'), el('input',{id:'mochila-carga-'+idx, type:'text', value:row.carga, oninput:(e)=>{row.carga=e.target.value;}, onchange:()=>{salvarPerfis(); render();}})),
+          ),
+          el('div',{class:'row', style:'margin-top:8px;'},
+            podeEquipar ? el('button',{class:'btn ghost', onclick:()=> row.tipo==='esoterico' ? equiparEsotericoDaMochila(idx) : equiparDaMochila(idx)}, 'Equipar') : null,
+            el('button',{class:'btn ghost', onclick:()=>{ f.equip.splice(idx,1); salvarPerfis(); render(); }}, 'Remover 🗑️')
+          )
+        );
       }
+      eqPanel.appendChild(renderItemColapsavel('mochila-'+idx, row.item, rotulo+' · Qtd '+row.qtd+' · Esp '+row.carga, corpo));
     });
-    eqPanel.appendChild(el('div',{class:'table-scroll'}, table));
   }
   eqPanel.appendChild(el('button',{class:'btn ghost', style:'margin-top:10px;', onclick:()=>{
     f.equip.push({tipo:'geral', item:'Novo item', qtd:'1', carga:'1'});
