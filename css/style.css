@@ -288,6 +288,11 @@
     color:var(--gold); border-bottom:1px solid var(--line); padding:10px 2px 4px; margin-top:6px;
   }
   .lista-secao-titulo:first-child{ margin-top:0; }
+.seta-reordenar{
+  width:24px; height:18px; padding:0; margin:0; border:1px solid var(--line); border-radius:4px;
+  background:var(--card-2); color:var(--gold); font-size:0.6rem; line-height:1; cursor:pointer;
+}
+.seta-reordenar:disabled{ opacity:0.25; cursor:default; }
   .valor-fixo{ padding:9px 0 8px; font-weight:700; margin-bottom:10px; }
 
   .foto-upload{

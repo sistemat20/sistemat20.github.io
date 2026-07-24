@@ -2,10 +2,18 @@
 
 function abrirTelaMestre(){
   state.screen = 'mestre';
-  state.mestreTab = 'bestiario';
+  state.mestreCategoria = 'combate';
+  state.mestreTab = 'combate';
   render();
   carregarPerfisTodosParaMestre().then(render);
 }
+
+// As 9 telas do Mestre, agrupadas em 3 categorias — evita uma barra de abas gigante.
+const CATEGORIAS_MESTRE = {
+  combate: {label:'Combate', abas:[['combate','Combate'],['preparar','Preparar Encontro'],['grupo','Grupo']]},
+  bestiario: {label:'Bestiário', abas:[['bestiario','Bestiário'],['npc','NPC Rápido'],['nomes','Nomes']]},
+  recursos: {label:'Recursos', abas:[['tesouro','Tesouro'],['loja','Loja'],['itens','Itens'],['magicos','Itens Mágicos']]},
+};
 
 function renderMestreScreen(){
   const wrap = el('div',{});
@@ -18,14 +26,26 @@ function renderMestreScreen(){
     el('div',{class:'sub'}, 'Bestiário, NPCs, tesouro, lojas e nomes — tudo pra conduzir a sessão')
   ));
 
+  if(!state.mestreCategoria) state.mestreCategoria = 'combate';
+  const navCategoria = el('nav',{class:'tab-grid'});
+  Object.keys(CATEGORIAS_MESTRE).forEach(catId=>{
+    navCategoria.appendChild(el('button',{class: state.mestreCategoria===catId?'on':'', onclick:()=>{
+      state.mestreCategoria = catId;
+      state.mestreTab = CATEGORIAS_MESTRE[catId].abas[0][0];
+      render();
+    }}, CATEGORIAS_MESTRE[catId].label));
+  });
+  wrap.appendChild(navCategoria);
+
   const nav = el('nav',{class:'tabs'});
-  [['iniciativa','Iniciativa'],['grupo','Grupo'],['bestiario','Bestiário'],['npc','NPC Rápido'],['tesouro','Tesouro'],['loja','Loja'],['itens','Itens'],['magicos','Itens Mágicos'],['nomes','Nomes']].forEach(([id,label])=>{
+  CATEGORIAS_MESTRE[state.mestreCategoria].abas.forEach(([id,label])=>{
     nav.appendChild(el('button',{class: state.mestreTab===id?'active':'', onclick:()=>{state.mestreTab=id; render();}}, label));
   });
   wrap.appendChild(nav);
 
   const main = el('main',{});
-  if(state.mestreTab==='iniciativa') main.appendChild(renderMestreIniciativa());
+  if(state.mestreTab==='combate') main.appendChild(renderMestreCombate());
+  if(state.mestreTab==='preparar') main.appendChild(renderMestrePreparar());
   if(state.mestreTab==='grupo') main.appendChild(renderMestreGrupo());
   if(state.mestreTab==='bestiario') main.appendChild(renderMestreBestiario());
   if(state.mestreTab==='npc') main.appendChild(renderMestreNpc());
@@ -270,6 +290,14 @@ function extrairBonusIniciativa(sentidos){
   return m ? parseInt(m[1]) : 0;
 }
 function rolarD20(){ return 1 + Math.floor(Math.random()*20); }
+// Insere um combatente na posição certa de uma lista (por iniciativa, decrescente) — usado só
+// na hora de "enviar pro combate"; depois disso a ordem vira manual (setinhas), não se reordena
+// mais sozinha, pra não bagunçar ajustes que o Mestre já tenha feito na mesa.
+function inserirOrdenadoPorIniciativa(lista, combatente){
+  const idx = lista.findIndex(c=> c.iniciativa < combatente.iniciativa);
+  if(idx===-1) lista.push(combatente);
+  else lista.splice(idx, 0, combatente);
+}
 
 // Mostra a foto de verdade do jogador (quando existe) em vez de um ícone genérico — só monstros
 // e avulsos (sem ficha) usam o emoji mesmo.
@@ -281,10 +309,12 @@ function avatarCombatente(c, tamanho){
   return el('div',{style:'font-size:'+(tamanho*0.75)+'px;line-height:1;'}, icone);
 }
 
-function novoCombatente(nome, tipo, bonusIniciativa, pv, pvMax, foto){
+function novoCombatente(nome, tipo, bonusIniciativa, pv, pvMax, foto, dadosOuId){
   return {
     id: 'c'+Date.now()+Math.floor(Math.random()*10000),
     nome, tipo, foto: foto||null, // 'pj' | 'monstro' | 'custom'
+    dados: tipo==='monstro' ? (dadosOuId||null) : null, // ficha completa da criatura, pro acordeão
+    origemId: tipo==='pj' ? (dadosOuId||null) : null, // id do personagem, pra puxar dado ao vivo (condições, Defesa...)
     iniciativa: rolarD20() + (bonusIniciativa||0),
     pv: pv!=null ? pv : 0,
     pvMax: pvMax!=null ? pvMax : (pv!=null?pv:0),
@@ -457,57 +487,70 @@ function renderEncontrosSalvos(combate){
   return wrap;
 }
 
-function renderMestreIniciativa(){
+// ---- COMBATE (tela ao vivo — só quem já foi enviado da Preparação) ----
+function renderMestreCombate(){
   const wrap = el('div',{});
   if(!state._mestreIniciativa) state._mestreIniciativa = {combatentes:[], turnoIdx:0, rodada:1};
   const combate = state._mestreIniciativa;
 
-  wrap.appendChild(el('div',{class:'tip'}, el('b',{},'Como usar'), 'Adicione os PJs e monstros do encontro — a iniciativa já é rolada (1d20 + bônus) na hora de adicionar, mas dá pra ajustar manualmente. "Próximo" avança o turno na ordem, do maior pro menor.'));
-  const filtroEl = renderFiltroMesa();
-  if(filtroEl) wrap.appendChild(filtroEl);
+  if(combate.combatentes.length===0){
+    wrap.appendChild(el('div',{class:'tip'}, el('b',{},'Nada em combate ainda'), 'Monte o encontro na aba "Preparar Encontro" e toque em "Enviar pro Combate" quando estiver pronto pra começar.'));
+    return wrap;
+  }
 
-  wrap.appendChild(renderEncontroAleatorio(combate));
-  wrap.appendChild(renderEncontrosSalvos(combate));
+  wrap.appendChild(el('div',{class:'tip'}, el('b',{},'Como usar'), 'Toque numa criatura pra ver a ficha dela (ou um resumo, se for PJ). Use ▲▼ pra reordenar manualmente — a ordem não se mexe sozinha depois de enviada aqui.'));
 
-  const ordenados = combate.combatentes.slice().sort((a,b)=> b.iniciativa - a.iniciativa);
+  const painelCombate = el('div',{class:'panel faixa'},
+    el('h2',{}, 'Rodada '+combate.rodada),
+    el('div',{class:'row', style:'margin-bottom:10px;'},
+      el('button',{class:'btn', onclick:()=>{
+        combate.turnoIdx++;
+        if(combate.turnoIdx >= combate.combatentes.length){ combate.turnoIdx = 0; combate.rodada++; }
+        render();
+      }}, 'Próximo turno ▶'),
+      el('button',{class:'btn ghost', onclick:()=>{
+        if(!confirm('Limpar todo o combate atual?')) return;
+        state._mestreIniciativa = {combatentes:[], turnoIdx:0, rodada:1};
+        render();
+      }}, 'Limpar tudo')
+    )
+  );
 
-  if(ordenados.length>0){
-    const painelCombate = el('div',{class:'panel faixa'},
-      el('h2',{}, 'Rodada '+combate.rodada),
-      el('div',{class:'row', style:'margin-bottom:10px;'},
-        el('button',{class:'btn', onclick:()=>{
-          combate.turnoIdx++;
-          if(combate.turnoIdx >= ordenados.length){ combate.turnoIdx = 0; combate.rodada++; }
-          render();
-        }}, 'Próximo turno ▶'),
-        el('button',{class:'btn ghost', onclick:()=>{
-          if(!confirm('Limpar todo o combate atual?')) return;
-          state._mestreIniciativa = {combatentes:[], turnoIdx:0, rodada:1};
-          render();
-        }}, 'Limpar tudo')
-      )
-    );
+  const timeline = el('div',{class:'iniciativa-timeline'});
+  combate.combatentes.forEach((c, idx)=>{
+    const noTurno = idx === combate.turnoIdx;
+    timeline.appendChild(el('div',{class:'iniciativa-chip'+(noTurno?' atual':''), onclick:()=>{ combate.turnoIdx=idx; render(); }},
+      el('div',{class:'iniciativa-chip-icone'}, avatarCombatente(c, 28)),
+      el('div',{class:'iniciativa-chip-nome'}, c.nome.length>10 ? c.nome.slice(0,9)+'…' : c.nome),
+      el('div',{class:'iniciativa-chip-num'}, c.iniciativa)
+    ));
+  });
+  painelCombate.appendChild(timeline);
 
-    // Timeline horizontal: dá pra ver "quem vem depois" numa olhada, sem rolar a lista vertical toda.
-    const timeline = el('div',{class:'iniciativa-timeline'});
-    ordenados.forEach((c, idx)=>{
-      const noTurno = idx === combate.turnoIdx;
-      timeline.appendChild(el('div',{class:'iniciativa-chip'+(noTurno?' atual':''), onclick:()=>{ combate.turnoIdx=idx; render(); }},
-        el('div',{class:'iniciativa-chip-icone'}, avatarCombatente(c, 28)),
-        el('div',{class:'iniciativa-chip-nome'}, c.nome.length>10 ? c.nome.slice(0,9)+'…' : c.nome),
-        el('div',{class:'iniciativa-chip-num'}, c.iniciativa)
-      ));
-    });
-    painelCombate.appendChild(timeline);
+  if(state._combateAberto===undefined) state._combateAberto = null; // id do combatente com a ficha expandida (só um por vez)
 
-    ordenados.forEach((c, idx)=>{
-      const noTurno = idx === combate.turnoIdx;
-      const linha = el('div',{class:'panel', style:'display:flex;align-items:center;gap:10px;padding:10px 12px;margin-bottom:6px;'+(noTurno?'border-color:var(--red-bright);box-shadow:0 0 0 1px var(--red-bright) inset;':'')},
-        el('div',{style:'flex-shrink:0;display:flex;align-items:center;justify-content:center;width:34px;'}, noTurno ? '▶' : avatarCombatente(c, 34)),
-        el('div',{style:'flex-shrink:0;width:52px;'},
-          el('input',{id:'iniciativa-num-'+c.id, type:'number', value:c.iniciativa, style:'margin:0;padding:4px 2px;text-align:center;font-weight:800;', oninput:(e)=>{c.iniciativa=parseInt(e.target.value)||0;}, onchange:render})
+  combate.combatentes.forEach((c, idx)=>{
+    const noTurno = idx === combate.turnoIdx;
+    const aberto = state._combateAberto === c.id;
+    const linha = el('div',{class:'panel', style:'margin-bottom:6px;padding:10px 12px;'+(noTurno?'border-color:var(--red-bright);box-shadow:0 0 0 1px var(--red-bright) inset;':'')},
+      el('div',{style:'display:flex;align-items:center;gap:8px;'},
+        el('div',{style:'display:flex;flex-direction:column;gap:1px;flex-shrink:0;'},
+          el('button',{class:'seta-reordenar', disabled: idx===0, onclick:()=>{
+            if(idx===0) return;
+            const tmp = combate.combatentes[idx-1]; combate.combatentes[idx-1] = combate.combatentes[idx]; combate.combatentes[idx] = tmp;
+            render();
+          }}, '▲'),
+          el('button',{class:'seta-reordenar', disabled: idx===combate.combatentes.length-1, onclick:()=>{
+            if(idx===combate.combatentes.length-1) return;
+            const tmp = combate.combatentes[idx+1]; combate.combatentes[idx+1] = combate.combatentes[idx]; combate.combatentes[idx] = tmp;
+            render();
+          }}, '▼')
         ),
-        el('div',{style:'flex:1;min-width:0;'},
+        el('div',{style:'flex-shrink:0;display:flex;align-items:center;justify-content:center;width:34px;cursor:pointer;', onclick:()=>{ state._combateAberto = aberto ? null : c.id; render(); }}, noTurno ? '▶' : avatarCombatente(c, 34)),
+        el('div',{style:'flex-shrink:0;width:44px;'},
+          el('input',{id:'iniciativa-num-'+c.id, type:'number', value:c.iniciativa, style:'margin:0;padding:4px 2px;text-align:center;font-weight:800;font-size:0.85rem;', oninput:(e)=>{c.iniciativa=parseInt(e.target.value)||0;}, onchange:render})
+        ),
+        el('div',{style:'flex:1;min-width:0;cursor:pointer;', onclick:()=>{ state._combateAberto = aberto ? null : c.id; render(); }},
           el('div',{style:'font-weight:700;font-family:Cinzel,serif;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'}, c.nome),
           el('div',{style:'display:flex;align-items:center;gap:4px;font-size:0.75rem;color:var(--ink-soft);'},
             'PV ',
@@ -517,15 +560,72 @@ function renderMestreIniciativa(){
         ),
         el('button',{class:'remove-x', onclick:()=>{
           combate.combatentes = combate.combatentes.filter(x=>x.id!==c.id);
+          if(state._combateAberto===c.id) state._combateAberto = null;
           render();
         }},'✕')
-      );
-      painelCombate.appendChild(linha);
-    });
-    wrap.appendChild(painelCombate);
+      )
+    );
+    if(aberto){
+      if(c.tipo==='monstro' && c.dados){
+        linha.appendChild(el('div',{style:'margin-top:10px;border-top:1px solid var(--line);padding-top:10px;'}, ...renderStatBlockCriatura(c.dados)));
+      } else if(c.tipo==='pj' && c.origemId){
+        const p = (state.perfisTodos||[]).find(x=>x.id===c.origemId);
+        if(p){
+          linha.appendChild(el('div',{style:'margin-top:10px;border-top:1px solid var(--line);padding-top:10px;'},
+            el('div',{class:'row3'},
+              el('div',{}, el('div',{class:'meta'},'Defesa'), el('div',{style:'font-weight:800;'}, defesaTotal(p))),
+              el('div',{}, el('div',{class:'meta'},'PM'), el('div',{style:'font-weight:800;'}, (p.pmatual||0)+'/'+(p.pmmax||0))),
+              el('div',{}, el('div',{class:'meta'},'Nível'), el('div',{style:'font-weight:800;'}, nivelTotal(p))),
+            ),
+            condicoesAtivas(p).length>0 ? el('div',{class:'meta', style:'color:var(--gold);margin-top:8px;'}, '🩹 '+condicoesAtivas(p).join(', ')) : el('div',{class:'meta', style:'margin-top:8px;'}, 'Sem condições ativas.'),
+            estaMorto(p) ? el('div',{style:'color:var(--red-bright);font-weight:700;margin-top:4px;'}, '💀 Morto') : (estaInconsciente(p) ? el('div',{style:'color:var(--red-bright);font-weight:700;margin-top:4px;'}, p.estabilizado?'😵 Inconsciente (estabilizado)':'🩸 Inconsciente e sangrando') : null)
+          ));
+        } else {
+          linha.appendChild(el('div',{class:'meta', style:'margin-top:10px;'}, 'Não achei a ficha desse personagem (pode ter sido removido).'));
+        }
+      } else {
+        linha.appendChild(el('div',{class:'meta', style:'margin-top:10px;'}, 'Combatente avulso, sem ficha detalhada.'));
+      }
+    }
+    painelCombate.appendChild(linha);
+  });
+  wrap.appendChild(painelCombate);
+  return wrap;
+}
+
+// ---- PREPARAR ENCONTRO (montagem — nada aqui afeta o combate ao vivo até "Enviar") ----
+function renderMestrePreparar(){
+  const wrap = el('div',{});
+  if(!state._mestrePreparacao) state._mestrePreparacao = {combatentes:[]};
+  const prep = state._mestrePreparacao;
+  if(!state._mestreIniciativa) state._mestreIniciativa = {combatentes:[], turnoIdx:0, rodada:1};
+
+  wrap.appendChild(el('div',{class:'tip'}, el('b',{},'Como usar'), 'Monte o encontro com calma aqui — adicione PJs, monstros ou use os atalhos abaixo. Quando estiver pronto, toque em "Enviar pro Combate" pra começar a jogar de verdade na aba Combate.'));
+  const filtroEl = renderFiltroMesa();
+  if(filtroEl) wrap.appendChild(filtroEl);
+
+  wrap.appendChild(renderEncontroAleatorio(prep));
+  wrap.appendChild(renderEncontrosSalvos(prep));
+
+  const draftPanel = el('div',{class:'panel faixa'}, el('h2',{},'Preparado até agora'));
+  if(prep.combatentes.length===0){
+    draftPanel.appendChild(el('div',{class:'empty'},'Nada adicionado ainda — use os atalhos abaixo.'));
   } else {
-    wrap.appendChild(el('div',{class:'empty'},'Nenhum combatente ainda — adicione PJs e monstros abaixo.'));
+    prep.combatentes.forEach(c=>{
+      draftPanel.appendChild(el('div',{class:'row', style:'align-items:center;margin-top:4px;'},
+        el('div',{style:'flex-shrink:0;'}, avatarCombatente(c, 28)),
+        el('div',{style:'flex:1;'}, c.nome+' · iniciativa '+c.iniciativa+' · PV '+c.pv),
+        el('button',{class:'remove-x', onclick:()=>{ prep.combatentes = prep.combatentes.filter(x=>x.id!==c.id); render(); }},'✕')
+      ));
+    });
+    draftPanel.appendChild(el('button',{class:'btn', style:'margin-top:12px;', onclick:()=>{
+      prep.combatentes.forEach(c=> inserirOrdenadoPorIniciativa(state._mestreIniciativa.combatentes, c));
+      state._mestrePreparacao = {combatentes:[]};
+      state.mestreTab = 'combate';
+      render();
+    }}, 'Enviar pro Combate ⚔️'));
   }
+  wrap.appendChild(draftPanel);
 
   // ---- Adicionar PJ ----
   const pjPanel = el('div',{class:'panel'}, el('h2',{},'Adicionar personagem'));
@@ -542,7 +642,7 @@ function renderMestreIniciativa(){
       if(!p) return;
       const iniciativaObj = PERICIAS.find(x=>x.nome==='Iniciativa');
       const bonus = iniciativaObj ? periciaValor(p, iniciativaObj) : 0;
-      combate.combatentes.push(novoCombatente(p.nome, 'pj', bonus, p.pvatual, p.pvmax, p.foto));
+      prep.combatentes.push(novoCombatente(p.nome, 'pj', bonus, p.pvatual, p.pvmax, p.foto, p.id));
       render();
     }}, 'Adicionar com iniciativa rolada 🎲'));
   }
@@ -553,16 +653,16 @@ function renderMestreIniciativa(){
   if(!state._mestreIniciativaBusca) state._mestreIniciativaBusca = '';
   monstroPanel.appendChild(el('input',{id:'busca-iniciativa-monstro', type:'text', placeholder:'buscar criatura pelo nome...', value:state._mestreIniciativaBusca, oninput:(e)=>{state._mestreIniciativaBusca=e.target.value; renderDebounced();}}));
   if(state._mestreIniciativaBusca.length>=2){
-    const encontrados = todasCriaturasParaBusca().filter(m=> m.nome.toLowerCase().includes(state._mestreIniciativaBusca.toLowerCase())).slice(0,8);
+    const encontrados = todasCriaturasCompletas().filter(m=> m.nome.toLowerCase().includes(state._mestreIniciativaBusca.toLowerCase())).slice(0,8);
     encontrados.forEach(m=>{
       monstroPanel.appendChild(el('button',{class:'option-card', style:'width:100%;margin-top:6px;text-align:left;border-left:4px solid '+corPorTipoCriatura(m.tipo)+';', onclick:()=>{
         const bonus = extrairBonusIniciativa(m.sentidos);
-        combate.combatentes.push(novoCombatente(m.nome, 'monstro', bonus, m.pv, m.pv));
+        prep.combatentes.push(novoCombatente(m.nome, 'monstro', bonus, m.pv, m.pv, null, m));
         state._mestreIniciativaBusca='';
         render();
       }},
         el('div',{class:'opt-nome'}, m.nome),
-        el('div',{class:'opt-sub'}, 'PV '+m.pv)
+        el('div',{class:'opt-sub'}, 'ND '+ndTexto(m.nd)+' · PV '+m.pv)
       ));
     });
     if(encontrados.length===0) monstroPanel.appendChild(el('div',{class:'empty'},'Nenhuma criatura encontrada.'));
@@ -578,7 +678,7 @@ function renderMestreIniciativa(){
   customPanel.appendChild(el('button',{class:'btn', style:'margin-top:8px;', onclick:()=>{
     if(!cc.nome.trim()) return;
     const pv = cc.pv!=='' ? parseInt(cc.pv)||0 : 0;
-    combate.combatentes.push(novoCombatente(cc.nome.trim(), 'custom', 0, pv, pv));
+    prep.combatentes.push(novoCombatente(cc.nome.trim(), 'custom', 0, pv, pv));
     state._mestreIniciativaCustom = {nome:'', pv:''};
     render();
   }}, 'Adicionar (rola iniciativa sem bônus) 🎲'));

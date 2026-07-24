@@ -968,7 +968,7 @@ async function iniciar(){
     // Reabrindo o app já logado como Mestre (código salvo de uma visita anterior) — vai
     // direto pra tela de ferramentas do mestre, sem passar pela tela de "meus personagens".
     state.screen = 'mestre';
-    state.mestreTab = 'bestiario';
+    state.mestreCategoria = 'combate'; state.mestreTab = 'combate';
     state._carregandoInicial = true;
     render();
     await carregarPerfisTodosParaMestre();
@@ -1033,7 +1033,7 @@ async function confirmarCodigoJogador(){
   definirCodigoJogador(codigo);
   if(ehCodigoMestre(codigo)){
     state.screen = 'mestre';
-    state.mestreTab = 'bestiario';
+    state.mestreCategoria = 'combate'; state.mestreTab = 'combate';
     state._carregandoInicial = true;
     render();
     await carregarPerfisTodosParaMestre();
