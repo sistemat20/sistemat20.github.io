@@ -974,6 +974,7 @@ async function iniciar(){
     await carregarPerfisTodosParaMestre();
     state._carregandoInicial = false;
     render();
+    iniciarAtualizacaoAutomaticaMestre();
     return;
   }
   // Mostra os personagens salvos localmente (se tiver uma cópia de uma visita anterior) na hora,
@@ -1039,6 +1040,7 @@ async function confirmarCodigoJogador(){
     await carregarPerfisTodosParaMestre();
     state._carregandoInicial = false;
     render();
+    iniciarAtualizacaoAutomaticaMestre();
     return;
   }
   state._carregandoCodigo = true; render();
@@ -1050,6 +1052,7 @@ async function confirmarCodigoJogador(){
 
 // Sai do código atual — volta pra tela de entrada (não apaga nada da planilha, só "desloga" o aparelho)
 function sairDoCodigoJogador(){
+  pararAtualizacaoAutomaticaMestre();
   limparCodigoJogador();
   state.perfis = [];
   state.perfilAtualId = null;

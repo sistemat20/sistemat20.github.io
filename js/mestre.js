@@ -6,6 +6,25 @@ function abrirTelaMestre(){
   state.mestreTab = 'combate';
   render();
   carregarPerfisTodosParaMestre().then(render);
+  iniciarAtualizacaoAutomaticaMestre();
+}
+
+// A cada poucos segundos, busca os dados mais recentes dos jogadores de novo — assim o Mestre
+// vê PV/PM/condições mudarem quase na hora, sem precisar recarregar a página manualmente.
+// Só atualiza a TELA se o Mestre não estiver com o dedo num campo de texto/número naquele
+// instante (senão ia "puxar o tapete" no meio de uma digitação).
+let _intervalAtualizacaoMestre = null;
+function iniciarAtualizacaoAutomaticaMestre(){
+  pararAtualizacaoAutomaticaMestre(); // garante que não fica duplicando o timer
+  _intervalAtualizacaoMestre = setInterval(async ()=>{
+    if(state.screen !== 'mestre') { pararAtualizacaoAutomaticaMestre(); return; }
+    await carregarPerfisTodosParaMestre();
+    const digitando = document.activeElement && ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName);
+    if(!digitando) render();
+  }, 5000);
+}
+function pararAtualizacaoAutomaticaMestre(){
+  if(_intervalAtualizacaoMestre){ clearInterval(_intervalAtualizacaoMestre); _intervalAtualizacaoMestre = null; }
 }
 
 // As 9 telas do Mestre, agrupadas em 3 categorias — evita uma barra de abas gigante.
@@ -19,7 +38,7 @@ function renderMestreScreen(){
   const wrap = el('div',{});
   wrap.appendChild(el('header',{class:'top'},
     el('div',{style:'display:flex;justify-content:space-between;align-items:center;gap:10px;'},
-      el('button',{class:'btn ghost', style:'width:auto;flex-shrink:0;padding:6px 12px;background:transparent;border-color:#f4efe2;color:#f4efe2;', onclick:()=>{ precisaCodigoJogador() ? sairDoCodigoJogador() : (state.screen='perfis', render()); }}, '← Perfis'),
+      el('button',{class:'btn ghost', style:'width:auto;flex-shrink:0;padding:6px 12px;background:transparent;border-color:#f4efe2;color:#f4efe2;', onclick:()=>{ pararAtualizacaoAutomaticaMestre(); precisaCodigoJogador() ? sairDoCodigoJogador() : (state.screen='perfis', render()); }}, '← Perfis'),
       el('h1',{class:'display', style:'font-size:1.1rem;margin:0;'}, 'Mesa do Mestre'),
       botaoTema()
     ),
@@ -199,9 +218,25 @@ function ajustarValorMestre(p, campo, campoMax, delta){
   if(campo==='pvatual' && novo>0) p.estabilizado = false;
   p[campo] = novo;
 }
-async function salvarAjustePersonagemMestre(p){
+// Sempre que o Mestre grava algo num personagem (PV/PM, item, tesouro...), resincroniza a lista
+// inteira com o servidor na hora — não espera o ciclo de 5s da atualização automática. Assim o
+// que o Mestre acabou de fazer nunca fica "escondido" até o próximo tick do polling.
+async function atualizarPersonagemEResincronizar(p){
   const ok = await mestreAtualizarPersonagem(p);
+  if(ok){ await carregarPerfisTodosParaMestre(); render(); }
+  return ok;
+}
+async function salvarAjustePersonagemMestre(p){
+  const ok = await atualizarPersonagemEResincronizar(p);
   if(!ok) flashMsg('⚠ Não consegui salvar agora — tenta de novo em instantes.');
+}
+
+// Monta um combatente a partir de um personagem, já com o bônus de Iniciativa real dele —
+// usado no Grupo, na Preparação e em qualquer outro lugar que precise adicionar um PJ.
+function criarCombatentePj(p){
+  const iniciativaObj = PERICIAS.find(x=>x.nome==='Iniciativa');
+  const bonus = iniciativaObj ? periciaValor(p, iniciativaObj) : 0;
+  return novoCombatente(p.nome, 'pj', bonus, p.pvatual, p.pvmax, p.foto, p.id);
 }
 
 function renderMestreGrupo(){
@@ -218,6 +253,11 @@ function renderMestreGrupo(){
     wrap.appendChild(el('div',{class:'empty'}, (state.perfisTodos||[]).length>0 ? 'Nenhum personagem nessa mesa.' : 'Nenhum personagem de jogador encontrado ainda — assim que alguém criar a ficha, aparece aqui.'));
     return wrap;
   }
+
+  wrap.appendChild(el('div',{class:'row', style:'margin-bottom:10px;'},
+    el('button',{class:'btn', onclick:()=>{ todos.forEach(p=> enviarParaCombate(criarCombatentePj(p))); }}, 'Grupo inteiro pro Combate ⚔️'),
+    el('button',{class:'btn ghost', onclick:()=>{ todos.forEach(p=> enviarParaPreparacao(criarCombatentePj(p))); }}, 'Grupo inteiro pro Preparado 📋')
+  ));
 
   todos.forEach(p=>{
     const nivel = nivelTotal(p);
@@ -263,7 +303,8 @@ function renderMestreGrupo(){
           el('label',{},'Moedas'),
           el('div',{style:'font-weight:700;font-size:0.85rem;'}, (p.ts||0)+' T$')
         )
-      )
+      ),
+      botoesEnviarCombatente(()=>criarCombatentePj(p))
     );
     wrap.appendChild(card);
   });
@@ -290,6 +331,27 @@ function extrairBonusIniciativa(sentidos){
   return m ? parseInt(m[1]) : 0;
 }
 function rolarD20(){ return 1 + Math.floor(Math.random()*20); }
+// Duas funções centrais de envio, reusadas no Bestiário, NPC Rápido e Grupo — sempre a mesma
+// lógica, então um combatente enviado de qualquer lugar se comporta igual.
+function enviarParaPreparacao(combatente){
+  if(!state._mestrePreparacao) state._mestrePreparacao = {combatentes:[]};
+  state._mestrePreparacao.combatentes.push(combatente);
+  flashMsg('📋 '+combatente.nome+' adicionado à Preparação.');
+  render();
+}
+function enviarParaCombate(combatente){
+  if(!state._mestreIniciativa) state._mestreIniciativa = {combatentes:[], turnoIdx:0, rodada:1};
+  inserirOrdenadoPorIniciativa(state._mestreIniciativa.combatentes, combatente);
+  flashMsg('⚔️ '+combatente.nome+' adicionado ao Combate.');
+  render();
+}
+// Par de botões padrão "Enviar pro Combate" / "Enviar pro Preparado" — usado nos 3 lugares.
+function botoesEnviarCombatente(criarCombatente){
+  return el('div',{class:'row', style:'margin-top:8px;'},
+    el('button',{class:'btn', onclick:()=> enviarParaCombate(criarCombatente())}, 'Enviar pro Combate ⚔️'),
+    el('button',{class:'btn ghost', onclick:()=> enviarParaPreparacao(criarCombatente())}, 'Enviar pro Preparado 📋')
+  );
+}
 // Insere um combatente na posição certa de uma lista (por iniciativa, decrescente) — usado só
 // na hora de "enviar pro combate"; depois disso a ordem vira manual (setinhas), não se reordena
 // mais sozinha, pra não bagunçar ajustes que o Mestre já tenha feito na mesa.
@@ -305,7 +367,7 @@ function avatarCombatente(c, tamanho){
   if(c.foto){
     return el('img',{src:c.foto, style:'width:'+tamanho+'px;height:'+tamanho+'px;border-radius:50%;object-fit:cover;'});
   }
-  const icone = c.tipo==='pj' ? '🧑' : (c.tipo==='monstro' ? '👹' : '❔');
+  const icone = c.tipo==='pj' ? '🧑' : (c.tipo==='monstro' ? '👹' : (c.tipo==='npc' ? '🎭' : '❔'));
   return el('div',{style:'font-size:'+(tamanho*0.75)+'px;line-height:1;'}, icone);
 }
 
@@ -600,7 +662,7 @@ function renderMestrePreparar(){
   const prep = state._mestrePreparacao;
   if(!state._mestreIniciativa) state._mestreIniciativa = {combatentes:[], turnoIdx:0, rodada:1};
 
-  wrap.appendChild(el('div',{class:'tip'}, el('b',{},'Como usar'), 'Monte o encontro com calma aqui — adicione PJs, monstros ou use os atalhos abaixo. Quando estiver pronto, toque em "Enviar pro Combate" pra começar a jogar de verdade na aba Combate.'));
+  wrap.appendChild(el('div',{class:'tip'}, el('b',{},'Como usar'), 'Monte o encontro com calma aqui — busque monstros ou use os atalhos abaixo. PJs e NPCs avulsos agora se adicionam direto de onde você já está vendo eles (aba Grupo e NPC Rápido). Quando estiver pronto, toque em "Enviar pro Combate" na lista de baixo.'));
   const filtroEl = renderFiltroMesa();
   if(filtroEl) wrap.appendChild(filtroEl);
 
@@ -609,7 +671,7 @@ function renderMestrePreparar(){
 
   const draftPanel = el('div',{class:'panel faixa'}, el('h2',{},'Preparado até agora'));
   if(prep.combatentes.length===0){
-    draftPanel.appendChild(el('div',{class:'empty'},'Nada adicionado ainda — use os atalhos abaixo.'));
+    draftPanel.appendChild(el('div',{class:'empty'},'Nada adicionado ainda — busque um monstro abaixo, ou mande PJs/NPCs direto das abas Grupo e NPC Rápido.'));
   } else {
     prep.combatentes.forEach(c=>{
       draftPanel.appendChild(el('div',{class:'row', style:'align-items:center;margin-top:4px;'},
@@ -626,27 +688,6 @@ function renderMestrePreparar(){
     }}, 'Enviar pro Combate ⚔️'));
   }
   wrap.appendChild(draftPanel);
-
-  // ---- Adicionar PJ ----
-  const pjPanel = el('div',{class:'panel'}, el('h2',{},'Adicionar personagem'));
-  const todos = personagensDoGrupoAtual();
-  if(todos.length===0){
-    pjPanel.appendChild(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Nenhum personagem de jogador encontrado ainda.'));
-  } else {
-    if(!state._mestreIniciativaPjEscolhido) state._mestreIniciativaPjEscolhido = todos[0].id;
-    const selPj = el('select',{onchange:(e)=>{state._mestreIniciativaPjEscolhido=e.target.value; render();}});
-    todos.forEach(p=> selPj.appendChild(el('option',{value:p.id, ...(state._mestreIniciativaPjEscolhido===p.id?{selected:'selected'}:{})}, p.nome+' ('+(p.jogador||p._playerId||'?')+')')));
-    pjPanel.appendChild(selPj);
-    pjPanel.appendChild(el('button',{class:'btn', style:'margin-top:8px;', onclick:()=>{
-      const p = todos.find(x=>x.id===state._mestreIniciativaPjEscolhido);
-      if(!p) return;
-      const iniciativaObj = PERICIAS.find(x=>x.nome==='Iniciativa');
-      const bonus = iniciativaObj ? periciaValor(p, iniciativaObj) : 0;
-      prep.combatentes.push(novoCombatente(p.nome, 'pj', bonus, p.pvatual, p.pvmax, p.foto, p.id));
-      render();
-    }}, 'Adicionar com iniciativa rolada 🎲'));
-  }
-  wrap.appendChild(pjPanel);
 
   // ---- Adicionar Monstro ----
   const monstroPanel = el('div',{class:'panel'}, el('h2',{},'Adicionar monstro'));
@@ -668,21 +709,6 @@ function renderMestrePreparar(){
     if(encontrados.length===0) monstroPanel.appendChild(el('div',{class:'empty'},'Nenhuma criatura encontrada.'));
   }
   wrap.appendChild(monstroPanel);
-
-  // ---- Adicionar personalizado ----
-  const customPanel = el('div',{class:'panel'}, el('h2',{},'Adicionar avulso (aliado, refém, armadilha...)'));
-  if(!state._mestreIniciativaCustom) state._mestreIniciativaCustom = {nome:'', pv:''};
-  const cc = state._mestreIniciativaCustom;
-  customPanel.appendChild(el('input',{id:'custom-combatente-nome', type:'text', placeholder:'nome', value:cc.nome, oninput:(e)=>{cc.nome=e.target.value;}}));
-  customPanel.appendChild(el('input',{id:'custom-combatente-pv', type:'number', placeholder:'PV (opcional)', value:cc.pv, style:'margin-top:6px;', oninput:(e)=>{cc.pv=e.target.value;}}));
-  customPanel.appendChild(el('button',{class:'btn', style:'margin-top:8px;', onclick:()=>{
-    if(!cc.nome.trim()) return;
-    const pv = cc.pv!=='' ? parseInt(cc.pv)||0 : 0;
-    prep.combatentes.push(novoCombatente(cc.nome.trim(), 'custom', 0, pv, pv));
-    state._mestreIniciativaCustom = {nome:'', pv:''};
-    render();
-  }}, 'Adicionar (rola iniciativa sem bônus) 🎲'));
-  wrap.appendChild(customPanel);
 
   return wrap;
 }
@@ -742,7 +768,7 @@ function renderMestreBestiario(){
     wrap.appendChild(el('div',{class:'empty'},'Nenhum monstro encontrado.'));
   }
   lista.forEach(m=>{
-    wrap.appendChild(renderItemColapsavel('monstro-'+m.nome, m.nome, 'ND '+ndTexto(m.nd), renderStatBlockCriatura(m), corPorTipoCriatura(m.tipo)));
+    wrap.appendChild(renderItemColapsavel('monstro-'+m.nome, m.nome, 'ND '+ndTexto(m.nd), [...renderStatBlockCriatura(m), botoesEnviarCombatente(()=>novoCombatente(m.nome,'monstro',extrairBonusIniciativa(m.sentidos),m.pv,m.pv,null,m))], corPorTipoCriatura(m.tipo)));
   });
 
   return wrap;
@@ -799,7 +825,7 @@ function renderBestiarioAmeacas(){
     wrap.appendChild(el('div',{class:'empty'},'Nenhuma criatura encontrada.'));
   }
   lista.forEach(m=>{
-    wrap.appendChild(renderItemColapsavel('ameaca-'+m.nome, m.nome, 'ND '+ndTexto(m.nd), renderStatBlockCriatura(m), corPorTipoCriatura(m.tipo)));
+    wrap.appendChild(renderItemColapsavel('ameaca-'+m.nome, m.nome, 'ND '+ndTexto(m.nd), [...renderStatBlockCriatura(m), botoesEnviarCombatente(()=>novoCombatente(m.nome,'monstro',extrairBonusIniciativa(m.sentidos),m.pv,m.pv,null,m))], corPorTipoCriatura(m.tipo)));
   });
 
   return wrap;
@@ -808,7 +834,7 @@ function renderBestiarioAmeacas(){
 // ---- NPC RÁPIDO ----
 function renderMestreNpc(){
   const wrap = el('div',{});
-  wrap.appendChild(el('div',{class:'tip'}, el('b',{},'Como usar'), 'Escolha o Nível de Desafio do NPC que você precisa e tenha o bloco de estatísticas pronto na hora — sem precisar montar uma ficha do zero (Tabela 7-2 do livro).'));
+  wrap.appendChild(el('div',{class:'tip'}, el('b',{},'Como usar'), 'Escolha o Nível de Desafio do NPC que você precisa e tenha o bloco de estatísticas pronto na hora — sem precisar montar uma ficha do zero (Tabela 7-2 do livro). Dê um nome e mande direto pro Combate ou pra Preparação.'));
 
   if(!state._mestreNpcNd) state._mestreNpcNd = 1;
   const sel = el('select',{onchange:(e)=>{state._mestreNpcNd=parseFloat(e.target.value); render();}});
@@ -817,6 +843,7 @@ function renderMestreNpc(){
 
   const npc = NPC_GENERICO.find(n=>n.nd===state._mestreNpcNd);
   if(npc){
+    if(state._mestreNpcNome==null) state._mestreNpcNome = '';
     wrap.appendChild(el('div',{class:'panel faixa'},
       el('h2',{}, el('span',{class:'n'}, 'ND '+ndTexto(npc.nd)), npc.patamar),
       el('div',{class:'defesa-breakdown', style:'grid-template-columns:repeat(2,1fr);'},
@@ -827,9 +854,26 @@ function renderMestreNpc(){
         el('div',{}, el('span',{},'Perícias (alta/baixa)'), el('b',{},npc.pericias)),
         el('div',{}, el('span',{},'CD de resistência'), el('b',{},npc.cd)),
       ),
-      el('div',{class:'tip', style:'margin-top:10px;font-size:0.78rem;'}, 'Perícias mostra o bônus típico de uma perícia "alta" (treinada, atributo principal) e de uma "baixa" — use pra qualquer teste do NPC. Ajuste o nome, aparência e 2-3 traços de personalidade e está pronto pra jogar.')
+      el('div',{class:'tip', style:'margin-top:10px;font-size:0.78rem;'}, 'Perícias mostra o bônus típico de uma perícia "alta" (treinada, atributo principal) e de uma "baixa" — use pra qualquer teste do NPC. Ajuste o nome, aparência e 2-3 traços de personalidade e está pronto pra jogar.'),
+      el('label',{style:'margin-top:10px;'},'Nome do NPC'),
+      el('input',{id:'nome-npc-rapido', type:'text', placeholder:'ex: Guarda da Ponte, Baronesa Vantille...', value:state._mestreNpcNome, oninput:(e)=>{state._mestreNpcNome=e.target.value;}}),
+      botoesEnviarCombatente(()=> novoCombatente(state._mestreNpcNome.trim() || ('NPC ND '+ndTexto(npc.nd)), 'npc', 0, npc.pv, npc.pv))
     ));
   }
+
+  // ---- Avulso livre (refém, armadilha, decoração de cena — sem ND específico) ----
+  const customPanel = el('div',{class:'panel'}, el('h2',{},'Avulso livre (refém, armadilha, decoração de cena...)'));
+  customPanel.appendChild(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Pra quando não precisa de um bloco de ND — só um nome e um PV (se fizer sentido ter).'));
+  if(!state._mestreIniciativaCustom) state._mestreIniciativaCustom = {nome:'', pv:''};
+  const cc = state._mestreIniciativaCustom;
+  customPanel.appendChild(el('input',{id:'custom-combatente-nome', type:'text', placeholder:'nome', value:cc.nome, oninput:(e)=>{cc.nome=e.target.value;}}));
+  customPanel.appendChild(el('input',{id:'custom-combatente-pv', type:'number', placeholder:'PV (opcional)', value:cc.pv, style:'margin-top:6px;', oninput:(e)=>{cc.pv=e.target.value;}}));
+  customPanel.appendChild(botoesEnviarCombatente(()=>{
+    const pv = cc.pv!=='' ? parseInt(cc.pv)||0 : 0;
+    return novoCombatente(cc.nome.trim()||'Avulso', 'custom', 0, pv, pv);
+  }));
+  wrap.appendChild(customPanel);
+
   return wrap;
 }
 
@@ -928,9 +972,8 @@ async function enviarItemAvulsoParaAlvo(nomeItem, precoTxt){
   const copia = JSON.parse(JSON.stringify(alvo));
   if(!copia.equip) copia.equip = [];
   copia.equip.push({tipo:'geral', item:nomeItem+' (recebido do Mestre)', qtd:'1', carga:'—'});
-  const ok = await mestreAtualizarPersonagem(copia);
+  const ok = await atualizarPersonagemEResincronizar(copia);
   if(ok){
-    Object.assign(alvo, copia);
     flashMsg('✅ '+nomeItem+' enviado pra '+alvo.nome+'!');
   } else {
     flashMsg('⚠ Não consegui enviar agora — tenta de novo em instantes.');
@@ -975,9 +1018,8 @@ function renderMestreTesouro(){
         const alvo = todos.find(p=>p.id===state._mestreTesouroAlvo);
         if(!alvo) return;
         const atualizado = aplicarTesouroEmPersonagem(alvo, tesouro);
-        const ok = await mestreAtualizarPersonagem(atualizado);
+        const ok = await atualizarPersonagemEResincronizar(atualizado);
         if(ok){
-          Object.assign(alvo, atualizado);
           state._mestreTesouroEnviadoPara = alvo.nome;
           flashMsg('✅ Tesouro enviado pra '+alvo.nome+'!');
         } else {
