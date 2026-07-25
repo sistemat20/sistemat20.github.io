@@ -1305,45 +1305,16 @@ const FRASES_CARREGAMENTO = [
   'Reunindo os aventureiros na taverna...',
   'Verificando o mapa de Arton...',
 ];
-// Desenha um d20 de verdade (contorno hexagonal com as facetas), em vez de um símbolo genérico —
-// usa currentColor, então herda a cor dourada da classe splash-dado automaticamente.
+// Ícone de carregamento: usa um GIF de verdade (feito pelo usuário, não gerado por nós), com o
+// dado rolando de forma suave — bem mais convincente do que qualquer tentativa nossa em SVG.
 function iconeD20(tamanhoPx){
-  const wrap = document.createElement('div');
-  wrap.className = 'splash-dado-perspectiva';
-  wrap.style.width = tamanhoPx+'px';
-  wrap.style.height = tamanhoPx+'px';
-  // As 6 facetas do desenho, sempre nas mesmas posições na tela — o que muda a cada quadro é
-  // QUAL delas fica clara/escura (como se a luz virasse de lado com o dado) e o número mostrado.
-  // Alternando isso rapidinho dá a sensação de tombar, bem melhor que só girar uma imagem plana.
-  const posicoes = [
-    'points="50,4 8,27 50,45"',   // topo-esquerda
-    'points="50,4 50,45 92,27"',  // topo-direita
-    'points="8,27 50,45 8,73"',   // esquerda
-    'points="92,27 92,73 50,45"', // direita
-    'points="8,73 50,45 50,96"',  // baixo-esquerda
-    'points="50,45 92,73 50,96"', // baixo-direita
-  ];
-  const cores = ['var(--gold)','var(--gold-deep)','#8a6a22','#6b4d14','#4a3610','#2e2208'];
-  const numeros = [20,7,14,3,11,9];
-  let framesHtml = '';
-  for(let i=0;i<6;i++){
-    let poligonos = '';
-    posicoes.forEach((pontos, pos)=>{
-      const cor = cores[(pos+i)%6];
-      poligonos += '<polygon '+pontos+' fill="'+cor+'"/>';
-    });
-    framesHtml += '<div class="dado-frame"><svg viewBox="0 0 100 100" width="100%" height="100%" style="display:block;">'
-      + poligonos
-      + '<polygon points="50,4 8,27 50,45 92,27" fill="none" stroke="#1a1305" stroke-width="2" stroke-linejoin="round"/>'
-      + '<polygon points="50,4 92,27 92,73 50,96 8,73 8,27" fill="none" stroke="#1a1305" stroke-width="2.5" stroke-linejoin="round"/>'
-      + '<line x1="8" y1="73" x2="50" y2="45" stroke="#1a1305" stroke-width="2"/>'
-      + '<line x1="92" y1="73" x2="50" y2="45" stroke="#1a1305" stroke-width="2"/>'
-      + '<line x1="50" y1="96" x2="50" y2="45" stroke="#1a1305" stroke-width="2"/>'
-      + '<text x="50" y="20" text-anchor="middle" font-family="Cinzel, serif" font-weight="700" font-size="13" fill="#2e2208">'+numeros[i]+'</text>'
-      + '</svg></div>';
-  }
-  wrap.innerHTML = framesHtml;
-  return wrap;
+  const img = document.createElement('img');
+  img.src = 'img/d20-carregando.gif';
+  img.alt = 'Dado de 20 lados rolando';
+  img.style.width = tamanhoPx+'px';
+  img.style.height = tamanhoPx+'px';
+  img.style.display = 'block';
+  return img;
 }
 
 function fraseCarregamentoAtual(){
