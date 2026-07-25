@@ -1245,6 +1245,20 @@ const FRASES_CARREGAMENTO = [
   'Reunindo os aventureiros na taverna...',
   'Verificando o mapa de Arton...',
 ];
+// Desenha um d20 de verdade (contorno hexagonal com as facetas), em vez de um símbolo genérico —
+// usa currentColor, então herda a cor dourada da classe splash-dado automaticamente.
+function iconeD20(tamanhoPx){
+  const div = document.createElement('div');
+  div.className = 'splash-dado';
+  div.style.width = tamanhoPx+'px';
+  div.style.height = tamanhoPx+'px';
+  div.innerHTML = '<svg viewBox="0 0 100 100" width="100%" height="100%" style="display:block;">'
+    + '<polygon points="50,4 92,27 92,73 50,96 8,73 8,27" fill="none" stroke="currentColor" stroke-width="6" stroke-linejoin="round"/>'
+    + '<path d="M50,4 L50,38 M8,27 L50,38 L92,27 M8,73 L50,38 M92,73 L50,38 M50,96 L50,38" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/>'
+    + '</svg>';
+  return div;
+}
+
 function fraseCarregamentoAtual(){
   if(!state._fraseCarregamento) state._fraseCarregamento = FRASES_CARREGAMENTO[Math.floor(Math.random()*FRASES_CARREGAMENTO.length)];
   return state._fraseCarregamento;
@@ -1259,7 +1273,7 @@ function renderPerfisScreen(){
 
   if(state._carregandoInicial){
     wrap.appendChild(el('div',{class:'panel faixa splash-carregando', style:'max-width:380px;text-align:center;'},
-      el('div',{class:'splash-dado'}, '⟠'),
+      iconeD20(48),
       el('div',{class:'wizard-title', style:'font-size:1rem;'}, fraseCarregamentoAtual()),
       state._carregandoDemorando ? el('div',{class:'tip', style:'margin-top:10px;'}, 'Isso está demorando mais que o normal — o Google às vezes leva alguns segundos pra "acordar" depois de um tempo sem uso. Aguenta mais um pouco.') : null
     ));
@@ -1269,7 +1283,7 @@ function renderPerfisScreen(){
   if(state._carregandoAtualizacao){
     wrap.appendChild(el('div',{class:'panel faixa splash-atualizando', style:'max-width:380px;margin:0 auto 14px;text-align:center;'},
       el('div',{style:'display:flex;align-items:center;justify-content:center;gap:10px;'},
-        el('div',{class:'splash-dado', style:'font-size:1.4rem;margin-bottom:0;'}, '⟠'),
+        iconeD20(24),
         el('div',{}, fraseCarregamentoAtual())
       ),
       state._carregandoDemorando ? el('div',{class:'tip', style:'margin-top:8px;'}, 'O Google está demorando mais que o normal pra "acordar" — aguenta mais um pouco.') : null
