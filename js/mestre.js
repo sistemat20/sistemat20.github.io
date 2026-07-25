@@ -1027,6 +1027,27 @@ function renderMestreTesouro(){
         }
         render();
       }}, 'Enviar pra mochila 📦'));
+      if(todos.length>1){
+        const parte = Math.floor(tesouro.dinheiro.valor / todos.length);
+        const resto = tesouro.dinheiro.valor % todos.length;
+        panel.appendChild(el('div',{class:'tip', style:'font-size:0.76rem;margin-top:8px;'}, 'Dividir só o dinheiro ('+tesouro.dinheiro.valor+' '+tesouro.dinheiro.unidade+') igualmente entre os '+todos.length+' personagens visíveis agora ('+parte+' cada'+(resto?', +'+resto+' pro primeiro por causa do resto':'')+'). O item (se tiver) continua indo só pra quem você escolher acima, em "Enviar pra mochila".'));
+        panel.appendChild(el('button',{class:'btn ghost', style:'margin-top:6px;', onclick: async ()=>{
+          let algumFalhou = false;
+          for(let i=0;i<todos.length;i++){
+            const p = todos[i];
+            const valorDele = parte + (i===0 ? resto : 0);
+            const copia = JSON.parse(JSON.stringify(p));
+            const campo = CAMPO_MOEDA_POR_UNIDADE[tesouro.dinheiro.unidade] || 'ts';
+            copia[campo] = (parseInt(copia[campo])||0) + valorDele;
+            const ok = await mestreAtualizarPersonagem(copia);
+            if(!ok) algumFalhou = true;
+          }
+          await carregarPerfisTodosParaMestre();
+          if(algumFalhou) flashMsg('⚠ Alguns envios falharam — confere e tenta nos que faltou.');
+          else flashMsg('⚖️ '+parte+' '+tesouro.dinheiro.unidade+' (+ resto) dividido entre os '+todos.length+' personagens!');
+          render();
+        }}, 'Dividir dinheiro com o grupo ⚖️'));
+      }
       if(state._mestreTesouroEnviadoPara){
         panel.appendChild(el('div',{class:'meta', style:'color:var(--gold);margin-top:6px;'}, '✅ Último envio: '+state._mestreTesouroEnviadoPara));
       }

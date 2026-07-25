@@ -883,4 +883,5 @@ async function finalizarCriacao(){
   state.screen = 'ficha';
   state.wizard = null;
   render();
+  iniciarAtualizacaoAutomaticaJogador();
 }

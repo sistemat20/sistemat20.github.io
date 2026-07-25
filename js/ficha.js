@@ -53,7 +53,7 @@ function renderFichaScreen(){
 
   wrap.appendChild(el('header',{class:'top'},
     el('div',{style:'display:flex;justify-content:space-between;align-items:center;gap:10px;'},
-      el('button',{class:'btn ghost', style:'width:auto;flex-shrink:0;padding:6px 12px;background:transparent;border-color:#f4efe2;color:#f4efe2;', onclick:()=>{ state.screen='perfis'; state.perfilAtualId=null; render(); }}, '← Perfis'),
+      el('button',{class:'btn ghost', style:'width:auto;flex-shrink:0;padding:6px 12px;background:transparent;border-color:#f4efe2;color:#f4efe2;', onclick:()=>{ pararAtualizacaoAutomaticaJogador(); state.screen='perfis'; state.perfilAtualId=null; render(); }}, '← Perfis'),
       el('h1',{class:'display', style:'font-size:1.1rem;margin:0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;text-align:center;'}, f.nome || 'Personagem'),
       el('button',{class:'menu-trigger', style:'flex-shrink:0;', onclick:()=>{ state._menuAberto=true; render(); }},
         el('span',{}, secaoAtual[2]), el('span',{},'Menu')
@@ -775,11 +775,101 @@ function renderPersonagemNotas(){
   }
   wrap.appendChild(habPanel);
 
+  wrap.appendChild(renderPainelMissoes(f));
+  wrap.appendChild(renderPainelFaccoes(f));
+  wrap.appendChild(renderPainelLocais(f));
+
   wrap.appendChild(el('div',{class:'panel'},
     el('h2',{},'Anotações'),
     textareaAutoResize({oninput:(e)=>f.notas=e.target.value, placeholder:'magias preparadas, poderes escolhidos, tesouro, etc.'}, f.notas)
   ));
 
+  return wrap;
+}
+
+// ---- Missões: checklist simples de objetivos ativos/concluídos ----
+function renderPainelMissoes(f){
+  if(!f.missoes) f.missoes = [];
+  const wrap = el('div',{class:'panel'}, el('h2',{},'Missões'));
+  if(f.missoes.length===0){
+    wrap.appendChild(el('div',{class:'empty'},'Nenhuma missão anotada ainda.'));
+  } else {
+    f.missoes.forEach((m,idx)=>{
+      wrap.appendChild(el('div',{class:'row', style:'align-items:center;margin-top:4px;'},
+        el('button',{class:'btn ghost', style:'width:auto;padding:4px 10px;flex-shrink:0;', onclick:()=>{ m.concluida=!m.concluida; salvarPerfis(); render(); }}, m.concluida?'✓':'○'),
+        el('div',{style:'flex:1;'+(m.concluida?'text-decoration:line-through;color:var(--ink-soft);':'')}, m.texto),
+        el('button',{class:'remove-x', onclick:()=>{ f.missoes.splice(idx,1); salvarPerfis(); render(); }},'✕')
+      ));
+    });
+  }
+  if(!state._novaMissaoTexto) state._novaMissaoTexto = '';
+  wrap.appendChild(el('input',{id:'nova-missao', type:'text', placeholder:'nova missão ou objetivo...', style:'margin-top:8px;', value:state._novaMissaoTexto, oninput:(e)=>{state._novaMissaoTexto=e.target.value;}}));
+  wrap.appendChild(el('button',{class:'btn ghost', onclick:()=>{
+    if(!state._novaMissaoTexto.trim()) return;
+    f.missoes.push({texto:state._novaMissaoTexto.trim(), concluida:false});
+    state._novaMissaoTexto = '';
+    salvarPerfis(); render();
+  }}, 'Adicionar missão +'));
+  return wrap;
+}
+
+// ---- Facções: reputação simples (amigo/neutro/inimigo) com grupos importantes ----
+const CICLO_STATUS_FACCAO = ['neutro','amigo','inimigo'];
+const ICONE_STATUS_FACCAO = {neutro:'😐 Neutro', amigo:'🤝 Amigo', inimigo:'⚔️ Inimigo'};
+function renderPainelFaccoes(f){
+  if(!f.faccoes) f.faccoes = [];
+  const wrap = el('div',{class:'panel'}, el('h2',{},'Facções'));
+  if(f.faccoes.length===0){
+    wrap.appendChild(el('div',{class:'empty'},'Nenhuma facção anotada ainda.'));
+  } else {
+    f.faccoes.forEach((fac,idx)=>{
+      wrap.appendChild(el('div',{class:'row', style:'align-items:center;margin-top:4px;'},
+        el('div',{style:'flex:1;'}, el('b',{},fac.nome)),
+        el('button',{class:'btn ghost', style:'width:auto;padding:4px 10px;flex-shrink:0;', onclick:()=>{
+          const idxCiclo = CICLO_STATUS_FACCAO.indexOf(fac.status);
+          fac.status = CICLO_STATUS_FACCAO[(idxCiclo+1)%CICLO_STATUS_FACCAO.length];
+          salvarPerfis(); render();
+        }}, ICONE_STATUS_FACCAO[fac.status]||ICONE_STATUS_FACCAO.neutro),
+        el('button',{class:'remove-x', onclick:()=>{ f.faccoes.splice(idx,1); salvarPerfis(); render(); }},'✕')
+      ));
+    });
+  }
+  if(!state._novaFaccaoNome) state._novaFaccaoNome = '';
+  wrap.appendChild(el('input',{id:'nova-faccao', type:'text', placeholder:'nome da facção/grupo...', style:'margin-top:8px;', value:state._novaFaccaoNome, oninput:(e)=>{state._novaFaccaoNome=e.target.value;}}));
+  wrap.appendChild(el('button',{class:'btn ghost', onclick:()=>{
+    if(!state._novaFaccaoNome.trim()) return;
+    f.faccoes.push({nome:state._novaFaccaoNome.trim(), status:'neutro'});
+    state._novaFaccaoNome = '';
+    salvarPerfis(); render();
+  }}, 'Adicionar facção +'));
+  return wrap;
+}
+
+// ---- Locais: diário de exploração simples (onde estivemos + uma nota) ----
+function renderPainelLocais(f){
+  if(!f.locais) f.locais = [];
+  const wrap = el('div',{class:'panel'}, el('h2',{},'Locais'));
+  if(f.locais.length===0){
+    wrap.appendChild(el('div',{class:'empty'},'Nenhum local anotado ainda.'));
+  } else {
+    f.locais.forEach((loc,idx)=>{
+      wrap.appendChild(el('div',{class:'row', style:'align-items:flex-start;margin-top:6px;'},
+        el('div',{style:'flex:1;'},
+          el('div',{style:'font-weight:700;'}, loc.nome),
+          el('input',{id:'local-nota-'+idx, type:'text', placeholder:'nota (opcional)', value:loc.nota||'', style:'margin-top:4px;', oninput:(e)=>{loc.nota=e.target.value;}, onchange:()=>salvarPerfis()})
+        ),
+        el('button',{class:'remove-x', onclick:()=>{ f.locais.splice(idx,1); salvarPerfis(); render(); }},'✕')
+      ));
+    });
+  }
+  if(!state._novoLocalNome) state._novoLocalNome = '';
+  wrap.appendChild(el('input',{id:'novo-local', type:'text', placeholder:'nome do lugar...', style:'margin-top:8px;', value:state._novoLocalNome, oninput:(e)=>{state._novoLocalNome=e.target.value;}}));
+  wrap.appendChild(el('button',{class:'btn ghost', onclick:()=>{
+    if(!state._novoLocalNome.trim()) return;
+    f.locais.push({nome:state._novoLocalNome.trim(), nota:''});
+    state._novoLocalNome = '';
+    salvarPerfis(); render();
+  }}, 'Adicionar local +'));
   return wrap;
 }
 
@@ -834,6 +924,22 @@ function renderItensEquipados(){
   return wrap;
 }
 
+// "Usar" um item consumível da mochila — desconta 1 da quantidade, e se chegar a 0, remove o
+// item sozinho (com um aviso, pra não sumir sem explicação).
+function usarItemMochila(f, idx){
+  const row = f.equip[idx];
+  if(!row) return;
+  const atual = parseInt(row.qtd)||0;
+  if(atual <= 1){
+    f.equip.splice(idx,1);
+    flashMsg('✨ Usou o último '+row.item+' — removido da mochila.');
+  } else {
+    row.qtd = String(atual-1);
+    flashMsg('✨ Usou 1 '+row.item+' ('+row.qtd+' restante'+(atual-1>1?'s':'')+').');
+  }
+  salvarPerfis(); render();
+}
+
 function renderPersonagemMochila(){
   const f = fichaAtual();
   const wrap = el('div',{});
@@ -860,6 +966,7 @@ function renderPersonagemMochila(){
           ),
           row.vestido ? el('div',{class:'meta', style:'color:var(--gold);margin-top:4px;'},'👕 vestido') : null,
           el('div',{class:'row', style:'margin-top:8px;'},
+            (/^\d+$/.test(String(row.qtd).trim()) && parseInt(row.qtd)>0) ? el('button',{class:'btn', onclick:()=> usarItemMochila(f, idx)}, 'Usar (−1) ✨') : null,
             ehVestivel ? el('button',{class:'btn ghost', onclick:()=>{ row.vestido=!row.vestido; salvarPerfis(); render(); }}, row.vestido?'Guardar':'Vestir') : null,
             el('button',{class:'btn ghost', onclick:()=>{ f.equip.splice(idx,1); salvarPerfis(); render(); }}, 'Remover 🗑️')
           )

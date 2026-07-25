@@ -113,22 +113,32 @@ function renderLevelUpPanel(f){
         if(!repetivel && conhecidosClasse.includes(p.nome)) return false; // já tem e não é repetível
         return true;
       });
+      // "Prévia" do personagem já no novo nível — pra pré-requisito tipo "6º nível de X" bater
+      // certo quando é justamente ESSE level up que está levando a esse nível.
+      const fPreview = Object.assign({}, f, {classesNiveis: (f.classesNiveis||[]).map(c=> c.classe===lv.classeEscolhida ? Object.assign({},c,{nivel:novoNivel}) : c)});
       const gridP = el('div',{class:'option-grid'});
       disponiveisClasse.forEach(p=>{
         const aberto = lv._poderExpandido === p.nome;
-        const card = el('button',{class:'option-card '+(lv.poderClasseEscolhido===p.nome?'selected':''), onclick:()=>{
+        const avaliacao = avaliarPrerequisito(fPreview, p.prereq);
+        const bloqueado = p.prereq && avaliacao.confiavel && !avaliacao.cumpre;
+        const card = el('button',{class:'option-card '+(lv.poderClasseEscolhido===p.nome?'selected':'')+(bloqueado?' used-elsewhere':''), onclick:()=>{
+          if(bloqueado){ lv._poderExpandido = aberto ? null : p.nome; render(); return; } // só expande pra mostrar o motivo, não deixa escolher
           lv.poderClasseEscolhido=p.nome; lv.poderClasseSubEscolha=null; lv._poderExpandido=p.nome; render();
         }},
-          el('div',{class:'opt-nome'}, p.nome)
+          el('div',{class:'opt-nome'}, p.nome+(bloqueado?' 🔒':''))
         );
         if(aberto){
           card.appendChild(el('div',{class:'opt-sub'}, p.desc));
-          if(p.prereq) card.appendChild(el('div',{class:'opt-sub', style:'color:var(--red-bright);'}, 'Pré-requisito: '+p.prereq));
+          if(p.prereq){
+            const cor = !avaliacao.confiavel ? 'var(--gold)' : (avaliacao.cumpre ? 'var(--red-bright)' : 'var(--red-bright)');
+            const prefixo = !avaliacao.confiavel ? '⚠ Confira manualmente — ' : (avaliacao.cumpre ? '✓ Você cumpre — ' : '✗ Você NÃO cumpre — ');
+            card.appendChild(el('div',{class:'opt-sub', style:'color:'+cor+';'}, prefixo+'Pré-requisito: '+p.prereq));
+          }
         }
         gridP.appendChild(card);
       });
       wrap.appendChild(gridP);
-      wrap.appendChild(el('div',{class:'tip'}, el('b',{},'Nota'), 'Lista completa de "poder de '+lv.classeEscolhida.toLowerCase()+'" do livro, já filtrada pelo seu nível atual. Pré-requisitos de atributo/perícia/outro poder aparecem em vermelho — confira se você cumpre antes de escolher.'));
+      wrap.appendChild(el('div',{class:'tip'}, el('b',{},'Nota'), 'Lista completa de "poder de '+lv.classeEscolhida.toLowerCase()+'" do livro, já filtrada pelo seu nível atual. Quando o app tem certeza que falta um pré-requisito, a opção fica bloqueada (🔒) — toque nela mesmo assim pra ver o motivo. Pré-requisitos mais complexos (texto ⚠ dourado) precisam de conferência manual seu ou do Mestre.'));
       const poderClasseObj = listaCompleta.find(p=>p.nome===lv.poderClasseEscolhido);
       if(poderClasseObj && poderClasseObj.escolha){
         wrap.appendChild(renderSubEscolhaClasse(poderClasseObj.escolha, lv, 'poderClasseSubEscolha'));

@@ -877,6 +877,70 @@ function bonusPericiaDeItensVestidos(f, periciaNome){
   return total;
 }
 
+// ---- Verificador de pré-requisitos de poder ----
+// O texto de pré-requisito é livre (copiado do livro), então a checagem só é "confiável" quando
+// reconhece TODAS as cláusulas do texto num padrão conhecido — senão prefere não bloquear nada
+// (melhor deixar escolher um poder que na verdade cumpre, do que travar um que a pessoa merece).
+const NOMES_CLASSES_T20 = ['Arcanista','Bárbaro','Bardo','Bucaneiro','Caçador','Cavaleiro','Clérigo','Druida','Guerreiro','Inventor','Ladino','Lutador','Nobre','Paladino'];
+function avaliarSubClausulaPrereq(f, texto){
+  texto = texto.trim();
+  if(!texto) return {ok:true, reconhecido:true};
+  // "Nº nível de [classe]"
+  let m = texto.match(/^(\d+)º nível de ([a-zà-ú]+)/i);
+  if(m){
+    const nivelExigido = parseInt(m[1]);
+    const nomeAlvo = m[2].toLowerCase();
+    const entrada = (f.classesNiveis||[]).find(c=>c.classe.toLowerCase()===nomeAlvo);
+    return {ok:(entrada?entrada.nivel:0) >= nivelExigido, reconhecido:true};
+  }
+  // Atributo: "For 1", "Int 2"...
+  m = texto.match(/^(For|Des|Con|Int|Sab|Car)\s+(-?\d+)$/i);
+  if(m){
+    const atual = parseInt(f[m[1].toLowerCase()])||0;
+    return {ok: atual >= parseInt(m[2]), reconhecido:true};
+  }
+  // "treinado em X" ou "treinado em X e Y"
+  m = texto.match(/^treinado em (.+)/i);
+  if(m){
+    const nomes = m[1].split(/ e /i).map(s=>s.trim()).filter(Boolean);
+    const treinadas = periciasTreinadasComDivindade(f);
+    return {ok: nomes.every(n=> treinadas.has(nomeBasePericia(n))), reconhecido:true};
+  }
+  // Nome de classe isolado (precisa ter nível nela)
+  const classeBatida = NOMES_CLASSES_T20.find(c=>c.toLowerCase()===texto.toLowerCase());
+  if(classeBatida){
+    return {ok:(f.classesNiveis||[]).some(c=>c.classe===classeBatida), reconhecido:true};
+  }
+  // Nome de poder específico já conhecido
+  if(nomesPoderesConhecidos(f).some(n=> n.toLowerCase()===texto.toLowerCase())){
+    return {ok:true, reconhecido:true};
+  }
+  // Pode ser um poder válido que a pessoa só ainda não tem — reconhecido, mas falha
+  const eUmPoderValido = PODERES_GERAIS.some(p=>p.nome.toLowerCase()===texto.toLowerCase())
+    || Object.values(PODERES_CLASSE_COMPLETO).some(lista=>lista.some(p=>p.nome.toLowerCase()===texto.toLowerCase()));
+  if(eUmPoderValido) return {ok:false, reconhecido:true};
+  return {ok:true, reconhecido:false};
+}
+function avaliarClausulaPrereq(f, clausula){
+  clausula = clausula.trim();
+  if(clausula.includes(' ou ')){
+    const alternativas = clausula.split(' ou ').map(s=>avaliarSubClausulaPrereq(f,s));
+    return {ok: alternativas.some(a=>a.ok), reconhecido: alternativas.every(a=>a.reconhecido)};
+  }
+  return avaliarSubClausulaPrereq(f, clausula);
+}
+// Retorna {confiavel, cumpre} — só use "cumpre" pra bloquear seleção se confiavel===true.
+function avaliarPrerequisito(f, prereqTexto){
+  if(!prereqTexto) return {confiavel:true, cumpre:true};
+  const textoLimpo = prereqTexto.replace(/^e\s+/i,'').replace(/\.\s*$/,'').trim();
+  const partes = textoLimpo.split(',').map(s=>s.trim()).filter(Boolean);
+  const resultados = partes.map(p=>avaliarClausulaPrereq(f,p));
+  return {
+    confiavel: resultados.every(r=>r.reconhecido),
+    cumpre: resultados.every(r=>r.ok),
+  };
+}
+
 function nomesPoderesConhecidos(f){
   const nomes = [];
   if(f.poderGeral) nomes.push(f.poderGeral.sub || f.poderGeral.nome);
@@ -933,6 +997,49 @@ async function carregarPerfis(){
 }
 async function salvarPerfis(){
   await salvarPerfisArmazenamento(state.perfis);
+}
+
+// ---- Notificação de "o Mestre te mandou algo" ----
+// A cada ~12s, se o jogador estiver com a ficha aberta, busca os dados de novo e compara com o
+// que já tinha — se aparecer um item novo marcado "(recebido do Mestre)" ou o dinheiro aumentar,
+// avisa na hora. Só troca esses campos específicos (item/dinheiro), não mexe em mais nada da
+// ficha, pra nunca sobrescrever uma edição que o jogador esteja fazendo em outro campo.
+let _intervalAtualizacaoJogador = null;
+function iniciarAtualizacaoAutomaticaJogador(){
+  pararAtualizacaoAutomaticaJogador();
+  _intervalAtualizacaoJogador = setInterval(async ()=>{
+    if(state.screen !== 'ficha' || usandoStorageDoClaude()){ return; }
+    let listaNova;
+    try{ listaNova = await carregarPerfisArmazenamento(); }catch(e){ return; }
+    const digitando = document.activeElement && ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName);
+    if(digitando) return;
+    let precisaRender = false;
+    (state.perfis||[]).forEach(fAtual=>{
+      const fNovo = listaNova.find(p=>p.id===fAtual.id);
+      if(!fNovo) return;
+      const equipAntigo = fAtual.equip || [];
+      const equipNovo = fNovo.equip || [];
+      if(equipNovo.length > equipAntigo.length){
+        const nomesAntigos = equipAntigo.map(e=>e.item);
+        const novosItens = equipNovo.filter(e=> e.item.includes('(recebido do Mestre)') && !nomesAntigos.includes(e.item));
+        novosItens.forEach(it=> flashMsg('🎁 '+fAtual.nome+' recebeu: '+it.item.replace(' (recebido do Mestre)','')+'!'));
+        fAtual.equip = equipNovo;
+        precisaRender = true;
+      }
+      ['ts','tc','to'].forEach(campo=>{
+        const antes = parseInt(fAtual[campo])||0, depois = parseInt(fNovo[campo])||0;
+        if(depois > antes){
+          flashMsg('💰 '+fAtual.nome+' recebeu +'+(depois-antes)+' '+(campo==='ts'?'T$':campo==='tc'?'TC':'TO')+'!');
+          fAtual[campo] = depois;
+          precisaRender = true;
+        }
+      });
+    });
+    if(precisaRender){ salvarNoLocalStorage(state.perfis); render(); }
+  }, 12000);
+}
+function pararAtualizacaoAutomaticaJogador(){
+  if(_intervalAtualizacaoJogador){ clearInterval(_intervalAtualizacaoJogador); _intervalAtualizacaoJogador = null; }
 }
 // Personagens de TODOS os jogadores, só pras ferramentas do Mestre (iniciativa, grupo, tesouro).
 async function carregarPerfisTodosParaMestre(){
@@ -1183,6 +1290,7 @@ function renderPerfisScreen(){
     const card = el('button',{class:'perfil-card', onclick:()=>{
       if(state.gerenciandoPerfis) return;
       state.perfilAtualId = p.id; state.screen='ficha'; render();
+      iniciarAtualizacaoAutomaticaJogador();
     }},
       el('div',{class:'perfil-avatar', style: p.foto ? '' : 'background:'+corAvatar(p.id)+';'}, p.foto ? el('img',{src:p.foto, style:'width:100%;height:100%;object-fit:cover;border-radius:inherit;'}) : (p.nome||'?').slice(0,1).toUpperCase()),
       el('div',{class:'perfil-nome'}, p.nome||'Sem nome'),
