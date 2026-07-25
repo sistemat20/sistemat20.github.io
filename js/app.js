@@ -250,12 +250,13 @@ function periciaValor(f, p){
   const itensVestidos = bonusPericiaDeItensVestidos(f, p.nome);
   const racaBonus = bonusPericiaDeRaca(f, p.nome);
   const divindadeBonus = bonusPericiaDeDivindade(f, p.nome);
+  const condicoesBonus = bonusCondicoesPericia(f, p);
   const tamanhoBonus = (p.nome==='Furtividade') ? bonusFurtividadeTamanho(f) : 0;
   const penalidade = p.armadura ? penalidadeTotal(f) : 0; // penalidadeTotal já é negativa ou zero
   // Sem proficiência com a armadura/escudo equipado: a penalidade vale para TODA perícia de Força/Destreza
   // (não só as 3 marcadas com ‡), mesmo que a perícia normalmente não sofresse penalidade de armadura.
   const penalidadeExtra = (!p.armadura && (p.attr==='For' || p.attr==='Des')) ? penalidadeNaoProficienciaArmadura(f) : 0;
-  return metade + attrVal + treino + poderes + itensVestidos + racaBonus + divindadeBonus + tamanhoBonus + penalidade + penalidadeExtra;
+  return metade + attrVal + treino + poderes + itensVestidos + racaBonus + divindadeBonus + condicoesBonus + tamanhoBonus + penalidade + penalidadeExtra;
 }
 
 function bonusDefesaPoderes(f){
@@ -507,7 +508,7 @@ function defesaTotal(f){
   // Armadura pesada: você NÃO aplica Destreza na Defesa (regra do livro, pág. 157)
   const des = usaArmaduraPesada(f) ? 0 : (parseInt(f.des)||0);
   const outros = parseInt(f.defOutros)||0;
-  return 10 + des + armadura + escudo + outros + bonusDefesaPoderes(f) + bonusDefesaRaca(f);
+  return 10 + des + armadura + escudo + outros + bonusDefesaPoderes(f) + bonusDefesaRaca(f) + bonusCondicoesDefesa(f);
 }
 // Deslocamento reduzido em 3m ao usar armadura pesada
 // Sobrecarga: ultrapassar o limite de carga dá -5 de penalidade de armadura e -3m de deslocamento
@@ -517,10 +518,14 @@ function sobrecarregado(f){ return cargaUsada(f) > limiteCarga(f); }
 function deslocamentoEfetivo(f){
   const base = parseInt(f.deslocamento)||0;
   const racaObj = getRacaObj(f);
-  if(racaObj && racaObj.deslocamentoImune) return base; // Anão: "Devagar e Sempre" — nunca reduzido
+  const imuneArmaduraECarga = racaObj && racaObj.deslocamentoImune; // Anão/Suraggel: só protege de armadura/carga, não de condições
   let d = base;
-  if(usaArmaduraPesada(f)) d -= 3;
-  if(sobrecarregado(f)) d -= 3;
+  if(!imuneArmaduraECarga){
+    if(usaArmaduraPesada(f)) d -= 3;
+    if(sobrecarregado(f)) d -= 3;
+    d = Math.max(0, d);
+  }
+  d = Math.floor(d * multiplicadorCondicoesDeslocamento(f));
   return Math.max(0, d);
 }
 function penalidadeTotal(f){
@@ -708,6 +713,61 @@ function alternarCondicao(f, nome){
   const idx = f.condicoesAtivas.indexOf(nome);
   if(idx>=0) f.condicoesAtivas.splice(idx,1); else f.condicoesAtivas.push(nome);
   salvarPerfis(); render();
+}
+
+// Efeitos mecânicos automáticos das condições — só as que têm um número claro do livro pra
+// aplicar (perícia, Defesa, deslocamento). Várias condições (Atordoado, Confuso, Paralisado,
+// Enjoado, Envenenado, Agarrado, Em Chamas, Surpreendido...) são mais sobre o que você PODE ou
+// NÃO PODE fazer na sua vez do que um número fixo — essas continuam só informativas, porque
+// aplicar automaticamente seria adivinhar demais (o Mestre e o jogador que decidem na hora).
+const CONDICOES_EFEITOS = {
+  'Abalado':      { periciaTodas: -2 },
+  'Apavorado':    { periciaTodas: -5 },
+  'Cego':         { periciaAttr: {For:-5, Des:-5} },
+  'Debilitado':   { periciaAttr: {For:-5, Des:-5, Con:-5} },
+  'Desprevenido': { defesa: -5 },
+  'Enredado':     { defesa: -2 },
+  'Esmorecido':   { periciaAttr: {Int:-5, Sab:-5, Car:-5} },
+  'Exausto':      { periciaAttr: {For:-5, Des:-5, Con:-5}, defesa: -2, deslocamentoMult: 0.5 },
+  'Fascinado':    { periciaEspecifica: {'Percepção': -5} },
+  'Fatigado':     { periciaAttr: {For:-2, Des:-2, Con:-2}, defesa: -2 },
+  'Fraco':        { periciaAttr: {For:-2, Des:-2, Con:-2} },
+  'Frustrado':    { periciaAttr: {Int:-2, Sab:-2, Car:-2} },
+  'Imóvel':       { deslocamentoMult: 0 },
+  'Indefeso':     { defesa: -10 },
+  'Lento':        { deslocamentoMult: 0.5 },
+  'Ofuscado':     { periciaEspecifica: {'Percepção': -2} },
+  'Surdo':        { periciaEspecifica: {'Iniciativa': -5} },
+  'Vulnerável':   { defesa: -2 },
+};
+function bonusCondicoesPericia(f, p){
+  let total = 0;
+  condicoesAtivas(f).forEach(nome=>{
+    const efeito = CONDICOES_EFEITOS[nome];
+    if(!efeito) return;
+    if(efeito.periciaTodas) total += efeito.periciaTodas;
+    if(efeito.periciaAttr && efeito.periciaAttr[p.attr]!=null) total += efeito.periciaAttr[p.attr];
+    if(efeito.periciaEspecifica && efeito.periciaEspecifica[p.nome]!=null) total += efeito.periciaEspecifica[p.nome];
+  });
+  return total;
+}
+function bonusCondicoesDefesa(f){
+  let total = 0;
+  condicoesAtivas(f).forEach(nome=>{
+    const efeito = CONDICOES_EFEITOS[nome];
+    if(efeito && efeito.defesa) total += efeito.defesa;
+  });
+  return total;
+}
+// O deslocamento não soma penalidades, usa sempre o MENOR multiplicador entre as condições ativas
+// (ex: Lento + Imóvel ao mesmo tempo não fica "negativo", só fica 0 mesmo, que já é o mínimo).
+function multiplicadorCondicoesDeslocamento(f){
+  let mult = 1;
+  condicoesAtivas(f).forEach(nome=>{
+    const efeito = CONDICOES_EFEITOS[nome];
+    if(efeito && efeito.deslocamentoMult!=null) mult = Math.min(mult, efeito.deslocamentoMult);
+  });
+  return mult;
 }
 // ---- Uso limitado de poderes ("1x/cena", "1x/dia") ----
 // Detecta pela própria descrição do poder se ele tem limite de uso, sem precisar marcar cada
@@ -1252,9 +1312,21 @@ function iconeD20(tamanhoPx){
   div.className = 'splash-dado';
   div.style.width = tamanhoPx+'px';
   div.style.height = tamanhoPx+'px';
+  // Facetas preenchidas (não só contorno) simulando luz vindo de cima-esquerda, igual um dado de
+  // verdade — face de cima mais clara, indo escurecendo pro canto inferior direito (sombra).
   div.innerHTML = '<svg viewBox="0 0 100 100" width="100%" height="100%" style="display:block;">'
-    + '<polygon points="50,4 92,27 92,73 50,96 8,73 8,27" fill="none" stroke="currentColor" stroke-width="6" stroke-linejoin="round"/>'
-    + '<path d="M50,4 L50,38 M8,27 L50,38 L92,27 M8,73 L50,38 M92,73 L50,38 M50,96 L50,38" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/>'
+    + '<polygon points="50,4 8,27 50,45" fill="var(--gold)"/>'
+    + '<polygon points="50,4 50,45 92,27" fill="var(--gold-deep)"/>'
+    + '<polygon points="8,27 50,45 8,73" fill="var(--gold-deep)"/>'
+    + '<polygon points="92,27 92,73 50,45" fill="#6b4d14"/>'
+    + '<polygon points="8,73 50,45 50,96" fill="#4a3610"/>'
+    + '<polygon points="50,45 92,73 50,96" fill="#2e2208"/>'
+    + '<polygon points="50,4 8,27 50,45 92,27" fill="none" stroke="#1a1305" stroke-width="2" stroke-linejoin="round"/>'
+    + '<polygon points="50,4 92,27 92,73 50,96 8,73 8,27" fill="none" stroke="#1a1305" stroke-width="2.5" stroke-linejoin="round"/>'
+    + '<line x1="8" y1="73" x2="50" y2="45" stroke="#1a1305" stroke-width="2"/>'
+    + '<line x1="92" y1="73" x2="50" y2="45" stroke="#1a1305" stroke-width="2"/>'
+    + '<line x1="50" y1="96" x2="50" y2="45" stroke="#1a1305" stroke-width="2"/>'
+    + '<text x="50" y="20" text-anchor="middle" font-family="Cinzel, serif" font-weight="700" font-size="13" fill="#2e2208">20</text>'
     + '</svg>';
   return div;
 }

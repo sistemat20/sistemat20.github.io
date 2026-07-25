@@ -635,9 +635,11 @@ function renderPainelCondicoes(f){
       const row = el('div',{class:'option-grid'});
       ativas.forEach(nome=>{
         const info = CONDICOES_LISTA.find(c=>c[0]===nome);
+        const temEfeito = !!CONDICOES_EFEITOS[nome];
         row.appendChild(el('button',{class:'option-card selected', onclick:()=>alternarCondicao(f,nome)},
           el('div',{class:'opt-nome'}, nome+' ✕'),
-          info ? el('div',{class:'opt-sub'}, info[1]) : null
+          info ? el('div',{class:'opt-sub'}, info[1]) : null,
+          temEfeito ? el('div',{class:'opt-sub', style:'color:var(--gold);'}, '⚡ já aplicado nos cálculos') : null
         ));
       });
       wrap.appendChild(row);
@@ -647,11 +649,13 @@ function renderPainelCondicoes(f){
       wrap.appendChild(el('div',{class:'meta', style:'margin-top:8px;color:var(--gold);'}, '📝 '+f.condicoesNota));
     }
   } else {
+    wrap.appendChild(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Condições com ⚡ já entram sozinhas no cálculo de Defesa/perícias/deslocamento. As outras são mais sobre o que dá ou não dá pra fazer no turno — combine com o Mestre na hora.'));
     const row = el('div',{class:'option-grid'});
     CONDICOES_LISTA.forEach(([nome,desc])=>{
       const marcado = ativas.includes(nome);
+      const temEfeito = !!CONDICOES_EFEITOS[nome];
       row.appendChild(el('button',{class:'option-card '+(marcado?'selected':''), onclick:()=>alternarCondicao(f,nome)},
-        el('div',{class:'opt-nome'}, nome),
+        el('div',{class:'opt-nome'}, nome+(temEfeito?' ⚡':'')),
         el('div',{class:'opt-sub'}, desc)
       ));
     });
@@ -1325,8 +1329,9 @@ function renderPericias(){
     if(aberto){
       const bonusPoder = bonusPericiaDePoderes(f, p.nome);
       const bonusDivindade = bonusPericiaDeDivindade(f, p.nome);
+      const bonusCondicoes = bonusCondicoesPericia(f, p);
       const detalhe = el('div',{class:'tip', style:'margin-top:-4px;margin-bottom:8px;'},
-        el('div',{}, el('b',{},'Cálculo: '), '1/2 nível ('+Math.floor(nivel/2)+') + '+p.attr+' ('+(parseInt(f[p.attr.toLowerCase()])||0)+')'+(isTreinada?' + treino ('+bonusTreinoPericia(nivel)+')':'')+(bonusPoder?' + poderes ('+bonusPoder+')':'')+(bonusPericiaDeRaca(f,p.nome)?' + raça ('+bonusPericiaDeRaca(f,p.nome)+')':'')+(bonusDivindade?' + divindade ('+bonusDivindade+')':'')+(p.nome==='Furtividade'&&bonusFurtividadeTamanho(f)?' + tamanho ('+bonusFurtividadeTamanho(f)+')':'')+(p.armadura && penalidadeTotal(f)?' + penalidade de armadura ('+penalidadeTotal(f)+')':'')+' = '+valor),
+        el('div',{}, el('b',{},'Cálculo: '), '1/2 nível ('+Math.floor(nivel/2)+') + '+p.attr+' ('+(parseInt(f[p.attr.toLowerCase()])||0)+')'+(isTreinada?' + treino ('+bonusTreinoPericia(nivel)+')':'')+(bonusPoder?' + poderes ('+bonusPoder+')':'')+(bonusPericiaDeRaca(f,p.nome)?' + raça ('+bonusPericiaDeRaca(f,p.nome)+')':'')+(bonusDivindade?' + divindade ('+bonusDivindade+')':'')+(bonusCondicoes?' + condições ('+bonusCondicoes+')':'')+(p.nome==='Furtividade'&&bonusFurtividadeTamanho(f)?' + tamanho ('+bonusFurtividadeTamanho(f)+')':'')+(p.armadura && penalidadeTotal(f)?' + penalidade de armadura ('+penalidadeTotal(f)+')':'')+' = '+valor),
         el('div',{class:'desc', style:'margin-top:6px;'}, p.resumo),
         el('div',{style:'margin-top:6px;'}, el('b',{},'Principais usos:'), ...p.usos.map(u=> el('div',{style:'margin-top:2px;'}, '• '+u)))
       );
