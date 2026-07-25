@@ -255,8 +255,8 @@ function renderMestreGrupo(){
   }
 
   wrap.appendChild(el('div',{class:'row', style:'margin-bottom:10px;'},
-    el('button',{class:'btn', onclick:()=>{ todos.forEach(p=> enviarParaCombate(criarCombatentePj(p))); }}, 'Grupo inteiro pro Combate ⚔️'),
-    el('button',{class:'btn ghost', onclick:()=>{ todos.forEach(p=> enviarParaPreparacao(criarCombatentePj(p))); }}, 'Grupo inteiro pro Preparado 📋')
+    el('button',{class:'btn', style:'flex:1;width:auto;', onclick:()=>{ todos.forEach(p=> enviarParaCombate(criarCombatentePj(p))); }}, 'Grupo pro Combate ⚔️'),
+    el('button',{class:'btn ghost', style:'flex:1;width:auto;', onclick:()=>{ todos.forEach(p=> enviarParaPreparacao(criarCombatentePj(p))); }}, 'Grupo pro Preparado 📋')
   ));
 
   todos.forEach(p=>{
@@ -348,8 +348,8 @@ function enviarParaCombate(combatente){
 // Par de botões padrão "Enviar pro Combate" / "Enviar pro Preparado" — usado nos 3 lugares.
 function botoesEnviarCombatente(criarCombatente){
   return el('div',{class:'row', style:'margin-top:8px;'},
-    el('button',{class:'btn', onclick:()=> enviarParaCombate(criarCombatente())}, 'Enviar pro Combate ⚔️'),
-    el('button',{class:'btn ghost', onclick:()=> enviarParaPreparacao(criarCombatente())}, 'Enviar pro Preparado 📋')
+    el('button',{class:'btn', style:'flex:1;width:auto;', onclick:()=> enviarParaCombate(criarCombatente())}, 'Combate ⚔️'),
+    el('button',{class:'btn ghost', style:'flex:1;width:auto;', onclick:()=> enviarParaPreparacao(criarCombatente())}, 'Preparado 📋')
   );
 }
 // Insere um combatente na posição certa de uma lista (por iniciativa, decrescente) — usado só
