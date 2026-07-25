@@ -1308,6 +1308,10 @@ const FRASES_CARREGAMENTO = [
 // Desenha um d20 de verdade (contorno hexagonal com as facetas), em vez de um símbolo genérico —
 // usa currentColor, então herda a cor dourada da classe splash-dado automaticamente.
 function iconeD20(tamanhoPx){
+  const wrap = document.createElement('div');
+  wrap.className = 'splash-dado-perspectiva';
+  wrap.style.width = tamanhoPx+'px';
+  wrap.style.height = tamanhoPx+'px';
   const div = document.createElement('div');
   div.className = 'splash-dado';
   div.style.width = tamanhoPx+'px';
@@ -1328,7 +1332,8 @@ function iconeD20(tamanhoPx){
     + '<line x1="50" y1="96" x2="50" y2="45" stroke="#1a1305" stroke-width="2"/>'
     + '<text x="50" y="20" text-anchor="middle" font-family="Cinzel, serif" font-weight="700" font-size="13" fill="#2e2208">20</text>'
     + '</svg>';
-  return div;
+  wrap.appendChild(div);
+  return wrap;
 }
 
 function fraseCarregamentoAtual(){
