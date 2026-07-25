@@ -1150,10 +1150,13 @@ async function confirmarCodigoJogador(){
     iniciarAtualizacaoAutomaticaMestre();
     return;
   }
-  state._carregandoCodigo = true; render();
+  state._carregandoCodigo = true;
+  state.screen = 'perfis';
+  state._carregandoInicial = true;
+  render();
   await carregarPerfis();
   state._carregandoCodigo = false;
-  state.screen = 'perfis';
+  state._carregandoInicial = false;
   render();
 }
 
@@ -1264,8 +1267,12 @@ function renderPerfisScreen(){
   }
 
   if(state._carregandoAtualizacao){
-    wrap.appendChild(el('div',{class:'tip', style:'text-align:center;max-width:380px;margin:0 auto 14px;'},
-      '🔄 Atualizando com a planilha' + (state._carregandoDemorando ? ' (o Google está demorando mais que o normal...)' : '...')
+    wrap.appendChild(el('div',{class:'panel faixa splash-atualizando', style:'max-width:380px;margin:0 auto 14px;text-align:center;'},
+      el('div',{style:'display:flex;align-items:center;justify-content:center;gap:10px;'},
+        el('div',{class:'splash-dado', style:'font-size:1.4rem;margin-bottom:0;'}, '⟠'),
+        el('div',{}, fraseCarregamentoAtual())
+      ),
+      state._carregandoDemorando ? el('div',{class:'tip', style:'margin-top:8px;'}, 'O Google está demorando mais que o normal pra "acordar" — aguenta mais um pouco.') : null
     ));
   }
 
