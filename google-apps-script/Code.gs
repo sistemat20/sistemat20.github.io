@@ -32,6 +32,20 @@ function getOuCriarAba_() {
   return sheet;
 }
 
+// Aba separada pra coisas do Mestre que não pertencem a nenhum personagem — Grupos e Encontros
+// Salvos. Uma linha por código de Mestre (então cada Mestre tem seus próprios grupos/encontros,
+// mesmo dividindo a mesma planilha).
+const NOME_ABA_MESTRE = 'MestreDados';
+function getOuCriarAbaMestre_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(NOME_ABA_MESTRE);
+  if (!sheet) {
+    sheet = ss.insertSheet(NOME_ABA_MESTRE);
+    sheet.appendRow(['MestreCodigo', 'DadosJSON', 'AtualizadoEm']);
+  }
+  return sheet;
+}
+
 function getOuCriarPastaFotos_() {
   return DriveApp.getFolderById(ID_PASTA_FOTOS);
 }
@@ -107,6 +121,31 @@ function doGet(e) {
       .setMimeType(ContentService.MimeType.JSON);
   }
 
+  // Dados do Mestre (Grupos + Encontros Salvos) — uma linha por código de Mestre, numa aba
+  // separada da dos personagens.
+  if (String(e.parameter.mestreDados || '').trim() === 'true') {
+    const mestreCodigo = (e.parameter.mestreCodigo || '').trim();
+    if (!mestreCodigo) {
+      return ContentService.createTextOutput(JSON.stringify({ ok: false, erro: 'mestreCodigo ausente' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    const sheetMestre = getOuCriarAbaMestre_();
+    const dadosMestre = sheetMestre.getDataRange().getValues();
+    for (let i = 1; i < dadosMestre.length; i++) {
+      if (String(dadosMestre[i][0]) === mestreCodigo) {
+        try {
+          return ContentService.createTextOutput(JSON.stringify({ ok: true, dados: JSON.parse(dadosMestre[i][1]) }))
+            .setMimeType(ContentService.MimeType.JSON);
+        } catch (err) {
+          return ContentService.createTextOutput(JSON.stringify({ ok: true, dados: { grupos: [], encontrosSalvos: [] } }))
+            .setMimeType(ContentService.MimeType.JSON);
+        }
+      }
+    }
+    return ContentService.createTextOutput(JSON.stringify({ ok: true, dados: { grupos: [], encontrosSalvos: [] } }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
   const playerId = (e.parameter.playerId || '').trim();
   if (!playerId) {
     return ContentService.createTextOutput(JSON.stringify({ ok: false, erro: 'playerId ausente' }))
@@ -144,6 +183,10 @@ function doPost(e) {
 
   if (body.action === 'jogadorEnviarItem') {
     return tratarJogadorEnviarItem_(body);
+  }
+
+  if (body.action === 'salvarMestreDados') {
+    return tratarSalvarMestreDados_(body);
   }
 
   const sheet = getOuCriarAba_();
@@ -357,4 +400,44 @@ function limparPersonagensDuplicados() {
     }
   }
   Logger.log('Linhas duplicadas removidas: ' + removidas);
+}
+
+// Salva os dados do Mestre (Grupos + Encontros Salvos) — uma linha por código de Mestre, cria
+// se ainda não existir. Trava igual as outras escritas, pra não se cruzar com outra gravação.
+function tratarSalvarMestreDados_(body) {
+  try {
+    const mestreCodigo = String(body.mestreCodigo || '').trim();
+    if (!mestreCodigo) {
+      return ContentService.createTextOutput(JSON.stringify({ ok: false, erro: 'mestreCodigo ausente' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    const lock = LockService.getScriptLock();
+    try {
+      lock.waitLock(10000);
+    } catch (e) {
+      return ContentService.createTextOutput(JSON.stringify({ ok: false, erro: 'Ocupado salvando outra alteração, tenta de novo em instantes.' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    try {
+      const sheet = getOuCriarAbaMestre_();
+      const dados = sheet.getDataRange().getValues();
+      const novoJSON = JSON.stringify(body.dadosJSON);
+      for (let i = 1; i < dados.length; i++) {
+        if (String(dados[i][0]) === mestreCodigo) {
+          sheet.getRange(i + 1, 2).setValue(novoJSON);
+          sheet.getRange(i + 1, 3).setValue(new Date());
+          return ContentService.createTextOutput(JSON.stringify({ ok: true }))
+            .setMimeType(ContentService.MimeType.JSON);
+        }
+      }
+      sheet.appendRow([mestreCodigo, novoJSON, new Date()]);
+      return ContentService.createTextOutput(JSON.stringify({ ok: true }))
+        .setMimeType(ContentService.MimeType.JSON);
+    } finally {
+      lock.releaseLock();
+    }
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ ok: false, erro: String(err) }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
 }

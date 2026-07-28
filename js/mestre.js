@@ -6,6 +6,7 @@ function abrirTelaMestre(){
   state.mestreTab = 'combate';
   render();
   carregarPerfisTodosParaMestre().then(render);
+  carregarDadosMestreDoServidor();
   iniciarAtualizacaoAutomaticaMestre();
 }
 
@@ -81,6 +82,10 @@ function renderMestreScreen(){
     else state._verFichaMestre = null;
   }
 
+  if(state.addMsg){
+    wrap.appendChild(el('div',{id:'add-msg', style:'position:fixed; left:14px; right:14px; bottom:70px; max-width:692px; margin:0 auto; background:#3a2a1a; color:#f4efe2; padding:10px 14px; border-radius:4px; font-size:0.85rem; box-shadow:0 4px 12px rgba(0,0,0,0.35); z-index:50;'}, state.addMsg));
+  }
+
   return wrap;
 }
 
@@ -104,21 +109,34 @@ function corPorTipoCriatura(tipo){
 
 // ---- GRUPOS (controlados 100% pelo Mestre — nada muda na ficha do jogador) ----
 // O Mestre cria um grupo com um nome e escolhe, entre os personagens já existentes no banco,
-// quais fazem parte dele. Fica salvo só no navegador do Mestre (localStorage), sem tocar em
-// nenhuma ficha de jogador. As ferramentas (Grupo, Iniciativa, Tesouro) sempre respeitam o
-// grupo selecionado no momento.
-const CHAVE_MESTRE_GRUPOS = 'painel_aventureiro_mestre_grupos';
+// quais fazem parte dele. Fica salvo na planilha (aba MestreDados), então sincroniza com
+// qualquer aparelho que entre com o mesmo código de Mestre. As ferramentas (Grupo, Iniciativa,
+// Tesouro) sempre respeitam o grupo selecionado no momento.
 const CHAVE_MESTRE_GRUPO_FILTRO = 'painel_aventureiro_mestre_grupo_filtro';
 function carregarGruposSalvos(){
-  if(state._mestreGrupos) return;
-  try{
-    const raw = localStorage.getItem(CHAVE_MESTRE_GRUPOS);
-    state._mestreGrupos = raw ? JSON.parse(raw) : [];
-  }catch(e){ state._mestreGrupos = []; }
+  if(!state._mestreGrupos) state._mestreGrupos = []; // valor provisório até o servidor responder
 }
-function salvarGruposLocal(){
-  try{ localStorage.setItem(CHAVE_MESTRE_GRUPOS, JSON.stringify(state._mestreGrupos||[])); }catch(e){}
+function carregarEncontrosSalvos(){
+  if(!state._mestreEncontrosSalvos) state._mestreEncontrosSalvos = []; // idem
 }
+// Busca do servidor Grupos + Encontros Salvos juntos (ficam na mesma linha) — chamada uma vez
+// ao entrar na tela do Mestre.
+async function carregarDadosMestreDoServidor(){
+  const dados = await carregarMestreDadosArmazenamento();
+  state._mestreGrupos = dados.grupos || [];
+  state._mestreEncontrosSalvos = dados.encontrosSalvos || [];
+  state._mestreDadosCarregados = true;
+  render();
+}
+// Salva Grupos + Encontros Salvos juntos no servidor — chamada sempre que qualquer um dos dois
+// muda. É "dispara e esquece": a UI já foi atualizada localmente antes de chamar isso.
+async function salvarDadosMestreNoServidor(){
+  await salvarMestreDadosArmazenamento({
+    grupos: state._mestreGrupos||[],
+    encontrosSalvos: state._mestreEncontrosSalvos||[],
+  });
+}
+function salvarGruposLocal(){ salvarDadosMestreNoServidor(); }
 function personagensDoGrupoAtual(){
   carregarGruposSalvos();
   const todos = state.perfisTodos || [];
@@ -547,19 +565,9 @@ function renderEncontroAleatorio(combate){
 
 // ---- BIBLIOTECA DE ENCONTROS SALVOS (+ construtor manual) ----
 // O Mestre monta um encontro escolhendo criaturas do bestiário (com quantidade cada), dá um
-// nome, e salva — fica guardado só no navegador dele (localStorage), pra usar em qualquer sessão
+// nome, e salva — fica guardado na planilha (junto com Grupos), pra usar em qualquer sessão
 // futura sem precisar montar tudo de novo. "Usar agora" joga tudo direto na Iniciativa atual.
-const CHAVE_MESTRE_ENCONTROS = 'painel_aventureiro_mestre_encontros';
-function carregarEncontrosSalvos(){
-  if(state._mestreEncontrosSalvos) return;
-  try{
-    const raw = localStorage.getItem(CHAVE_MESTRE_ENCONTROS);
-    state._mestreEncontrosSalvos = raw ? JSON.parse(raw) : [];
-  }catch(e){ state._mestreEncontrosSalvos = []; }
-}
-function salvarEncontrosLocal(){
-  try{ localStorage.setItem(CHAVE_MESTRE_ENCONTROS, JSON.stringify(state._mestreEncontrosSalvos||[])); }catch(e){}
-}
+function salvarEncontrosLocal(){ salvarDadosMestreNoServidor(); }
 
 function renderEncontrosSalvos(combate){
   carregarEncontrosSalvos();

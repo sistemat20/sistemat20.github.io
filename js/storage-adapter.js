@@ -244,3 +244,52 @@ async function enviarItemParaOutroPersonagem(personagemDestinoId, item){
   }
   return {ok:false};
 }
+
+// ---- Dados do Mestre (Grupos + Encontros Salvos) — ficam numa aba separada da planilha,
+// uma linha por código de Mestre, então sincronizam entre qualquer aparelho que entre com o
+// mesmo código (em vez de ficar preso só num navegador via localStorage).
+async function carregarMestreDadosArmazenamento(){
+  if(usandoStorageDoClaude()){
+    try{
+      const r = await window.storage.get('mestre_dados', false);
+      return (r && r.value) ? JSON.parse(r.value) : {grupos:[], encontrosSalvos:[]};
+    }catch(e){ return {grupos:[], encontrosSalvos:[]}; }
+  }
+  if(SHEETS_API_URL){
+    const codigo = obterCodigoJogador();
+    if(!codigo) return {grupos:[], encontrosSalvos:[]};
+    try{
+      const resp = await fetch(SHEETS_API_URL + '?mestreDados=true&mestreCodigo=' + encodeURIComponent(codigo));
+      const data = await resp.json();
+      if(data && data.ok) return data.dados || {grupos:[], encontrosSalvos:[]};
+      return {grupos:[], encontrosSalvos:[]};
+    }catch(e){
+      console.error('Falha ao carregar dados do Mestre.', e);
+      return {grupos:[], encontrosSalvos:[]};
+    }
+  }
+  return {grupos:[], encontrosSalvos:[]};
+}
+async function salvarMestreDadosArmazenamento(dados){
+  if(usandoStorageDoClaude()){
+    try{ await window.storage.set('mestre_dados', JSON.stringify(dados), false); }catch(e){}
+    return true;
+  }
+  if(SHEETS_API_URL){
+    const codigo = obterCodigoJogador();
+    if(!codigo) return false;
+    try{
+      const resp = await fetch(SHEETS_API_URL, {
+        method: 'POST',
+        headers: {'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify({ action:'salvarMestreDados', mestreCodigo: codigo, dadosJSON: dados })
+      });
+      const data = await resp.json();
+      return !!(data && data.ok);
+    }catch(e){
+      console.error('Falha ao salvar dados do Mestre.', e);
+      return false;
+    }
+  }
+  return false;
+}

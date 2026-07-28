@@ -1147,6 +1147,7 @@ async function iniciar(){
     state._carregandoInicial = true;
     render();
     await carregarPerfisTodosParaMestre();
+    carregarDadosMestreDoServidor();
     state._carregandoInicial = false;
     render();
     iniciarAtualizacaoAutomaticaMestre();
@@ -1213,6 +1214,7 @@ async function confirmarCodigoJogador(){
     state._carregandoInicial = true;
     render();
     await carregarPerfisTodosParaMestre();
+    carregarDadosMestreDoServidor();
     state._carregandoInicial = false;
     render();
     iniciarAtualizacaoAutomaticaMestre();
