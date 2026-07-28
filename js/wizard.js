@@ -714,11 +714,21 @@ function stepDivindade(w){
   }
 
   if(!w.divindadeNome){
+    wrap.appendChild(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Toque numa divindade pra ver a descrição, toque de novo pra escolher ela.'));
     wrap.appendChild(el('div',{class:'option-grid'},
-      ...DEUSES.map(d=> el('button',{class:'option-card', onclick:()=>{ w.divindadeNome=d.nome; w._confirmarFe=true; render(); }},
-        el('div',{class:'opt-nome'}, d.nome),
-        el('div',{class:'opt-sub'}, 'Energia '+d.energia+' · Arma preferida: '+d.arma)
-      ))
+      ...DEUSES.map(d=>{
+        const aberto = w._divindadeExpandida === d.nome;
+        const card = el('button',{class:'option-card'+(aberto?' selected':''), onclick:()=>{
+          if(aberto){ w.divindadeNome=d.nome; w._confirmarFe=true; w._divindadeExpandida=null; }
+          else { w._divindadeExpandida = d.nome; }
+          render();
+        }},
+          el('div',{class:'opt-nome'}, d.nome),
+          el('div',{class:'opt-sub'}, 'Energia '+d.energia+' · Arma preferida: '+d.arma)
+        );
+        if(aberto) card.appendChild(el('div',{class:'opt-sub', style:'margin-top:6px;'}, el('b',{},'Devotos típicos: '), d.devotos));
+        return card;
+      })
     ));
     if(!classesDevotasAuto.includes(w.classeNome)){
       wrap.appendChild(el('button',{class:'btn ghost', onclick:()=>{ w.divindadeNome=''; w.poderConcedidoEscolhido=null; w.step++; render(); }}, 'Seguir sem fé em nenhuma divindade →'));

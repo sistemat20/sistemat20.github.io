@@ -75,6 +75,12 @@ function renderMestreScreen(){
   if(state.mestreTab==='nomes') main.appendChild(renderMestreNomes());
   wrap.appendChild(main);
 
+  if(state._verFichaMestre){
+    const p = (state.perfisTodos||[]).find(x=>x.id===state._verFichaMestre);
+    if(p) wrap.appendChild(renderPopupFichaCompletaMestre(p));
+    else state._verFichaMestre = null;
+  }
+
   return wrap;
 }
 
@@ -177,6 +183,7 @@ function renderGerenciarGrupos(){
         }
         salvarGruposLocal();
         state._mestreGrupoEditando = null;
+        flashMsg('✅ Grupo "'+ge.nome.trim()+'" salvo!');
         render();
       }}, 'Salvar grupo'),
       el('button',{class:'btn ghost', onclick:()=>{ state._mestreGrupoEditando=null; render(); }}, 'Cancelar')
@@ -197,6 +204,7 @@ function renderGerenciarGrupos(){
         state._mestreGrupos = state._mestreGrupos.filter(x=>x.id!==g.id);
         salvarGruposLocal();
         if(state._mestreGrupoFiltro===g.id) state._mestreGrupoFiltro='__todos__';
+        flashMsg('🗑️ Grupo "'+g.nome+'" excluído.');
         render();
       }},'✕')
     ));
@@ -239,6 +247,93 @@ function criarCombatentePj(p){
   return novoCombatente(p.nome, 'pj', bonus, p.pvatual, p.pvmax, p.foto, p.id);
 }
 
+// Popup só-leitura com um resumo bem completo da ficha — pro Mestre conferir tudo sem precisar
+// pedir pro jogador ou navegar pela ficha dele campo por campo.
+function renderPopupFichaCompletaMestre(p){
+  const overlay = el('div',{class:'menu-overlay', onclick:(e)=>{ if(e.target===e.currentTarget){ state._verFichaMestre=null; render(); } }});
+  const sheet = el('div',{class:'menu-sheet', style:'max-width:480px;text-align:left;'});
+  const nivel = nivelTotal(p);
+  const classesTxt = (p.classesNiveis||[]).map(c=>iconeClasse(c.classe)+' '+c.classe+' '+c.nivel).join(' / ') || '—';
+
+  sheet.appendChild(el('div',{class:'wizard-title', style:'padding:6px 14px 0;'}, p.nome));
+  sheet.appendChild(el('div',{class:'tip', style:'margin:4px 14px 10px;'},
+    (p.jogador||p._playerId||'?')+' · '+(p.raca||'—')+' · '+classesTxt+' · Nível total '+nivel
+  ));
+
+  const grid3 = el('div',{class:'row3', style:'margin:0 14px 10px;'},
+    el('div',{}, el('div',{class:'meta'},'PV'), el('div',{style:'font-weight:800;'}, (p.pvatual||0)+'/'+(p.pvmax||0))),
+    el('div',{}, el('div',{class:'meta'},'PM'), el('div',{style:'font-weight:800;'}, (p.pmatual||0)+'/'+(p.pmmax||0))),
+    el('div',{}, el('div',{class:'meta'},'Defesa'), el('div',{style:'font-weight:800;'}, defesaTotal(p))),
+  );
+  sheet.appendChild(grid3);
+  const grid3b = el('div',{class:'row3', style:'margin:0 14px 12px;'},
+    el('div',{}, el('div',{class:'meta'},'Deslocamento'), el('div',{style:'font-weight:800;'}, deslocamentoEfetivo(p)+'m')),
+    el('div',{}, el('div',{class:'meta'},'Carga'), el('div',{style:'font-weight:800;'+(sobrecarregado(p)?'color:var(--red-bright);':'')}, cargaUsada(p)+'/'+cargaMaxima(p))),
+    el('div',{}, el('div',{class:'meta'},'Moedas'), el('div',{style:'font-weight:800;'}, (p.ts||0)+' T$')),
+  );
+  sheet.appendChild(grid3b);
+
+  if(estaMorto(p)) sheet.appendChild(el('div',{class:'tip', style:'margin:0 14px 8px;color:var(--red-bright);'}, '💀 Morto'));
+  else if(estaInconsciente(p)) sheet.appendChild(el('div',{class:'tip', style:'margin:0 14px 8px;color:var(--red-bright);'}, p.estabilizado?'😵 Inconsciente (estabilizado)':'🩸 Inconsciente e sangrando'));
+  if(condicoesAtivas(p).length>0) sheet.appendChild(el('div',{class:'tip', style:'margin:0 14px 8px;color:var(--gold);'}, '🩹 Condições: '+condicoesAtivas(p).join(', ')));
+
+  // Atributos
+  sheet.appendChild(el('div',{class:'wizard-title', style:'font-size:0.85rem;padding:6px 14px 4px;'},'Atributos'));
+  const gridAttr = el('div',{style:'display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin:0 14px 12px;text-align:center;'});
+  [['For','for'],['Des','des'],['Con','con'],['Int','int'],['Sab','sab'],['Car','car']].forEach(([label,campo])=>{
+    const v = parseInt(p[campo])||0;
+    gridAttr.appendChild(el('div',{},
+      el('div',{class:'meta'}, label),
+      el('div',{style:'font-weight:800;'}, (v>=0?'+':'')+v)
+    ));
+  });
+  sheet.appendChild(gridAttr);
+
+  // Perícias treinadas
+  const treinadas = periciasTreinadasComDivindade(p);
+  sheet.appendChild(el('div',{class:'wizard-title', style:'font-size:0.85rem;padding:6px 14px 4px;'},'Perícias treinadas ('+treinadas.size+')'));
+  const listaPer = PERICIAS.filter(per=>treinadas.has(per.nome));
+  sheet.appendChild(el('div',{class:'tip', style:'margin:0 14px 12px;font-size:0.8rem;'},
+    listaPer.length ? listaPer.map(per=>per.nome+' ('+(periciaValor(p,per)>=0?'+':'')+periciaValor(p,per)+')').join(', ') : 'nenhuma'
+  ));
+
+  // Armas equipadas
+  sheet.appendChild(el('div',{class:'wizard-title', style:'font-size:0.85rem;padding:6px 14px 4px;'},'Armas equipadas'));
+  sheet.appendChild(el('div',{class:'tip', style:'margin:0 14px 12px;font-size:0.8rem;'},
+    (p.armas||[]).length ? (p.armas||[]).map(a=>a.nome).join(', ') : 'nenhuma'
+  ));
+
+  // Armadura/escudo
+  sheet.appendChild(el('div',{class:'wizard-title', style:'font-size:0.85rem;padding:6px 14px 4px;'},'Armadura & Escudo'));
+  sheet.appendChild(el('div',{class:'tip', style:'margin:0 14px 12px;font-size:0.8rem;'},
+    (p.armadura?p.armadura.nome:'sem armadura')+' · '+(p.escudo?p.escudo.nome:'sem escudo')
+  ));
+
+  // Poderes (nomes só, resumido)
+  const nomesPoderes = nomesPoderesConhecidos(p);
+  sheet.appendChild(el('div',{class:'wizard-title', style:'font-size:0.85rem;padding:6px 14px 4px;'},'Poderes ('+nomesPoderes.length+')'));
+  sheet.appendChild(el('div',{class:'tip', style:'margin:0 14px 12px;font-size:0.8rem;'}, nomesPoderes.length?nomesPoderes.join(', '):'nenhum'));
+
+  // Magias
+  if((p.magias||[]).length>0){
+    sheet.appendChild(el('div',{class:'wizard-title', style:'font-size:0.85rem;padding:6px 14px 4px;'},'Magias conhecidas ('+p.magias.length+')'));
+    sheet.appendChild(el('div',{class:'tip', style:'margin:0 14px 12px;font-size:0.8rem;'}, p.magias.map(m=>m.n).join(', ')));
+  }
+
+  // Mochila
+  sheet.appendChild(el('div',{class:'wizard-title', style:'font-size:0.85rem;padding:6px 14px 4px;'},'Mochila ('+(p.equip||[]).length+' itens)'));
+  sheet.appendChild(el('div',{class:'tip', style:'margin:0 14px 12px;font-size:0.8rem;'},
+    (p.equip||[]).length ? (p.equip||[]).map(it=>it.item+(it.qtd&&it.qtd!=='1'?' x'+it.qtd:'')).join(', ') : 'vazia'
+  ));
+
+  sheet.appendChild(el('div',{class:'tip', style:'margin:0 14px 8px;'}, el('b',{},'Divindade: '), p.divindade||'sem fé'));
+
+  sheet.appendChild(el('button',{class:'menu-close', onclick:()=>{ state._verFichaMestre=null; render(); }}, 'Fechar'));
+
+  overlay.appendChild(sheet);
+  return overlay;
+}
+
 function renderMestreGrupo(){
   const wrap = el('div',{});
   wrap.appendChild(el('div',{class:'tip'}, el('b',{},'Como usar'), 'Toque nos números de PV/PM pra ajustar na hora — as mudanças já vão direto pra ficha do jogador. Útil pra aplicar dano em massa ou conferir quem está no vermelho sem pedir pra cada um.'));
@@ -267,12 +362,12 @@ function renderMestreGrupo(){
     const faixaPv = faixaPerigoStat(pvPct);
     const critico = faixaPv === 'critico';
     const card = el('div',{class:'panel faixa', style: critico ? 'border-color:var(--red-bright);' : ''},
-      el('div',{style:'display:flex;gap:12px;align-items:center;'},
+      el('div',{style:'display:flex;gap:12px;align-items:center;cursor:pointer;', onclick:()=>{ state._verFichaMestre = p.id; render(); }},
         el('div',{style:'width:52px;height:52px;border-radius:50%;overflow:hidden;flex-shrink:0;background:var(--card-2);display:flex;align-items:center;justify-content:center;font-size:1.4rem;'},
           p.foto ? el('img',{src:p.foto, style:'width:100%;height:100%;object-fit:cover;'}) : '👤'
         ),
         el('div',{style:'flex:1;min-width:0;'},
-          el('div',{style:'font-family:Cinzel,serif;font-weight:700;'}, p.nome),
+          el('div',{style:'font-family:Cinzel,serif;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'}, p.nome),
           el('div',{class:'meta'}, (p.jogador||p._playerId||'?')+' · Nível '+nivel+' · '+classesTxt),
           estaMorto(p) ? el('div',{style:'color:var(--red-bright);font-weight:700;font-size:0.78rem;margin-top:2px;'}, '💀 Morto') :
           estaInconsciente(p) ? el('div',{style:'color:var(--red-bright);font-weight:700;font-size:0.78rem;margin-top:2px;'}, p.estabilizado ? '😵 Inconsciente (estabilizado)' : '🩸 Inconsciente e sangrando') : null,
@@ -433,6 +528,7 @@ function renderEncontroAleatorio(combate){
       el('button',{class:'btn', onclick:()=>{
         const bonus = extrairBonusIniciativa(m.sentidos);
         combate.combatentes.push(novoCombatente(m.nome, 'monstro', bonus, m.pv, m.pv));
+        flashMsg('⚔️ '+m.nome+' adicionado!');
         render();
       }}, 'Adicionar à Iniciativa ⚔️'),
       el('button',{class:'btn ghost', onclick:()=>{
@@ -509,6 +605,7 @@ function renderEncontrosSalvos(combate){
         state._mestreEncontrosSalvos.push({id:'enc'+Date.now(), nome:rasc.nome.trim(), criaturas:rasc.criaturas});
         salvarEncontrosLocal();
         state._mestreEncontroRascunho = null;
+        flashMsg('✅ Encontro "'+rasc.nome.trim()+'" salvo!');
         render();
       }}, 'Salvar Encontro'),
       el('button',{class:'btn ghost', onclick:()=>{ state._mestreEncontroRascunho=null; render(); }}, 'Cancelar')
@@ -532,12 +629,14 @@ function renderEncontrosSalvos(combate){
           const bonus = extrairBonusIniciativa(c.sentidos);
           combate.combatentes.push(novoCombatente(c.nome, 'monstro', bonus, c.pv, c.pv));
         });
+        flashMsg('⚔️ Encontro "'+enc.nome+'" adicionado ('+enc.criaturas.length+' criatura'+(enc.criaturas.length>1?'s':'')+')!');
         render();
       }}, 'Usar agora ⚔️'),
       el('button',{class:'remove-x', onclick:()=>{
         if(!confirm('Excluir o encontro "'+enc.nome+'"?')) return;
         state._mestreEncontrosSalvos = state._mestreEncontrosSalvos.filter(x=>x.id!==enc.id);
         salvarEncontrosLocal();
+        flashMsg('🗑️ Encontro "'+enc.nome+'" excluído.');
         render();
       }},'✕')
     ));

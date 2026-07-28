@@ -89,6 +89,24 @@ function doGet(e) {
       .setMimeType(ContentService.MimeType.JSON);
   }
 
+  // Lista leve (só id/nome/jogador) de TODOS os personagens — usada pelo próprio jogador pra
+  // escolher um colega de mesa como destino ao mandar um item, sem expor a ficha completa de
+  // ninguém (só o suficiente pra montar um seletor de nomes).
+  if (String(e.parameter.listaJogadores || '').trim() === 'true') {
+    const lista = [];
+    for (let i = 1; i < dados.length; i++) {
+      const linha = dados[i];
+      if (linha[3]) {
+        try {
+          const p = JSON.parse(linha[3]);
+          lista.push({ id: p.id, nome: p.nome, jogador: p.jogador || '' });
+        } catch (err) { /* linha corrompida, ignora */ }
+      }
+    }
+    return ContentService.createTextOutput(JSON.stringify({ ok: true, personagens: lista }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
   const playerId = (e.parameter.playerId || '').trim();
   if (!playerId) {
     return ContentService.createTextOutput(JSON.stringify({ ok: false, erro: 'playerId ausente' }))
@@ -122,6 +140,10 @@ function doPost(e) {
 
   if (body.action === 'mestreAtualizarPersonagem') {
     return tratarMestreAtualizarPersonagem_(body);
+  }
+
+  if (body.action === 'jogadorEnviarItem') {
+    return tratarJogadorEnviarItem_(body);
   }
 
   const sheet = getOuCriarAba_();
@@ -216,6 +238,50 @@ function tratarMestreAtualizarPersonagem_(body) {
         }
       }
       return ContentService.createTextOutput(JSON.stringify({ ok: false, erro: 'personagem não encontrado' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    } finally {
+      lock.releaseLock();
+    }
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ ok: false, erro: String(err) }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+// Um jogador manda um item pra outro personagem (não precisa ser o Mestre) — lê o DadosJSON
+// atual do personagem de destino direto da planilha (não confia no que o navegador de quem
+// está mandando tinha em cache), acrescenta o item, e salva. Evita sobrescrever mudanças que
+// o dono daquele personagem tenha feito enquanto isso.
+function tratarJogadorEnviarItem_(body) {
+  try {
+    const personagemDestinoId = String(body.personagemDestinoId || '').trim();
+    const item = body.item;
+    if (!personagemDestinoId || !item) {
+      return ContentService.createTextOutput(JSON.stringify({ ok: false, erro: 'dados incompletos' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    const lock = LockService.getScriptLock();
+    try {
+      lock.waitLock(10000);
+    } catch (e) {
+      return ContentService.createTextOutput(JSON.stringify({ ok: false, erro: 'Ocupado salvando outra alteração, tenta de novo em instantes.' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    try {
+      const sheet = getOuCriarAba_();
+      const dados = sheet.getDataRange().getValues();
+      for (let i = 1; i < dados.length; i++) {
+        if (String(dados[i][0]) === personagemDestinoId) {
+          const personagem = JSON.parse(dados[i][3]);
+          if (!personagem.equip) personagem.equip = [];
+          personagem.equip.push(item);
+          sheet.getRange(i + 1, 4).setValue(JSON.stringify(personagem));
+          sheet.getRange(i + 1, 5).setValue(new Date());
+          return ContentService.createTextOutput(JSON.stringify({ ok: true, nomeDestino: personagem.nome }))
+            .setMimeType(ContentService.MimeType.JSON);
+        }
+      }
+      return ContentService.createTextOutput(JSON.stringify({ ok: false, erro: 'personagem de destino não encontrado' }))
         .setMimeType(ContentService.MimeType.JSON);
     } finally {
       lock.releaseLock();

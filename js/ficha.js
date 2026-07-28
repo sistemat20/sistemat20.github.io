@@ -74,7 +74,10 @@ function renderFichaScreen(){
   if(state.levelUp && state.levelUp.aberto){
     wrap.appendChild(renderLevelUpPopup(fichaAtual()));
   }
-  const semMenuAberto = !state._menuAberto && !state._divindadeFluxo && !state._cropperFoto && !(state.levelUp&&state.levelUp.aberto);
+  if(state._enviarItemFluxo){
+    wrap.appendChild(renderPopupEnviarItem(fichaAtual()));
+  }
+  const semMenuAberto = !state._menuAberto && !state._divindadeFluxo && !state._cropperFoto && !(state.levelUp&&state.levelUp.aberto) && !state._enviarItemFluxo;
   if(estaMorto(f) && semMenuAberto){
     wrap.appendChild(el('div',{class:'aviso-sobrecarga aviso-morte'}, '💀 '+(f.nome||'Personagem')+' morreu.'));
   } else if(estaInconsciente(f) && semMenuAberto){
@@ -431,6 +434,16 @@ function renderPopupDivindade(f, fluxo){
         ));
       }
     });
+    if(f.divindade){
+      sheet.appendChild(el('button',{class:'menu-item', style:'color:var(--red-bright);', onclick:()=>{
+        if(!confirm('Abandonar a fé em '+f.divindade+' e ficar sem devoção a nenhuma divindade?')) return;
+        f.divindade = null;
+        f.poderConcedido = null;
+        state._divindadeFluxo = null;
+        salvarPerfis();
+        render();
+      }}, el('span',{class:'ico'},'✕'), el('span',{}, 'Virar sem fé (abandonar devoção)')));
+    }
     sheet.appendChild(el('button',{class:'menu-close', onclick:()=>{ state._divindadeFluxo=null; state._divindadeExpandida=null; render(); }}, 'Cancelar'));
   } else if(fluxo.passo==='confirmar'){
     const deus = DEUSES.find(d=>d.nome===fluxo.deus);
@@ -944,6 +957,63 @@ function usarItemMochila(f, idx){
   salvarPerfis(); render();
 }
 
+// ---- Enviar item pra outro personagem (não precisa ser o Mestre) ----
+function abrirEnviarItem(idx){
+  state._enviarItemFluxo = {idx, lista:null, carregando:true, enviando:false};
+  render();
+  const f = fichaAtual();
+  listaLeveDeTodosPersonagens().then(lista=>{
+    if(!state._enviarItemFluxo) return; // o jogador já cancelou antes da lista chegar
+    state._enviarItemFluxo.lista = lista.filter(p=>p.id!==f.id);
+    state._enviarItemFluxo.carregando = false;
+    render();
+  });
+}
+function renderPopupEnviarItem(f){
+  const fluxo = state._enviarItemFluxo;
+  const overlay = el('div',{class:'menu-overlay', onclick:(e)=>{ if(e.target===e.currentTarget && !fluxo.enviando){ state._enviarItemFluxo=null; render(); } }});
+  const sheet = el('div',{class:'menu-sheet'});
+  const row = f.equip[fluxo.idx];
+  if(!row){
+    sheet.appendChild(el('div',{class:'tip', style:'margin:14px;'}, 'Esse item não existe mais na sua mochila.'));
+    sheet.appendChild(el('button',{class:'menu-close', onclick:()=>{ state._enviarItemFluxo=null; render(); }}, 'Fechar'));
+    overlay.appendChild(sheet);
+    return overlay;
+  }
+  sheet.appendChild(el('div',{class:'wizard-title', style:'padding:6px 14px 0;'}, 'Enviar "'+row.item+'"'));
+  sheet.appendChild(el('div',{class:'tip', style:'margin:6px 14px;'}, 'Escolha pra quem enviar — o item some da sua mochila e vai direto pra mochila da pessoa escolhida.'));
+  if(fluxo.enviando){
+    sheet.appendChild(el('div',{class:'empty'}, 'Enviando...'));
+  } else if(fluxo.carregando){
+    sheet.appendChild(el('div',{class:'empty'}, 'Carregando lista de personagens...'));
+  } else if(!fluxo.lista || fluxo.lista.length===0){
+    sheet.appendChild(el('div',{class:'empty'}, 'Nenhum outro personagem encontrado.'));
+  } else {
+    fluxo.lista.forEach(p=>{
+      sheet.appendChild(el('button',{class:'menu-item', onclick: async ()=>{
+        fluxo.enviando = true; render();
+        const itemEnviado = Object.assign({}, row, {item: row.item+' (recebido de '+(f.nome||'alguém')+')'});
+        const resultado = await enviarItemParaOutroPersonagem(p.id, itemEnviado);
+        if(resultado.ok){
+          f.equip.splice(fluxo.idx,1);
+          await mestreAtualizarPersonagem(f); // grava só a ficha do remetente, sem tocar na do destino
+          flashMsg('📤 "'+row.item+'" enviado pra '+(resultado.nomeDestino||p.nome)+'!');
+          state._enviarItemFluxo = null;
+        } else {
+          flashMsg('⚠ Não consegui enviar agora — tenta de novo em instantes.');
+          fluxo.enviando = false;
+        }
+        render();
+      }},
+        el('span',{class:'ico'},'👤'), el('span',{}, p.nome+(p.jogador?' ('+p.jogador+')':''))
+      ));
+    });
+  }
+  sheet.appendChild(el('button',{class:'menu-close', onclick:()=>{ if(!fluxo.enviando){ state._enviarItemFluxo=null; render(); } }}, 'Cancelar'));
+  overlay.appendChild(sheet);
+  return overlay;
+}
+
 function renderPersonagemMochila(){
   const f = fichaAtual();
   const wrap = el('div',{});
@@ -972,6 +1042,7 @@ function renderPersonagemMochila(){
           el('div',{class:'row', style:'margin-top:8px;'},
             (/^\d+$/.test(String(row.qtd).trim()) && parseInt(row.qtd)>0) ? el('button',{class:'btn', onclick:()=> usarItemMochila(f, idx)}, 'Usar (−1) ✨') : null,
             ehVestivel ? el('button',{class:'btn ghost', onclick:()=>{ row.vestido=!row.vestido; salvarPerfis(); render(); }}, row.vestido?'Guardar':'Vestir') : null,
+            el('button',{class:'btn ghost', onclick:()=>abrirEnviarItem(idx)}, 'Enviar 📤'),
             el('button',{class:'btn ghost', onclick:()=>{ f.equip.splice(idx,1); salvarPerfis(); render(); }}, 'Remover 🗑️')
           )
         );
@@ -983,6 +1054,7 @@ function renderPersonagemMochila(){
           ),
           el('div',{class:'row', style:'margin-top:8px;'},
             podeEquipar ? el('button',{class:'btn ghost', onclick:()=> row.tipo==='esoterico' ? equiparEsotericoDaMochila(idx) : equiparDaMochila(idx)}, 'Equipar') : null,
+            el('button',{class:'btn ghost', onclick:()=>abrirEnviarItem(idx)}, 'Enviar 📤'),
             el('button',{class:'btn ghost', onclick:()=>{ f.equip.splice(idx,1); salvarPerfis(); render(); }}, 'Remover 🗑️')
           )
         );

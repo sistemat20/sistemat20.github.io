@@ -193,3 +193,54 @@ async function mestreAtualizarPersonagem(personagem){
   }
   return false;
 }
+
+// Lista leve (id/nome/jogador) de todos os personagens de todos os jogadores — usada pra montar
+// o seletor de destino quando um jogador (não o Mestre) quer mandar um item pra outro personagem.
+async function listaLeveDeTodosPersonagens(){
+  if(usandoStorageDoClaude()){
+    const lista = await carregarPerfisArmazenamento();
+    return lista.map(p=>({id:p.id, nome:p.nome, jogador:p.jogador||''}));
+  }
+  if(SHEETS_API_URL){
+    try{
+      const resp = await fetch(SHEETS_API_URL + '?listaJogadores=true');
+      const data = await resp.json();
+      if(data && data.ok) return data.personagens || [];
+      return [];
+    }catch(e){
+      console.error('Falha ao carregar a lista de personagens.', e);
+      return [];
+    }
+  }
+  return [];
+}
+
+// Manda um item pra OUTRO personagem (de qualquer jogador) — não precisa ser o Mestre pra
+// fazer isso. No modo planilha, o próprio backend lê/escreve o destino direto (não confia
+// no que este navegador tinha em cache dele).
+async function enviarItemParaOutroPersonagem(personagemDestinoId, item){
+  if(usandoStorageDoClaude()){
+    const lista = await carregarPerfisArmazenamento();
+    const alvo = lista.find(p=>p.id===personagemDestinoId);
+    if(!alvo) return {ok:false};
+    if(!alvo.equip) alvo.equip = [];
+    alvo.equip.push(item);
+    await salvarPerfisArmazenamento(lista);
+    return {ok:true, nomeDestino:alvo.nome};
+  }
+  if(SHEETS_API_URL){
+    try{
+      const resp = await fetch(SHEETS_API_URL, {
+        method: 'POST',
+        headers: {'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify({ action:'jogadorEnviarItem', personagemDestinoId, item })
+      });
+      const data = await resp.json();
+      return data && data.ok ? {ok:true, nomeDestino:data.nomeDestino} : {ok:false};
+    }catch(e){
+      console.error('Falha ao enviar item pro outro personagem.', e);
+      return {ok:false};
+    }
+  }
+  return {ok:false};
+}

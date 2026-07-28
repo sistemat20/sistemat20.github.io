@@ -544,7 +544,11 @@ function cargaMaxima(f){ return limiteCarga(f)*2; }
 function cargaUsada(f){
   let total = 0;
   (f.armas||[]).forEach(a=> total += (parseFloat(a.esp)||1));
-  if(f.armadura) total += (parseFloat(f.armadura.esp)||0);
+  // Golem: armadura é "acoplada ao chassi" (pág. 32) — não conta no limite de itens que ele
+  // usa, nem pra vestido nem pra carga (ela deixa de ser um "item" separado, vira parte dele).
+  const racaObj = getRacaObj(f);
+  const armaduraAcoplada = racaObj && racaObj.armaduraNaoContaCarga;
+  if(f.armadura && !armaduraAcoplada) total += (parseFloat(f.armadura.esp)||0);
   if(f.escudo) total += (parseFloat(f.escudo.esp)||0);
   (f.equip||[]).forEach(it=>{
     const porUnidade = parseFloat(it.carga)||0;
@@ -1082,9 +1086,13 @@ function iniciarAtualizacaoAutomaticaJogador(){
       if(equipNovo.length > equipAntigo.length){
         const nomesAntigos = equipAntigo.map(e=>e.item);
         const novosItens = equipNovo.filter(e=> e.item.includes('(recebido do Mestre)') && !nomesAntigos.includes(e.item));
-        novosItens.forEach(it=> flashMsg('🎁 '+fAtual.nome+' recebeu: '+it.item.replace(' (recebido do Mestre)','')+'!'));
-        fAtual.equip = equipNovo;
-        precisaRender = true;
+        if(novosItens.length>0){
+          novosItens.forEach(it=>{
+            flashMsg('🎁 '+fAtual.nome+' recebeu: '+it.item.replace(' (recebido do Mestre)','')+'!');
+            fAtual.equip.push(it); // só ACRESCENTA o item novo — nunca substitui a lista inteira,
+          });                       // pra não apagar uma mudança local (equipar/guardar) ainda não salva
+          precisaRender = true;
+        }
       }
       ['ts','tc','to'].forEach(campo=>{
         const antes = parseInt(fAtual[campo])||0, depois = parseInt(fNovo[campo])||0;

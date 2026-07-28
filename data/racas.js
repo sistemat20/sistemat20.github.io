@@ -57,7 +57,7 @@ const RACAS = [
     ["Criatura Artificial","Tipo construto: visão no escuro, imune a cansaço/veneno, não precisa comer/dormir."],
     ["Fonte Elemental","Imune a um tipo de dano elemental; cura metade do dano mágico desse tipo."],
     ["Propósito de Criação","Não escolhe origem, mas recebe um poder geral à escolha."]
-  ], { semOrigem:true, poderGeralExtra:true, deslocamentoImune:true, defesaBonusFixo:2, penalidadeArmaduraFixa:-2, armaduraNaoContaVestido:true }),
+  ], { semOrigem:true, poderGeralExtra:true, deslocamentoImune:true, defesaBonusFixo:2, penalidadeArmaduraFixa:-2, armaduraNaoContaVestido:true, armaduraNaoContaCarga:true }),
 
   R("Hynne", {des:2, car:1, for:-1}, 'Pequeno', 6, [
     ["Arremessador","Dano aumenta um passo com funda ou arma de arremesso."],
