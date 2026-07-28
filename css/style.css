@@ -220,6 +220,7 @@
   }
   .pill.arcana{background:#2c3a52; color:#dfe6f2;}
   .pill.divina{background:#8a6a1e; color:#fbf2da;}
+  .pill.universal{background:#4a2c5e; color:#ecdcf5;}
 
   .spell-card{
     background: linear-gradient(160deg, var(--card), var(--card-2));
@@ -281,7 +282,10 @@
 
   .eq-row{display:grid; grid-template-columns:1fr 44px 60px 26px; gap:6px; margin-bottom:6px; align-items:center;}
   .eq-row input{margin:0;}
-  .remove-x{background:none;border:none;color:var(--red-bright);font-size:1.1rem;cursor:pointer;}
+  .remove-x{
+    background:none;border:none;color:var(--red-bright);font-size:1.1rem;cursor:pointer;
+    min-width:40px; min-height:40px; display:inline-flex; align-items:center; justify-content:center;
+  }
 
   .save-bar{position:sticky; bottom:0; background:var(--bg-2); backdrop-filter:blur(6px); padding:10px 14px 14px; border-top:1px solid var(--line); display:flex; gap:8px;}
   .save-bar .btn{width:auto; flex:1;}
@@ -301,25 +305,28 @@
 
   ::placeholder{color:#8a7a5c;}
   .empty{text-align:center; color:var(--ink-soft); font-family:'Cormorant Garamond',serif; font-size:var(--fs-md); padding:20px 0;}
+  .empty::before{ content:'🪶'; display:block; font-size:1.5rem; margin-bottom:6px; opacity:0.45; }
   .lista-secao-titulo{
     font-family:'Cinzel',serif; font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:0.06em;
     color:var(--gold); border-bottom:1px solid var(--line); padding:10px 2px 4px; margin-top:6px;
   }
   .lista-secao-titulo:first-child{ margin-top:0; }
 .seta-reordenar{
-  width:24px; height:18px; padding:0; margin:0; border:1px solid var(--line); border-radius:4px;
-  background:var(--card-2); color:var(--gold); font-size:0.6rem; line-height:1; cursor:pointer;
+  width:34px; height:30px; padding:0; margin:0; border:1px solid var(--line); border-radius:4px;
+  background:var(--card-2); color:var(--gold); font-size:0.7rem; line-height:1; cursor:pointer;
 }
 .seta-reordenar:disabled{ opacity:0.25; cursor:default; }
   .valor-fixo{ padding:9px 0 8px; font-weight:700; margin-bottom:10px; }
 
   .foto-upload{
-    width:120px; height:120px; border-radius:14px; overflow:hidden; cursor:pointer; flex-shrink:0;
-    border:2px solid var(--gold-deep); background:var(--card-2);
+    width:120px; height:120px; border-radius:50%; overflow:hidden; cursor:pointer; flex-shrink:0;
+    border:3px solid var(--gold-deep);
+    box-shadow: 0 0 0 3px var(--bg-2), 0 0 0 5px var(--gold-deep), inset 0 0 14px rgba(0,0,0,0.45), 0 3px 8px var(--shadow);
+    background:var(--card-2);
     display:flex; align-items:center; justify-content:center;
     transition: border-color 200ms ease, transform 200ms ease, box-shadow 200ms ease;
   }
-  .foto-upload:hover{ border-color:var(--red-bright); transform:translateY(-2px); box-shadow:0 6px 14px rgba(0,0,0,0.35), 0 0 12px rgba(224,69,58,0.25); }
+  .foto-upload:hover{ border-color:var(--red-bright); transform:translateY(-2px); box-shadow: 0 0 0 3px var(--bg-2), 0 0 0 5px var(--red-bright), inset 0 0 14px rgba(0,0,0,0.45), 0 6px 14px rgba(0,0,0,0.35), 0 0 12px rgba(224,69,58,0.3); }
   .foto-upload img{ width:100%; height:100%; object-fit:cover; display:block; }
   .foto-upload .foto-placeholder{ color:var(--ink-soft); font-size:2rem; text-align:center; }
   .foto-row{ display:flex; flex-direction:column; align-items:center; gap:8px; margin-bottom:14px; }
@@ -341,7 +348,7 @@
 .perfil-add .perfil-avatar{ background:var(--card); border:2px dashed var(--line); color:var(--red); font-size:2.4rem; }
 .perfil-manage{ margin-top:26px; }
 .perfil-manage button{ background:none; border:1px solid var(--line); color:var(--ink-soft); padding:8px 18px; border-radius:3px; font-family:'Cinzel',serif; font-size:var(--fs-2xs); text-transform:uppercase; letter-spacing:0.04em; cursor:pointer; }
-.perfil-delete-x{ position:absolute; top:-6px; right:-6px; background:var(--red); color:#fff; border-radius:50%; width:22px; height:22px; border:none; font-size:0.8rem; cursor:pointer; display:none; align-items:center; justify-content:center; }
+.perfil-delete-x{ position:absolute; top:-8px; right:-8px; background:var(--red); color:#fff; border-radius:50%; width:32px; height:32px; border:2px solid var(--bg); font-size:0.85rem; cursor:pointer; display:none; align-items:center; justify-content:center; }
 .perfil-card-wrap{ position:relative; }
 .gerenciando .perfil-delete-x{ display:flex; }
 .gerenciando .perfil-avatar{ animation:shake 0.25s infinite alternate; }

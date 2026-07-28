@@ -371,6 +371,7 @@ async function saveFicha(){
 function flashSaved(){
   const elMsg = document.getElementById('save-msg');
   if(elMsg){ elMsg.textContent = 'Salvo ✓'; setTimeout(()=>{ if(elMsg) elMsg.textContent=''; }, 1800); }
+  flashMsg('✅ Ficha salva!');
 }
 
 // ============ RENDER ============
@@ -798,7 +799,7 @@ function renderPersonagemNotas(){
 
   wrap.appendChild(el('div',{class:'panel'},
     el('h2',{},'Anotações'),
-    textareaAutoResize({oninput:(e)=>f.notas=e.target.value, placeholder:'magias preparadas, poderes escolhidos, tesouro, etc.'}, f.notas)
+    textareaAutoResize({oninput:(e)=>f.notas=e.target.value, placeholder:'poderes escolhidos, tesouro, combinações com o Mestre, etc.'}, f.notas)
   ));
 
   return wrap;
@@ -1043,7 +1044,7 @@ function renderPersonagemMochila(){
             (/^\d+$/.test(String(row.qtd).trim()) && parseInt(row.qtd)>0) ? el('button',{class:'btn', onclick:()=> usarItemMochila(f, idx)}, 'Usar (−1) ✨') : null,
             ehVestivel ? el('button',{class:'btn ghost', onclick:()=>{ row.vestido=!row.vestido; salvarPerfis(); render(); }}, row.vestido?'Guardar':'Vestir') : null,
             el('button',{class:'btn ghost', onclick:()=>abrirEnviarItem(idx)}, 'Enviar 📤'),
-            el('button',{class:'btn ghost', onclick:()=>{ f.equip.splice(idx,1); salvarPerfis(); render(); }}, 'Remover 🗑️')
+            el('button',{class:'btn ghost', onclick:()=>{ if(!confirm('Remover "'+row.item+'" da mochila? Não tem como desfazer.')) return; f.equip.splice(idx,1); salvarPerfis(); render(); }}, 'Remover 🗑️')
           )
         );
       } else {
@@ -1055,7 +1056,7 @@ function renderPersonagemMochila(){
           el('div',{class:'row', style:'margin-top:8px;'},
             podeEquipar ? el('button',{class:'btn ghost', onclick:()=> row.tipo==='esoterico' ? equiparEsotericoDaMochila(idx) : equiparDaMochila(idx)}, 'Equipar') : null,
             el('button',{class:'btn ghost', onclick:()=>abrirEnviarItem(idx)}, 'Enviar 📤'),
-            el('button',{class:'btn ghost', onclick:()=>{ f.equip.splice(idx,1); salvarPerfis(); render(); }}, 'Remover 🗑️')
+            el('button',{class:'btn ghost', onclick:()=>{ if(!confirm('Remover "'+row.item+'" da mochila? Não tem como desfazer.')) return; f.equip.splice(idx,1); salvarPerfis(); render(); }}, 'Remover 🗑️')
           )
         );
       }
@@ -1426,7 +1427,7 @@ function renderCardMagia(s, grupoChave, aoAdicionar, aoRemover, fichaCtx){
   const aberto = state._acordeaoAberto[grupoChave] === s.n;
   const card = el('div',{class:'spell-card'},
     el('div',{class:'head', style:'cursor:pointer;', onclick:()=>{ state._acordeaoAberto[grupoChave] = aberto ? null : s.n; render(); }},
-      el('span',{class:'name'}, s.n + (s.trad==='Universal'?' 🔮':'')),
+      el('span',{class:'name'}, s.n, s.trad==='Universal' ? el('span',{class:'pill universal', style:'margin-left:6px;'}, '🔮 Universal') : null),
       el('div',{style:'display:flex;align-items:center;gap:8px;'},
         el('span',{class:'meta'}, s.c+'º círc. · '+s.e),
         aoRemover ? el('button',{class:'remove-x', onclick:(e)=>{ e.stopPropagation(); aoRemover(); }},'✕') : null
@@ -1486,7 +1487,7 @@ function renderPersonagemMagias(){
     magPanel.appendChild(el('div',{class:'empty'},'Nenhuma magia adicionada ainda. Vá no Menu → Magias pra buscar e adicionar.'));
   } else {
     f.magias.forEach((s,idx)=>{
-      const card = renderCardMagia(s, 'minhas', null, ()=>{ f.magias.splice(idx,1); salvarPerfis(); render(); }, f);
+      const card = renderCardMagia(s, 'minhas', null, ()=>{ if(!confirm('Remover "'+s.n+'" das suas magias conhecidas? Não tem como desfazer.')) return; f.magias.splice(idx,1); salvarPerfis(); render(); }, f);
       magPanel.appendChild(card);
     });
   }
