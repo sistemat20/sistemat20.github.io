@@ -579,12 +579,42 @@ function fichaVazia(){
     poderesClasse:[], // [{classe, nivel, nome, sub, trocaPorGeral}]
     historicoNiveis:[],
     equip:[], notas:'', habilidadesIniciais:[],
-    arcanistaCaminho:null, arcanistaLinhagem:null, magiasMemorizadas:[]
+    arcanistaCaminho:null, arcanistaLinhagem:null, magiasMemorizadas:[], escolasMagia:null, panteaoEnergia:null
   };
 }
 
 // Helpers de classe/nível (multiclasse)
 function nivelTotal(f){ return (f.classesNiveis||[]).reduce((s,c)=>s+c.nivel,0) || 1; }
+
+// ---- Pendências ----
+// Lista de "coisas que existem no app hoje mas que esse personagem específico ainda não
+// preencheu" — normalmente porque a ficha foi criada antes da gente adicionar aquela mecânica
+// (foi o caso do Caminho do Arcanista). Cada item aqui sabe se aplica a UM personagem (função
+// `detecta`) e como resolver (`resolver`, chamado com a própria ficha `f` — grava direto nela).
+// Pra adicionar uma pendência nova no futuro, é só acrescentar um objeto nesta lista.
+const PENDENCIAS_DEFINICOES = [
+  {
+    tipo: 'arcanistaCaminho',
+    titulo: 'Caminho do Arcanista',
+    detecta: (f)=> (f.classesNiveis||[]).some(c=>c.classe==='Arcanista') && !f.arcanistaCaminho,
+    resumo: 'Esse personagem é Arcanista mas ainda não escolheu entre Bruxo, Feiticeiro ou Mago — isso afeta qual atributo ele usa pra magia.',
+  },
+  {
+    tipo: 'escolasMagia',
+    titulo: 'Escolas de Magia',
+    detecta: (f)=> (f.classesNiveis||[]).some(c=>['Bardo','Druida'].includes(c.classe)) && !f.escolasMagia,
+    resumo: 'Bardo e Druida escolhem 3 escolas de magia na criação — esse personagem ainda não tem essa escolha registrada.',
+  },
+  {
+    tipo: 'divindadeForcada',
+    titulo: 'Devoção Obrigatória',
+    detecta: (f)=> (f.classesNiveis||[]).some(c=>['Clérigo','Druida','Paladino'].includes(c.classe)) && !f.divindade,
+    resumo: 'Clérigo, Druida e Paladino são devotos automáticos de uma divindade (ou, só pro Clérigo, podem cultuar o Panteão) — esse personagem está sem fé, o que não deveria ser possível pra classe dele.',
+  },
+];
+function detectarPendencias(f){
+  return PENDENCIAS_DEFINICOES.filter(p=>p.detecta(f));
+}
 // Um ícone por classe, só pra dar identidade visual rápida na ficha — puramente estético.
 const ICONE_CLASSE = {
   'Arcanista':'🔮', 'Bárbaro':'🪓', 'Bardo':'🎵', 'Bucaneiro':'🏴‍☠️', 'Caçador':'🏹',

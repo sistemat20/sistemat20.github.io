@@ -18,10 +18,133 @@ function renderMenuOverlay(){
       el('span',{class:'ico'}, ico), el('span',{}, label)
     ));
   });
+  const pendencias = detectarPendencias(fichaAtual());
+  sheet.appendChild(el('button',{class:'menu-item', style: pendencias.length>0 ? 'color:var(--red-bright);' : '', onclick:()=>{ state._menuAberto=false; state._pendenciasAberto=true; render(); }},
+    el('span',{class:'ico'}, pendencias.length>0?'⚠️':'📋'),
+    el('span',{}, 'Pendências'+(pendencias.length>0?' ('+pendencias.length+') !':''))
+  ));
   sheet.appendChild(el('button',{class:'menu-item', onclick:alternarTemaMesa},
     el('span',{class:'ico'}, document.documentElement.dataset.tema==='mesa'?'☀️':'🌓'), el('span',{}, document.documentElement.dataset.tema==='mesa'?'Modo Padrão':'Modo Mesa (alto contraste)')
   ));
   sheet.appendChild(el('button',{class:'menu-close', onclick:()=>{ state._menuAberto=false; render(); }}, 'Fechar'));
+  overlay.appendChild(sheet);
+  return overlay;
+}
+
+// Mostra o que existe no app hoje mas que esse personagem específico ainda não preencheu
+// (normalmente porque a ficha foi criada antes da gente adicionar aquela mecânica). Reaproveita
+// os mesmos blocos de escolha do wizard/level-up, só que gravando direto na ficha existente —
+// não mexe em mais nada (mochila, PV atual, magias, histórico, etc. ficam intocados).
+function renderPopupPendencias(f){
+  const overlay = el('div',{class:'menu-overlay', onclick:(e)=>{ if(e.target===e.currentTarget){ state._pendenciasAberto=false; state._pendenciaResolvendo=null; render(); } }});
+  const sheet = el('div',{class:'menu-sheet', style:'max-width:480px;'});
+  const pendencias = detectarPendencias(f);
+
+  sheet.appendChild(el('div',{class:'wizard-title', style:'padding:6px 14px 0;'},'Pendências'));
+
+  if(pendencias.length===0){
+    sheet.appendChild(el('div',{class:'tip', style:'margin:8px 14px;'}, '✅ Nenhuma pendência agora — essa ficha está com todas as escolhas que existem hoje no app preenchidas.'));
+    sheet.appendChild(el('button',{class:'menu-close', onclick:()=>{ state._pendenciasAberto=false; render(); }}, 'Fechar'));
+    overlay.appendChild(sheet);
+    return overlay;
+  }
+
+  sheet.appendChild(el('div',{class:'tip', style:'margin:8px 14px;'}, 'Coisas que já existem no app mas que essa ficha ainda não preencheu — geralmente porque foi criada antes da gente adicionar aquilo. Preencher aqui não mexe em mais nada da ficha.'));
+
+  pendencias.forEach(p=>{
+    const resolvendo = state._pendenciaResolvendo === p.tipo;
+    const card = el('div',{class:'panel', style:'margin:8px 14px;'});
+    card.appendChild(el('h2',{}, '⚠️ '+p.titulo));
+    card.appendChild(el('div',{class:'tip'}, p.resumo));
+
+    if(p.tipo==='divindadeForcada'){
+      card.appendChild(el('button',{class:'btn', onclick:()=>{ state._pendenciasAberto=false; state._divindadeFluxo={passo:'escolher'}; render(); }}, 'Resolver agora →'));
+    }
+
+    if(p.tipo==='arcanistaCaminho'){
+      if(!resolvendo){
+        card.appendChild(el('button',{class:'btn', onclick:()=>{ state._pendenciaResolvendo='arcanistaCaminho'; state._pendCaminho=null; state._pendLinhagem=null; render(); }}, 'Resolver agora'));
+      } else {
+        card.appendChild(el('div',{class:'option-grid'},
+          ...Object.keys(ARCANISTA_CAMINHOS).map(nome=>{
+            const info = ARCANISTA_CAMINHOS[nome];
+            const aberto = state._pendCaminhoExpandido === nome;
+            const opt = el('button',{class:'option-card'+(state._pendCaminho===nome?' selected':''), onclick:()=>{
+              if(aberto || state._pendCaminho===nome){ state._pendCaminho=nome; if(nome!=='Feiticeiro') state._pendLinhagem=null; state._pendCaminhoExpandido=null; }
+              else { state._pendCaminhoExpandido = nome; }
+              render();
+            }}, el('div',{class:'opt-nome'}, nome), el('div',{class:'opt-sub'}, info.resumo));
+            if(aberto) opt.appendChild(el('div',{class:'opt-sub', style:'margin-top:6px;'}, info.descricao));
+            return opt;
+          })
+        ));
+        if(state._pendCaminho==='Feiticeiro'){
+          card.appendChild(el('div',{class:'tip', style:'margin-top:8px;'}, 'Escolha uma linhagem:'));
+          card.appendChild(el('div',{class:'option-grid'},
+            ...LINHAGENS_FEITICEIRO.map(l=>{
+              const aberta = state._pendLinhagemExpandida === l.nome;
+              const opt = el('button',{class:'option-card'+(state._pendLinhagem===l.nome?' selected':''), onclick:()=>{
+                if(aberta || state._pendLinhagem===l.nome){ state._pendLinhagem=l.nome; state._pendLinhagemExpandida=null; }
+                else { state._pendLinhagemExpandida = l.nome; }
+                render();
+              }}, el('div',{class:'opt-nome'}, l.nome), el('div',{class:'opt-sub'}, l.resumo));
+              if(aberta) opt.appendChild(el('div',{class:'opt-sub', style:'margin-top:6px;'}, el('b',{},'Básica: '), l.basica));
+              return opt;
+            })
+          ));
+        }
+        const podeSalvar = state._pendCaminho && (state._pendCaminho!=='Feiticeiro' || state._pendLinhagem);
+        card.appendChild(el('div',{class:'row', style:'margin-top:10px;'},
+          el('button',{class:'btn'+(podeSalvar?'':' ghost'), onclick:()=>{
+            if(!podeSalvar) return;
+            f.arcanistaCaminho = state._pendCaminho;
+            f.arcanistaLinhagem = state._pendCaminho==='Feiticeiro' ? state._pendLinhagem : null;
+            if(ARCANISTA_CAMINHOS[state._pendCaminho].memorizacao && !f.magiasMemorizadas) f.magiasMemorizadas = [];
+            salvarPerfis();
+            flashMsg('✅ Caminho do Arcanista salvo!');
+            state._pendenciaResolvendo=null;
+            render();
+          }}, 'Salvar'),
+          el('button',{class:'btn ghost', onclick:()=>{ state._pendenciaResolvendo=null; render(); }}, 'Cancelar')
+        ));
+      }
+    }
+
+    if(p.tipo==='escolasMagia'){
+      if(!resolvendo){
+        card.appendChild(el('button',{class:'btn', onclick:()=>{ state._pendenciaResolvendo='escolasMagia'; state._pendEscolas=[]; render(); }}, 'Resolver agora'));
+      } else {
+        card.appendChild(el('div',{class:'option-grid'},
+          ...Object.keys(ESCOLAS).map(esc=>{
+            const marcada = (state._pendEscolas||[]).includes(esc);
+            return el('button',{class:'option-card'+(marcada?' selected':''), onclick:()=>{
+              if(marcada){ state._pendEscolas = state._pendEscolas.filter(e=>e!==esc); }
+              else if((state._pendEscolas||[]).length < 3){ state._pendEscolas = [...(state._pendEscolas||[]), esc]; }
+              else { flashMsg('Já escolheu as 3 escolas.'); return; }
+              render();
+            }}, el('div',{class:'opt-nome'}, esc), el('div',{class:'opt-sub'}, ESCOLAS[esc]));
+          })
+        ));
+        card.appendChild(el('div',{class:'meta', style:'margin-top:6px;'}, (state._pendEscolas||[]).length+' / 3 escolhidas'));
+        const podeSalvar = (state._pendEscolas||[]).length===3;
+        card.appendChild(el('div',{class:'row', style:'margin-top:10px;'},
+          el('button',{class:'btn'+(podeSalvar?'':' ghost'), onclick:()=>{
+            if(!podeSalvar) return;
+            f.escolasMagia = state._pendEscolas.slice();
+            salvarPerfis();
+            flashMsg('✅ Escolas de magia salvas!');
+            state._pendenciaResolvendo=null;
+            render();
+          }}, 'Salvar'),
+          el('button',{class:'btn ghost', onclick:()=>{ state._pendenciaResolvendo=null; render(); }}, 'Cancelar')
+        ));
+      }
+    }
+
+    sheet.appendChild(card);
+  });
+
+  sheet.appendChild(el('button',{class:'menu-close', onclick:()=>{ state._pendenciasAberto=false; state._pendenciaResolvendo=null; render(); }}, 'Fechar'));
   overlay.appendChild(sheet);
   return overlay;
 }
@@ -77,7 +200,10 @@ function renderFichaScreen(){
   if(state._enviarItemFluxo){
     wrap.appendChild(renderPopupEnviarItem(fichaAtual()));
   }
-  const semMenuAberto = !state._menuAberto && !state._divindadeFluxo && !state._cropperFoto && !(state.levelUp&&state.levelUp.aberto) && !state._enviarItemFluxo;
+  if(state._pendenciasAberto){
+    wrap.appendChild(renderPopupPendencias(fichaAtual()));
+  }
+  const semMenuAberto = !state._menuAberto && !state._divindadeFluxo && !state._cropperFoto && !(state.levelUp&&state.levelUp.aberto) && !state._enviarItemFluxo && !state._pendenciasAberto;
   if(estaMorto(f) && semMenuAberto){
     wrap.appendChild(el('div',{class:'aviso-sobrecarga aviso-morte'}, '💀 '+(f.nome||'Personagem')+' morreu.'));
   } else if(estaInconsciente(f) && semMenuAberto){
@@ -417,6 +543,9 @@ function renderPopupDivindade(f, fluxo){
   const sheet = el('div',{class:'menu-sheet'});
 
   if(fluxo.passo==='escolher'){
+    const classesDevotasAuto = ['Clérigo','Druida','Paladino'];
+    const ehClerigo = (f.classesNiveis||[]).some(c=>c.classe==='Clérigo');
+    const ehDevotoAuto = (f.classesNiveis||[]).some(c=>classesDevotasAuto.includes(c.classe));
     sheet.appendChild(el('div',{class:'wizard-title', style:'padding:6px 14px 0;'},'Escolha uma divindade'));
     DEUSES.forEach(d=>{
       const aberto = state._divindadeExpandida === d.nome;
@@ -435,17 +564,45 @@ function renderPopupDivindade(f, fluxo){
         ));
       }
     });
-    if(f.divindade){
+    if(ehClerigo){
+      const abertoP = state._divindadeExpandida === 'Panteão';
+      const itemP = el('button',{class:'menu-item'+(abertoP?' active':''), onclick:()=>{
+        if(abertoP){ state._divindadeFluxo={passo:'panteao'}; state._divindadeExpandida=null; }
+        else { state._divindadeExpandida = 'Panteão'; }
+        render();
+      }}, el('span',{class:'ico'},'⚜'), el('span',{}, 'Cultuar o Panteão'));
+      sheet.appendChild(itemP);
+      if(abertoP){
+        sheet.appendChild(el('div',{class:'tip', style:'margin:0 14px 8px;'}, 'Devoção sem deus específico. Sem Poder Concedido. Só não pode usar armas cortantes ou perfurantes. Arma preferida: maça. Escolhe canalizar energia positiva ou negativa, pra sempre.'));
+      }
+    }
+    if(f.divindade && !ehDevotoAuto){
       sheet.appendChild(el('button',{class:'menu-item', style:'color:var(--red-bright);', onclick:()=>{
         if(!confirm('Abandonar a fé em '+f.divindade+' e ficar sem devoção a nenhuma divindade?')) return;
         f.divindade = null;
         f.poderConcedido = null;
+        f.panteaoEnergia = null;
         state._divindadeFluxo = null;
         salvarPerfis();
         render();
       }}, el('span',{class:'ico'},'✕'), el('span',{}, 'Virar sem fé (abandonar devoção)')));
     }
     sheet.appendChild(el('button',{class:'menu-close', onclick:()=>{ state._divindadeFluxo=null; state._divindadeExpandida=null; render(); }}, 'Cancelar'));
+  } else if(fluxo.passo==='panteao'){
+    sheet.appendChild(el('div',{class:'wizard-title', style:'padding:6px 14px 0;'},'Cultuar o Panteão'));
+    sheet.appendChild(el('div',{class:'tip', style:'margin:8px 14px;'}, 'Sem Poder Concedido. Não pode usar armas cortantes ou perfurantes. Arma preferida: maça.'));
+    sheet.appendChild(el('div',{class:'tip', style:'margin:8px 14px;'}, 'Escolha a energia que canaliza — não pode ser mudada depois.'));
+    sheet.appendChild(el('div',{class:'row', style:'margin:8px 14px;'},
+      el('button',{class:'btn', onclick:()=>{
+        f.divindade = 'Panteão'; f.poderConcedido = null; f.panteaoEnergia = 'positiva';
+        state._divindadeFluxo = null; salvarPerfis(); flashMsg('✅ Agora você cultua o Panteão (energia positiva).'); render();
+      }}, 'Energia Positiva'),
+      el('button',{class:'btn', onclick:()=>{
+        f.divindade = 'Panteão'; f.poderConcedido = null; f.panteaoEnergia = 'negativa';
+        state._divindadeFluxo = null; salvarPerfis(); flashMsg('✅ Agora você cultua o Panteão (energia negativa).'); render();
+      }}, 'Energia Negativa')
+    ));
+    sheet.appendChild(el('button',{class:'menu-close', onclick:()=>{ state._divindadeFluxo={passo:'escolher'}; render(); }}, 'Voltar'));
   } else if(fluxo.passo==='confirmar'){
     const deus = DEUSES.find(d=>d.nome===fluxo.deus);
     sheet.appendChild(el('div',{class:'wizard-title', style:'padding:6px 14px 0;'},'Confirmar: ter fé em '+deus.nome+'?'));
@@ -1615,6 +1772,9 @@ function renderMagias(){
     ));
     if(modoAtual==='possiveis'){
       wrap.appendChild(el('div',{class:'meta', style:'font-size:0.72rem;margin-top:4px;'}, 'Até '+circuloMax+'º círculo — nível '+cc.nivel+' de '+cc.classe+'.'));
+      if(['Bardo','Druida'].includes(cc.classe) && f.escolasMagia && f.escolasMagia.length>0){
+        wrap.appendChild(el('div',{class:'meta', style:'font-size:0.72rem;'}, 'Suas 3 escolas: '+f.escolasMagia.join(', ')+'.'));
+      }
     }
   }
 
@@ -1640,6 +1800,9 @@ function renderMagias(){
 
   let list = magiasPorTradicao(mf.trad);
   if(somenteConjuravel) list = list.filter(s=>s.c<=circuloMax);
+  if(somenteConjuravel && cc && ['Bardo','Druida'].includes(cc.classe) && f.escolasMagia && f.escolasMagia.length>0){
+    list = list.filter(s=> f.escolasMagia.includes(s.e));
+  }
   if(mf.circulo!=='todos') list = list.filter(s=>s.c===parseInt(mf.circulo));
   if(mf.escola!=='todas') list = list.filter(s=>s.e===mf.escola);
   if(mf.busca) list = list.filter(s=>s.n.toLowerCase().includes(mf.busca.toLowerCase()));

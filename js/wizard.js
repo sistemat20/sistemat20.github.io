@@ -36,6 +36,9 @@ function passosWizard(){
   if(w.classeNome === 'Arcanista'){
     steps = steps.flatMap(s=> s==='classe' ? ['classe','arcanistaCaminho'] : [s]);
   }
+  if(['Bardo','Druida'].includes(w.classeNome)){
+    steps = steps.flatMap(s=> s==='classe' ? ['classe','escolasMagia'] : [s]);
+  }
   return steps;
 }
 
@@ -163,6 +166,7 @@ function renderWizardScreen(){
   if(stepId==='racaExtra') box.appendChild(stepRacaExtra(w));
   if(stepId==='classe') box.appendChild(stepClasse(w));
   if(stepId==='arcanistaCaminho') box.appendChild(stepArcanistaCaminho(w));
+  if(stepId==='escolasMagia') box.appendChild(stepEscolasMagia(w));
   if(stepId==='origem') box.appendChild(stepOrigem(w));
   if(stepId==='divindade') box.appendChild(stepDivindade(w));
   if(stepId==='revisao') box.appendChild(stepRevisao(w));
@@ -246,7 +250,11 @@ function validarStep(stepId, w){
     return true;
   }
   if(stepId==='divindade'){
-    if(!w.divindadeNome) return true; // seguir sem fé é uma escolha válida
+    const classesDevotasAuto = ['Clérigo','Druida','Paladino'];
+    if(!w.divindadeNome){
+      return !classesDevotasAuto.includes(w.classeNome); // essas classes não podem seguir sem fé
+    }
+    if(w.divindadeNome==='Panteão') return !!w.panteaoEnergia;
     if(!w.poderConcedidoEscolhido) return false;
     const escolhaInfo = PODER_CONCEDIDO_TREINA_PERICIA_ESCOLHA[w.poderConcedidoEscolhido];
     if(escolhaInfo){
@@ -259,6 +267,9 @@ function validarStep(stepId, w){
     if(!w.arcanistaCaminho) return false;
     if(w.arcanistaCaminho==='Feiticeiro' && !w.arcanistaLinhagem) return false;
     return true;
+  }
+  if(stepId==='escolasMagia'){
+    return (w.escolasMagia||[]).length === 3;
   }
   return true;
 }
@@ -611,6 +622,30 @@ function stepArcanistaCaminho(w){
   return wrap;
 }
 
+function stepEscolasMagia(w){
+  const wrap = el('div',{});
+  const trad = w.classeNome==='Bardo' ? 'arcanas' : 'divinas';
+  wrap.appendChild(el('div',{class:'wizard-title'},'Escolas de Magia'));
+  wrap.appendChild(el('div',{class:'tip'}, 'Escolha exatamente 3 escolas de magia. Você só vai poder lançar magias '+trad+' dessas escolas — essa escolha não pode ser mudada depois.'));
+  if(!w.escolasMagia) w.escolasMagia = [];
+  wrap.appendChild(el('div',{class:'option-grid'},
+    ...Object.keys(ESCOLAS).map(esc=>{
+      const marcada = w.escolasMagia.includes(esc);
+      return el('button',{class:'option-card'+(marcada?' selected':''), onclick:()=>{
+        if(marcada){ w.escolasMagia = w.escolasMagia.filter(e=>e!==esc); }
+        else if(w.escolasMagia.length < 3){ w.escolasMagia = [...w.escolasMagia, esc]; }
+        else { flashMsg('Já escolheu as 3 escolas.'); return; }
+        render();
+      }},
+        el('div',{class:'opt-nome'}, esc),
+        el('div',{class:'opt-sub'}, ESCOLAS[esc])
+      );
+    })
+  ));
+  wrap.appendChild(el('div',{class:'meta', style:'margin-top:8px;'}, w.escolasMagia.length+' / 3 escolhidas'));
+  return wrap;
+}
+
 function stepOrigem(w){
   const wrap = el('div',{});
   wrap.appendChild(el('div',{class:'wizard-title'},'Escolha sua Origem'));
@@ -783,11 +818,35 @@ function stepDivindade(w){
         );
         if(aberto) card.appendChild(el('div',{class:'opt-sub', style:'margin-top:6px;'}, el('b',{},'Devotos típicos: '), d.devotos));
         return card;
-      })
+      }),
+      w.classeNome==='Clérigo' ? (()=>{
+        const aberto = w._divindadeExpandida === 'Panteão';
+        const card = el('button',{class:'option-card'+(aberto?' selected':''), onclick:()=>{
+          if(aberto){ w.divindadeNome='Panteão'; w._divindadeExpandida=null; }
+          else { w._divindadeExpandida = 'Panteão'; }
+          render();
+        }},
+          el('div',{class:'opt-nome'}, 'Cultuar o Panteão'),
+          el('div',{class:'opt-sub'}, 'Devoção sem deus específico — sem Poder Concedido')
+        );
+        if(aberto) card.appendChild(el('div',{class:'opt-sub', style:'margin-top:6px;'}, 'Não recebe Poder Concedido. Sua única obrigação e restrição é não usar armas cortantes ou perfurantes. Sua arma preferida é a maça e você escolhe canalizar energia positiva ou negativa — essa escolha não pode ser mudada depois.'));
+        return card;
+      })() : null
     ));
     if(!classesDevotasAuto.includes(w.classeNome)){
       wrap.appendChild(el('button',{class:'btn ghost', onclick:()=>{ w.divindadeNome=''; w.poderConcedidoEscolhido=null; w.step++; render(); }}, 'Seguir sem fé em nenhuma divindade →'));
     }
+  } else if(w.divindadeNome==='Panteão'){
+    wrap.appendChild(el('div',{class:'identidade-nome'}, 'Devoto do Panteão'));
+    wrap.appendChild(el('button',{class:'btn ghost', style:'margin-bottom:12px;', onclick:()=>{ w.divindadeNome=''; w.panteaoEnergia=null; render(); }}, 'Trocar'));
+    wrap.appendChild(el('div',{class:'tip'}, 'Sem Poder Concedido. Não pode usar armas cortantes ou perfurantes. Arma preferida: maça.'));
+    wrap.appendChild(el('div',{class:'panel'}, el('h2',{},'Energia que canaliza'),
+      el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Escolha uma vez — não pode ser mudada depois.'),
+      el('div',{class:'option-grid'},
+        el('button',{class:'option-card'+(w.panteaoEnergia==='positiva'?' selected':''), onclick:()=>{ w.panteaoEnergia='positiva'; render(); }}, el('div',{class:'opt-nome'},'Energia Positiva'), el('div',{class:'opt-sub'},'Cura vivos, causa dano a mortos-vivos')),
+        el('button',{class:'option-card'+(w.panteaoEnergia==='negativa'?' selected':''), onclick:()=>{ w.panteaoEnergia='negativa'; render(); }}, el('div',{class:'opt-nome'},'Energia Negativa'), el('div',{class:'opt-sub'},'Cura mortos-vivos, causa dano a vivos'))
+      )
+    ));
   } else if(w._confirmarFe){
     const deus = DEUSES.find(d=>d.nome===w.divindadeNome);
     wrap.appendChild(el('div',{class:'panel faixa'},
@@ -879,7 +938,11 @@ async function finalizarCriacao(){
   f.raca = w.racaNome; f.origem = w.origemNome || '(sem origem)';
   f.divindade = w.divindadeNome || '';
   f.poderConcedido = w.poderConcedidoEscolhido ? {nome: w.poderConcedidoEscolhido, deus: w.divindadeNome, sub: (w.poderConcedidoEscolhaSub||[]).slice()} : null;
+  f.panteaoEnergia = w.divindadeNome==='Panteão' ? w.panteaoEnergia : null;
   f.classesNiveis = [{classe:w.classeNome, nivel:1}];
+  if(['Bardo','Druida'].includes(w.classeNome)){
+    f.escolasMagia = (w.escolasMagia||[]).slice();
+  }
   if(w.classeNome==='Arcanista' && w.arcanistaCaminho){
     f.arcanistaCaminho = w.arcanistaCaminho;
     f.arcanistaLinhagem = w.arcanistaCaminho==='Feiticeiro' ? w.arcanistaLinhagem : null;

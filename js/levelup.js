@@ -11,6 +11,7 @@ function abrirLevelUp(){
     poderSubEscolha:null,
     arcanistaCaminho:null,
     arcanistaLinhagem:null,
+    escolasMagia:null,
   };
   render();
 }
@@ -141,6 +142,31 @@ function renderLevelUpPanel(f){
     ));
   }
 
+  // Multiclasse nova em Bardo/Druida precisa escolher as 3 escolas de magia antes de confirmar.
+  const precisaEscolherEscolas = ['Bardo','Druida'].includes(lv.classeEscolhida) && novoNivel===1 && !f.escolasMagia;
+  if(precisaEscolherEscolas){
+    if(!lv.escolasMagia) lv.escolasMagia = [];
+    wrap.appendChild(el('div',{class:'panel'},
+      el('h2',{},'Escolas de Magia'),
+      el('div',{class:'tip'}, 'Escolha exatamente 3 escolas — você só vai poder lançar magias dessas escolas, pra sempre.'),
+      el('div',{class:'option-grid'},
+        ...Object.keys(ESCOLAS).map(esc=>{
+          const marcada = lv.escolasMagia.includes(esc);
+          return el('button',{class:'option-card'+(marcada?' selected':''), onclick:()=>{
+            if(marcada){ lv.escolasMagia = lv.escolasMagia.filter(e=>e!==esc); }
+            else if(lv.escolasMagia.length < 3){ lv.escolasMagia = [...lv.escolasMagia, esc]; }
+            else { flashMsg('Já escolheu as 3 escolas.'); return; }
+            render();
+          }},
+            el('div',{class:'opt-nome'}, esc),
+            el('div',{class:'opt-sub'}, ESCOLAS[esc])
+          );
+        })
+      ),
+      el('div',{class:'meta', style:'margin-top:8px;'}, lv.escolasMagia.length+' / 3 escolhidas')
+    ));
+  }
+
   // ---- 2. Poder de classe, se aplicável ----
   const ganhaPoderClasse = habLinha && /poder de/i.test(habLinha.hab);
   if(ganhaPoderClasse){
@@ -237,7 +263,8 @@ function renderLevelUpPanel(f){
   const poderClasseObjConfirm = (clsObj && lv.poderClasseEscolhido) ? clsObj.poderes.find(([nome])=>nome===lv.poderClasseEscolhido) : null;
   const poderClassePendente = poderClasseObjConfirm && poderClasseObjConfirm[2] && !lv.poderClasseSubEscolha;
   const podeConfirmar = (!ganhaPoderClasse || (lv.poderModo==='classe' && lv.poderClasseEscolhido && !poderClassePendente) || (lv.poderModo==='geral' && lv.poderGeralEscolhido && (!PODERES_GERAIS.find(p=>p.nome===lv.poderGeralEscolhido).escolha || lv.poderSubEscolha)))
-    && (!precisaEscolherCaminho || (lv.arcanistaCaminho && (lv.arcanistaCaminho!=='Feiticeiro' || lv.arcanistaLinhagem)));
+    && (!precisaEscolherCaminho || (lv.arcanistaCaminho && (lv.arcanistaCaminho!=='Feiticeiro' || lv.arcanistaLinhagem)))
+    && (!precisaEscolherEscolas || (lv.escolasMagia||[]).length===3);
   const navRow = el('div',{class:'wizard-nav', style:'position:static;'});
   navRow.appendChild(el('button',{class:'btn ghost', onclick:fecharLevelUp},'Cancelar'));
   const confirmBtn = el('button',{class:'btn', onclick:()=> aplicarLevelUp(f)}, 'Aplicar Level Up');
@@ -258,6 +285,9 @@ async function aplicarLevelUp(f){
     f.arcanistaCaminho = lv.arcanistaCaminho;
     f.arcanistaLinhagem = lv.arcanistaCaminho==='Feiticeiro' ? lv.arcanistaLinhagem : null;
     if(ARCANISTA_CAMINHOS[lv.arcanistaCaminho].memorizacao) f.magiasMemorizadas = [];
+  }
+  if(['Bardo','Druida'].includes(lv.classeEscolhida) && lv.escolasMagia && lv.escolasMagia.length===3 && !f.escolasMagia){
+    f.escolasMagia = lv.escolasMagia.slice();
   }
 
   const cls = CLASSES[lv.classeEscolhida];
