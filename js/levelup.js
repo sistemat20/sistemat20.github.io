@@ -9,6 +9,8 @@ function abrirLevelUp(){
     poderClasseEscolhido:null, // [nome,desc] de CLASSES[x].poderes
     poderGeralEscolhido:null, // nome de PODERES_GERAIS
     poderSubEscolha:null,
+    arcanistaCaminho:null,
+    arcanistaLinhagem:null,
   };
   render();
 }
@@ -94,6 +96,50 @@ function renderLevelUpPanel(f){
     el('div',{class:'tip'}, el('b',{},'Você ganha'), habLinha ? habLinha.hab : 'nível máximo'),
     el('div',{class:'tip'}, el('b',{},'PV / PM'), '+'+ganhoPVPreview+' PV ('+ciPreview.pvPorNivel+' da classe + '+(parseInt(f.con)||0)+' de Constituição'+(bonusRacaPVPreview?(' + '+bonusRacaPVPreview+' de '+f.raca):'')+', mín. 1) e +'+ganhoPMPreview+' PM — aplicado automaticamente ao confirmar.')
   ));
+
+  // Multiclasse nova em Arcanista precisa escolher o Caminho antes de confirmar — mesma escolha
+  // que apareceria na criação do personagem, só que chegando aqui via level up em vez do wizard.
+  const precisaEscolherCaminho = lv.classeEscolhida==='Arcanista' && novoNivel===1 && !f.arcanistaCaminho;
+  if(precisaEscolherCaminho){
+    wrap.appendChild(el('div',{class:'panel'},
+      el('h2',{},'Caminho do Arcanista'),
+      el('div',{class:'tip'}, 'Escolha uma fonte de poder mágico — essa escolha não pode ser mudada depois.'),
+      el('div',{class:'option-grid'},
+        ...Object.keys(ARCANISTA_CAMINHOS).map(nome=>{
+          const info = ARCANISTA_CAMINHOS[nome];
+          const aberto = lv._caminhoExpandido === nome;
+          const card = el('button',{class:'option-card'+(lv.arcanistaCaminho===nome?' selected':''), onclick:()=>{
+            if(aberto || lv.arcanistaCaminho===nome){ lv.arcanistaCaminho=nome; if(nome!=='Feiticeiro') lv.arcanistaLinhagem=null; lv._caminhoExpandido=null; }
+            else { lv._caminhoExpandido = nome; }
+            render();
+          }},
+            el('div',{class:'opt-nome'}, nome),
+            el('div',{class:'opt-sub'}, info.resumo)
+          );
+          if(aberto) card.appendChild(el('div',{class:'opt-sub', style:'margin-top:6px;'}, info.descricao));
+          return card;
+        })
+      ),
+      lv.arcanistaCaminho==='Feiticeiro' ? el('div',{},
+        el('div',{class:'tip', style:'margin-top:10px;'}, 'Escolha uma linhagem — você recebe a herança "Básica" dela agora.'),
+        el('div',{class:'option-grid'},
+          ...LINHAGENS_FEITICEIRO.map(l=>{
+            const aberta = lv._linhagemExpandida === l.nome;
+            const card = el('button',{class:'option-card'+(lv.arcanistaLinhagem===l.nome?' selected':''), onclick:()=>{
+              if(aberta || lv.arcanistaLinhagem===l.nome){ lv.arcanistaLinhagem=l.nome; lv._linhagemExpandida=null; }
+              else { lv._linhagemExpandida = l.nome; }
+              render();
+            }},
+              el('div',{class:'opt-nome'}, l.nome),
+              el('div',{class:'opt-sub'}, l.resumo)
+            );
+            if(aberta) card.appendChild(el('div',{class:'opt-sub', style:'margin-top:6px;'}, el('b',{},'Básica: '), l.basica));
+            return card;
+          })
+        )
+      ) : null
+    ));
+  }
 
   // ---- 2. Poder de classe, se aplicável ----
   const ganhaPoderClasse = habLinha && /poder de/i.test(habLinha.hab);
@@ -190,7 +236,8 @@ function renderLevelUpPanel(f){
   const clsObj = lv.classeEscolhida ? CLASSES[lv.classeEscolhida] : null;
   const poderClasseObjConfirm = (clsObj && lv.poderClasseEscolhido) ? clsObj.poderes.find(([nome])=>nome===lv.poderClasseEscolhido) : null;
   const poderClassePendente = poderClasseObjConfirm && poderClasseObjConfirm[2] && !lv.poderClasseSubEscolha;
-  const podeConfirmar = !ganhaPoderClasse || (lv.poderModo==='classe' && lv.poderClasseEscolhido && !poderClassePendente) || (lv.poderModo==='geral' && lv.poderGeralEscolhido && (!PODERES_GERAIS.find(p=>p.nome===lv.poderGeralEscolhido).escolha || lv.poderSubEscolha));
+  const podeConfirmar = (!ganhaPoderClasse || (lv.poderModo==='classe' && lv.poderClasseEscolhido && !poderClassePendente) || (lv.poderModo==='geral' && lv.poderGeralEscolhido && (!PODERES_GERAIS.find(p=>p.nome===lv.poderGeralEscolhido).escolha || lv.poderSubEscolha)))
+    && (!precisaEscolherCaminho || (lv.arcanistaCaminho && (lv.arcanistaCaminho!=='Feiticeiro' || lv.arcanistaLinhagem)));
   const navRow = el('div',{class:'wizard-nav', style:'position:static;'});
   navRow.appendChild(el('button',{class:'btn ghost', onclick:fecharLevelUp},'Cancelar'));
   const confirmBtn = el('button',{class:'btn', onclick:()=> aplicarLevelUp(f)}, 'Aplicar Level Up');
@@ -207,6 +254,11 @@ async function aplicarLevelUp(f){
   const novoNivel = entradaAtual ? entradaAtual.nivel+1 : 1;
   if(entradaAtual){ entradaAtual.nivel = novoNivel; }
   else { f.classesNiveis.push({classe:lv.classeEscolhida, nivel:1}); }
+  if(lv.classeEscolhida==='Arcanista' && lv.arcanistaCaminho && !f.arcanistaCaminho){
+    f.arcanistaCaminho = lv.arcanistaCaminho;
+    f.arcanistaLinhagem = lv.arcanistaCaminho==='Feiticeiro' ? lv.arcanistaLinhagem : null;
+    if(ARCANISTA_CAMINHOS[lv.arcanistaCaminho].memorizacao) f.magiasMemorizadas = [];
+  }
 
   const cls = CLASSES[lv.classeEscolhida];
   const ci = CLASSES_INICIAL[lv.classeEscolhida];

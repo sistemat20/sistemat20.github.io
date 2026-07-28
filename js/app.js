@@ -107,6 +107,11 @@ function limitePMPorMagia(f, magia){
 function atributoChaveMagia(f){
   const classeConj = (f.classesNiveis||[]).find(c=> CLASSES[c.classe] && CLASSES[c.classe].tradicao);
   if(!classeConj) return null;
+  // Arcanista tem o atributo-chave definido pelo Caminho escolhido (Bruxo/Mago=Int, Feiticeiro=Car),
+  // não por "o que for maior" — só cai no fallback genérico se o personagem ainda não escolheu.
+  if(classeConj.classe==='Arcanista' && f.arcanistaCaminho && ARCANISTA_CAMINHOS[f.arcanistaCaminho]){
+    return ARCANISTA_CAMINHOS[f.arcanistaCaminho].atributo;
+  }
   const atributoTxt = CLASSES_INICIAL[classeConj.classe].atributo;
   const opcoes = [];
   if(/Inteligência/.test(atributoTxt)) opcoes.push('int');
@@ -573,7 +578,8 @@ function fichaVazia(){
     poderGeral:null, poderGeralExtra:null, origemPoder:null, poderRaca:null, origemPoderCategoria:null, // {nome, sub}
     poderesClasse:[], // [{classe, nivel, nome, sub, trocaPorGeral}]
     historicoNiveis:[],
-    equip:[], notas:'', habilidadesIniciais:[]
+    equip:[], notas:'', habilidadesIniciais:[],
+    arcanistaCaminho:null, arcanistaLinhagem:null, magiasMemorizadas:[]
   };
 }
 

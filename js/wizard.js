@@ -33,6 +33,9 @@ function passosWizard(){
   if(racaObj && (racaObj.poderGeralExtra || racaObj.escolhaExtra)){
     steps = steps.flatMap(s=> s==='classe' ? ['classe','racaExtra'] : [s]);
   }
+  if(w.classeNome === 'Arcanista'){
+    steps = steps.flatMap(s=> s==='classe' ? ['classe','arcanistaCaminho'] : [s]);
+  }
   return steps;
 }
 
@@ -159,6 +162,7 @@ function renderWizardScreen(){
   if(stepId==='raca') box.appendChild(stepRaca(w));
   if(stepId==='racaExtra') box.appendChild(stepRacaExtra(w));
   if(stepId==='classe') box.appendChild(stepClasse(w));
+  if(stepId==='arcanistaCaminho') box.appendChild(stepArcanistaCaminho(w));
   if(stepId==='origem') box.appendChild(stepOrigem(w));
   if(stepId==='divindade') box.appendChild(stepDivindade(w));
   if(stepId==='revisao') box.appendChild(stepRevisao(w));
@@ -249,6 +253,11 @@ function validarStep(stepId, w){
       const sub = w.poderConcedidoEscolhaSub||[];
       if(sub.filter(Boolean).length !== escolhaInfo.quantidade) return false;
     }
+    return true;
+  }
+  if(stepId==='arcanistaCaminho'){
+    if(!w.arcanistaCaminho) return false;
+    if(w.arcanistaCaminho==='Feiticeiro' && !w.arcanistaLinhagem) return false;
     return true;
   }
   return true;
@@ -556,6 +565,52 @@ function stepClasse(w){
   return wrap;
 }
 
+function stepArcanistaCaminho(w){
+  const wrap = el('div',{});
+  wrap.appendChild(el('div',{class:'wizard-title'},'Caminho do Arcanista'));
+  wrap.appendChild(el('div',{class:'tip'}, 'A magia é um poder incrível, capaz de alterar a realidade. Esse poder tem fontes distintas e cada uma opera conforme suas próprias regras. Escolha uma — essa escolha não pode ser mudada depois.'));
+
+  wrap.appendChild(el('div',{class:'option-grid'},
+    ...Object.keys(ARCANISTA_CAMINHOS).map(nome=>{
+      const info = ARCANISTA_CAMINHOS[nome];
+      const aberto = w._caminhoExpandido === nome;
+      const card = el('button',{class:'option-card'+(w.arcanistaCaminho===nome?' selected':''), onclick:()=>{
+        if(aberto || w.arcanistaCaminho===nome){ w.arcanistaCaminho=nome; if(nome!=='Feiticeiro') w.arcanistaLinhagem=null; w._caminhoExpandido=null; }
+        else { w._caminhoExpandido = nome; }
+        render();
+      }},
+        el('div',{class:'opt-nome'}, nome),
+        el('div',{class:'opt-sub'}, info.resumo)
+      );
+      if(aberto) card.appendChild(el('div',{class:'opt-sub', style:'margin-top:6px;'}, info.descricao));
+      return card;
+    })
+  ));
+  wrap.appendChild(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Toque pra ver a descrição, toque de novo pra escolher.'));
+
+  if(w.arcanistaCaminho==='Feiticeiro'){
+    wrap.appendChild(el('div',{class:'wizard-title', style:'margin-top:16px;'},'Linhagem Sobrenatural'));
+    wrap.appendChild(el('div',{class:'tip'}, 'O poder de um feiticeiro vem do sangue de um antepassado sobrenatural. Escolha uma linhagem — você recebe a herança "Básica" dela agora.'));
+    wrap.appendChild(el('div',{class:'option-grid'},
+      ...LINHAGENS_FEITICEIRO.map(l=>{
+        const aberta = w._linhagemExpandida === l.nome;
+        const card = el('button',{class:'option-card'+(w.arcanistaLinhagem===l.nome?' selected':''), onclick:()=>{
+          if(aberta || w.arcanistaLinhagem===l.nome){ w.arcanistaLinhagem=l.nome; w._linhagemExpandida=null; }
+          else { w._linhagemExpandida = l.nome; }
+          render();
+        }},
+          el('div',{class:'opt-nome'}, l.nome),
+          el('div',{class:'opt-sub'}, l.resumo)
+        );
+        if(aberta) card.appendChild(el('div',{class:'opt-sub', style:'margin-top:6px;'}, el('b',{},'Básica: '), l.basica));
+        return card;
+      })
+    ));
+  }
+
+  return wrap;
+}
+
 function stepOrigem(w){
   const wrap = el('div',{});
   wrap.appendChild(el('div',{class:'wizard-title'},'Escolha sua Origem'));
@@ -825,6 +880,11 @@ async function finalizarCriacao(){
   f.divindade = w.divindadeNome || '';
   f.poderConcedido = w.poderConcedidoEscolhido ? {nome: w.poderConcedidoEscolhido, deus: w.divindadeNome, sub: (w.poderConcedidoEscolhaSub||[]).slice()} : null;
   f.classesNiveis = [{classe:w.classeNome, nivel:1}];
+  if(w.classeNome==='Arcanista' && w.arcanistaCaminho){
+    f.arcanistaCaminho = w.arcanistaCaminho;
+    f.arcanistaLinhagem = w.arcanistaCaminho==='Feiticeiro' ? w.arcanistaLinhagem : null;
+    if(ARCANISTA_CAMINHOS[w.arcanistaCaminho].memorizacao) f.magiasMemorizadas = [];
+  }
   f.for=finais.for; f.des=finais.des; f.con=finais.con; f.int=finais.int; f.sab=finais.sab; f.car=finais.car;
   f.deslocamento = racaObj ? racaObj.deslocamento : 9;
   f.tamanho = racaObj ? racaObj.tamanho : 'Médio';

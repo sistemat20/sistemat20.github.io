@@ -793,6 +793,24 @@ function renderPersonagemNotas(){
   }
   wrap.appendChild(habPanel);
 
+  if(f.arcanistaCaminho && ARCANISTA_CAMINHOS[f.arcanistaCaminho]){
+    const info = ARCANISTA_CAMINHOS[f.arcanistaCaminho];
+    const caminhoPanel = el('div',{class:'panel faixa'}, el('h2',{},'Caminho do Arcanista: '+f.arcanistaCaminho));
+    caminhoPanel.appendChild(el('div',{class:'tip'}, info.descricao));
+    if(info.focoTexto){
+      caminhoPanel.appendChild(el('div',{class:'tip'}, el('b',{}, info.focoNome), info.focoTexto));
+    }
+    if(f.arcanistaLinhagem){
+      const l = LINHAGENS_FEITICEIRO.find(x=>x.nome===f.arcanistaLinhagem);
+      if(l){
+        caminhoPanel.appendChild(el('div',{class:'tip'}, el('b',{}, l.nome+' — Básica (já ativa)'), l.basica));
+        caminhoPanel.appendChild(el('div',{class:'tip', style:'opacity:0.8;'}, el('b',{},'Aprimorada (se escolher como poder de Arcanista)'), l.aprimorada));
+        caminhoPanel.appendChild(el('div',{class:'tip', style:'opacity:0.8;'}, el('b',{},'Superior (se escolher como poder de Arcanista)'), l.superior));
+      }
+    }
+    wrap.appendChild(caminhoPanel);
+  }
+
   wrap.appendChild(renderPainelMissoes(f));
   wrap.appendChild(renderPainelFaccoes(f));
   wrap.appendChild(renderPainelLocais(f));
@@ -1483,15 +1501,70 @@ function renderPersonagemMagias(){
   } else {
     magPanel.appendChild(el('div',{class:'tip'}, el('b',{},'Sem classe conjuradora'), 'Esse personagem ainda não tem uma classe que lança magias.'));
   }
+
+  const ccArc = (f.classesNiveis||[]).find(c=>c.classe==='Arcanista');
+  if(ccArc && f.arcanistaCaminho){
+    const esperadas = magiasArcanistaEsperadas(f.arcanistaCaminho, ccArc.nivel);
+    const acimaDoEsperado = f.magias.length > esperadas;
+    magPanel.appendChild(el('div',{class:'meta', style:'margin-bottom:8px;'+(acimaDoEsperado?'color:var(--gold);':'')},
+      'Magias conhecidas: '+f.magias.length+' (esperado até aqui, como '+f.arcanistaCaminho+': '+esperadas+')'
+      + (acimaDoEsperado ? ' — acima do ritmo normal, confira com o Mestre.' : '')
+    ));
+  }
+
   if(f.magias.length===0){
     magPanel.appendChild(el('div',{class:'empty'},'Nenhuma magia adicionada ainda. Vá no Menu → Magias pra buscar e adicionar.'));
   } else {
     f.magias.forEach((s,idx)=>{
       const card = renderCardMagia(s, 'minhas', null, ()=>{ if(!confirm('Remover "'+s.n+'" das suas magias conhecidas? Não tem como desfazer.')) return; f.magias.splice(idx,1); salvarPerfis(); render(); }, f);
+      if(f.arcanistaCaminho==='Mago'){
+        const memorizada = (f.magiasMemorizadas||[]).includes(s.n);
+        card.querySelector('.head .name')?.appendChild(el('span',{class:'pill', style:'margin-left:6px;background:'+(memorizada?'#2e5e3e':'#4a3a1e')+';color:#e8f5e9;'}, memorizada?'📖 memorizada':'não memorizada'));
+      }
       magPanel.appendChild(card);
     });
   }
   wrap.appendChild(magPanel);
+
+  if(f.arcanistaCaminho==='Mago' && f.magias.length>0){
+    wrap.appendChild(renderPainelMemorizacaoMago(f));
+  }
+
+  return wrap;
+}
+
+// Mago só pode lançar magias memorizadas — estuda o grimório por 1h e escolhe metade das que
+// conhece (arredondado pra baixo). Aqui é só a escolha de QUAIS ficam memorizadas; o "estudar
+// por 1h, 1x por dia" fica por conta da narrativa na mesa, como o resto do controle de tempo.
+function renderPainelMemorizacaoMago(f){
+  const limite = Math.floor(f.magias.length/2);
+  const wrap = el('div',{class:'panel faixa'}, el('h2',{},'Memorizar Magias (Mago)'));
+  if(!state._memorizandoMago){
+    const qtdMemorizada = (f.magiasMemorizadas||[]).length;
+    wrap.appendChild(el('div',{class:'tip'}, 'Memorizadas agora: '+qtdMemorizada+' / '+limite+'. Só magias memorizadas podem ser lançadas — estude o grimório por 1h (1x por dia) pra trocar.'));
+    wrap.appendChild(el('button',{class:'btn ghost', onclick:()=>{ state._memorizandoMago = (f.magiasMemorizadas||[]).slice(); render(); }}, '📖 Estudar grimório e memorizar'));
+  } else {
+    const selecao = state._memorizandoMago;
+    wrap.appendChild(el('div',{class:'tip'}, 'Escolha até '+limite+' magias (metade das '+f.magias.length+' conhecidas, arredondado pra baixo). Selecionadas: '+selecao.length+' / '+limite+'.'));
+    const grid = el('div',{class:'option-grid'});
+    f.magias.forEach(s=>{
+      const marcada = selecao.includes(s.n);
+      grid.appendChild(el('button',{class:'option-card'+(marcada?' selected':''), onclick:()=>{
+        if(marcada){ state._memorizandoMago = selecao.filter(n=>n!==s.n); }
+        else if(selecao.length < limite){ selecao.push(s.n); }
+        else { flashMsg('Já escolheu o limite de '+limite+' magias.'); return; }
+        render();
+      }},
+        el('div',{class:'opt-nome'}, s.n),
+        el('div',{class:'opt-sub'}, s.c+'º círc. · '+s.e)
+      ));
+    });
+    wrap.appendChild(grid);
+    wrap.appendChild(el('div',{class:'row', style:'margin-top:10px;'},
+      el('button',{class:'btn', onclick:()=>{ f.magiasMemorizadas = selecao; state._memorizandoMago=null; salvarPerfis(); flashMsg('📖 Magias memorizadas atualizadas!'); render(); }}, 'Confirmar memorização'),
+      el('button',{class:'btn ghost', onclick:()=>{ state._memorizandoMago=null; render(); }}, 'Cancelar')
+    ));
+  }
   return wrap;
 }
 
@@ -1517,12 +1590,24 @@ function renderMagias(){
     'Cada magia pertence a uma tradição (arcana ou divina — 🔮 marca as Universais, que qualquer conjurador pode aprender), um círculo e uma escola. Toque no nome de uma magia pra ver a descrição completa.'
   ));
 
-  wrap.appendChild(el('div',{class:'badge-tradition'},
-    el('button',{class: mf.trad==='arcana'?'on':'', onclick:()=>{mf.trad='arcana'; render();}},'Arcanas'),
-    el('button',{class: mf.trad==='divina'?'on':'', onclick:()=>{mf.trad='divina'; render();}},'Divinas'),
-  ));
-
   const modoAtual = mf.modo || 'possiveis';
+
+  // No modo "só as que posso lançar", a tradição não é escolha livre — é a da classe do
+  // personagem. Trava aqui (não só na primeira abertura da aba) pra não deixar, por exemplo,
+  // um Clérigo ver/adicionar magias Arcanas só porque tocou no botão errado antes de trocar de modo.
+  if(cc && modoAtual==='possiveis'){
+    mf.trad = CLASSES[cc.classe].tradicao;
+  }
+
+  if(modoAtual==='completo' || !cc){
+    wrap.appendChild(el('div',{class:'badge-tradition'},
+      el('button',{class: mf.trad==='arcana'?'on':'', onclick:()=>{mf.trad='arcana'; render();}},'Arcanas'),
+      el('button',{class: mf.trad==='divina'?'on':'', onclick:()=>{mf.trad='divina'; render();}},'Divinas'),
+    ));
+  } else {
+    wrap.appendChild(el('div',{class:'meta', style:'margin-top:8px;'}, 'Tradição: '+(mf.trad==='arcana'?'Arcana':'Divina')+' (definida pela sua classe — pra ver a outra tradição, use "Catálogo completo").'));
+  }
+
   if(cc){
     wrap.appendChild(el('div',{class:'badge-tradition', style:'margin-top:8px;'},
       el('button',{class: modoAtual==='possiveis'?'on':'', onclick:()=>{mf.modo='possiveis'; mf.circulo='todos'; render();}}, 'Só as que posso lançar'),
