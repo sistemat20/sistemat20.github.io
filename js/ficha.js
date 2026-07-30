@@ -873,8 +873,8 @@ function renderPersonagemFicha(){
     )
   ));
 
-  const pvMax = parseInt(f.pvmax)||0, pvAtual = parseInt(f.pvatual)||0;
-  const pmMax = parseInt(f.pmmax)||0, pmAtual = parseInt(f.pmatual)||0;
+  const pvMax = pvMaxEfetivo(f), pvAtual = parseInt(f.pvatual)||0;
+  const pmMax = pmMaxEfetivo(f), pmAtual = parseInt(f.pmatual)||0;
   wrap.appendChild(el('div',{class:'panel faixa'},
     el('h2',{},'Vida & Mana'),
     el('div',{class:'stat-tracker-row'},
@@ -1340,7 +1340,8 @@ function renderPersonagemMochila(){
       if(row.tipo==='geral'){
         const nomeSemSufixo = row.item.replace(' (recebido do Mestre)','');
         const itemCatalogo = ITENS_GERAIS.find(i=>i.n===nomeSemSufixo);
-        const ehVestivel = (itemCatalogo && itemCatalogo.vestivel) || ACESSORIOS_VESTIVEIS.has(nomeSemSufixo);
+        const reconhecidoAutomatico = (itemCatalogo && itemCatalogo.vestivel) || ACESSORIOS_VESTIVEIS.has(nomeSemSufixo);
+        const ehVestivel = reconhecidoAutomatico || row.marcadoVestivel;
         corpo.push(
           el('label',{},'Nome'),
           el('input',{id:'mochila-nome-'+idx, type:'text', value:row.item, oninput:(e)=>{row.item=e.target.value;}, onchange:()=>{salvarPerfis(); render();}}),
@@ -1349,6 +1350,10 @@ function renderPersonagemMochila(){
             el('div',{style:'flex:1;'}, el('label',{},'Espaço'), el('input',{id:'mochila-carga-'+idx, type:'text', value:row.carga, oninput:(e)=>{row.carga=e.target.value;}, onchange:()=>{salvarPerfis(); render();}})),
           ),
           row.vestido ? el('div',{class:'meta', style:'color:var(--gold);margin-top:4px;'},'👕 vestido') : null,
+          !reconhecidoAutomatico ? el('div',{class:'row', style:'margin-top:8px;align-items:center;'},
+            el('input',{type:'checkbox', id:'mochila-vestivel-'+idx, checked: row.marcadoVestivel?'checked':undefined, onchange:(e)=>{ row.marcadoVestivel=e.target.checked; if(!e.target.checked) row.vestido=false; salvarPerfis(); render(); }}),
+            el('label',{for:'mochila-vestivel-'+idx, style:'margin:0;font-size:0.78rem;text-transform:none;'}, 'É um item vestível (anel, colar, roupa etc. — conta como 1 dos 4 slots vestidos)')
+          ) : null,
           el('div',{class:'row', style:'margin-top:8px;'},
             (/^\d+$/.test(String(row.qtd).trim()) && parseInt(row.qtd)>0) ? el('button',{class:'btn', onclick:()=> usarItemMochila(f, idx)}, 'Usar (−1) ✨') : null,
             ehVestivel ? el('button',{class:'btn ghost', onclick:()=>{ row.vestido=!row.vestido; salvarPerfis(); render(); }}, row.vestido?'Guardar':'Vestir') : null,
@@ -1650,11 +1655,12 @@ function renderPainelCarga(f){
 function renderPainelVestidos(f){
   const todos = itensVestidosTodos(f);
   const usados = todos.length;
+  const limite = limiteItensVestidos(f);
   const excedentes = itensVestidosExcedentes(f);
-  const cor = usados>4 ? 'var(--gold)' : 'var(--ink-soft)';
+  const cor = usados>limite ? 'var(--gold)' : 'var(--ink-soft)';
   const panel = el('div',{class:'panel'},
-    el('h2',{},'Itens Vestidos ('+Math.min(usados,4)+'/4)'),
-    el('div',{class:'tip', style:'font-size:0.8rem;'}, 'Só é possível manter o benefício de até 4 itens vestidos ao mesmo tempo (roupas, capas, joias mágicas etc. — armas e escudos empunhados não contam). Armadura conta como 1 desses 4.'),
+    el('h2',{},'Itens Vestidos ('+Math.min(usados,limite)+'/'+limite+')'),
+    el('div',{class:'tip', style:'font-size:0.8rem;'}, 'Só é possível manter o benefício de até '+limite+' itens vestidos ao mesmo tempo (roupas, capas, joias mágicas etc. — armas e escudos empunhados não contam). Armadura conta como 1 desses '+limite+(limite>4?' (inclui +1 do poder Costas Largas)':'')+'.'),
   );
   if(todos.length===0){
     panel.appendChild(el('div',{class:'empty'},'Nenhum item vestido no momento.'));

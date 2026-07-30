@@ -278,7 +278,17 @@ function bonusDefesaPoderes(f){
   let bonus = 0;
   if(nomes.includes('Esquiva')) bonus += 2;
   if(nomes.includes('Encouraçado') && f.armadura && f.armadura.equipado!==false && f.armadura.cat==='Pesada') bonus += 2;
+  if(nomes.includes('Estilo de Uma Arma') && usandoUmaArmaSoNaMao(f)) bonus += 2;
+  if(nomes.includes('Pele de Ferro') && !usaArmaduraPesada(f)) bonus += 4;
   return bonus;
+}
+// "Estilo de Uma Arma": empunhando 1 arma corpo a corpo de 1 mão e nada na outra (sem 2ª arma, sem escudo)
+function usandoUmaArmaSoNaMao(f){
+  if((f.armas||[]).length !== 1) return false;
+  const unica = f.armas[0];
+  if(unica.distancia || unica.maos!==1) return false;
+  if(f.escudo) return false;
+  return true;
 }
 function bonusEscudoPoderes(f){
   const nomes = poderesAtivos(f);
@@ -308,13 +318,13 @@ function penalidadeArmaduraRaca(f){
 // ---- Ferimentos & Morte (regra da pág. 236 do livro básico) ----
 // Morre em -10 PV ou em -metade do PV máximo, o que for MAIS BAIXO (mais negativo).
 function limiteMortePv(f){
-  const max = parseInt(f.pvmax)||0;
+  const max = pvMaxEfetivo(f);
   return Math.min(-10, -Math.floor(max/2));
 }
 function estaMorto(f){ return (parseInt(f.pvatual)||0) <= limiteMortePv(f); }
 function estaInconsciente(f){ const pv = parseInt(f.pvatual)||0; return pv<=0 && !estaMorto(f); }
 function ajustarPV(f, delta){
-  const max = parseInt(f.pvmax)||0;
+  const max = pvMaxEfetivo(f);
   const atual = parseInt(f.pvatual)||0;
   const limiteMorte = limiteMortePv(f);
   const novo = Math.max(limiteMorte, Math.min(max, atual+delta));
@@ -338,7 +348,7 @@ function estabilizarPersonagem(f){
   salvarPerfis(); render();
 }
 function ajustarPM(f, delta){
-  const max = parseInt(f.pmmax)||0;
+  const max = pmMaxEfetivo(f);
   const atual = parseInt(f.pmatual)||0;
   const novo = Math.max(0, Math.min(max, atual+delta));
   if(novo!==atual) registrarLog(f, (delta>0?'+':'')+delta+' PM ('+atual+' → '+novo+')');
@@ -542,6 +552,7 @@ function deslocamentoEfetivo(f){
     if(sobrecarregado(f)) d -= 3;
     d = Math.max(0, d);
   }
+  if(poderesAtivos(f).includes('Atlético')) d += 3;
   d = Math.floor(d * multiplicadorCondicoesDeslocamento(f));
   return Math.max(0, d);
 }
@@ -555,7 +566,9 @@ function penalidadeTotal(f){
 // ---- Carga (peso/espaço) ----
 function limiteCarga(f){
   const for_ = parseInt(f.for)||0;
-  return for_>=0 ? 10 + 2*for_ : 10 - for_;
+  const base = for_>=0 ? 10 + 2*for_ : 10 - for_;
+  const bonusCostasLargas = poderesAtivos(f).includes('Costas Largas') ? 5 : 0;
+  return base + bonusCostasLargas;
 }
 function cargaMaxima(f){ return limiteCarga(f)*2; }
 function cargaUsada(f){
@@ -597,6 +610,23 @@ function fichaVazia(){
 
 // Helpers de classe/nível (multiclasse)
 function nivelTotal(f){ return (f.classesNiveis||[]).reduce((s,c)=>s+c.nivel,0) || 1; }
+
+// PV/PM máximo "de verdade" — soma em cima do valor guardado (f.pvmax/f.pmmax, que só cresce no
+// level up) os bônus de poderes que dão PV/PM extra baseado no nível atual (Vitalidade, Vontade
+// de Ferro). Calculado na hora, igual perícia/Defesa — assim funciona não importa em que nível o
+// poder foi escolhido, sem precisar "somar retroativo" em nenhum lugar.
+function pvMaxEfetivo(f){
+  const base = parseInt(f.pvmax)||0;
+  const nomes = poderesAtivos(f);
+  const bonusVitalidade = nomes.includes('Vitalidade') ? nivelTotal(f) : 0;
+  return base + bonusVitalidade;
+}
+function pmMaxEfetivo(f){
+  const base = parseInt(f.pmmax)||0;
+  const nomes = poderesAtivos(f);
+  const bonusVontadeFerro = nomes.includes('Vontade de Ferro') ? Math.floor(nivelTotal(f)/2) : 0;
+  return base + bonusVontadeFerro;
+}
 
 // ---- Pendências ----
 // Lista de "coisas que existem no app hoje mas que esse personagem específico ainda não
@@ -664,8 +694,30 @@ function diminuirDado(dano){
   return DADO_PROGRESSAO[idx-1];
 }
 // Armas que o personagem tem "Mestre em Arma" (ou similar) aplicado, vindo dos poderes de classe
+// Bônus raciais fixos por CATEGORIA de arma (não uma arma específica) — Tradição de Heredrimm
+// (Anão) e Mestre do Tridente (Sereia/Tritão). Usa padrão de nome em vez de lista fixa, pra
+// cobrir também armas novas do catálogo (tipo "Machadinha" de Ameaças de Arton).
+function bonusRacaCategoriaArma(f, nomeArma){
+  const raca = String(f.raca||'').trim();
+  const nome = nomeArma||'';
+  if(raca==='Anão' && /machad|martelo|marreta|picareta/i.test(nome)) return {ataque:2, dano:0};
+  if(raca==='Sereia/Tritão' && /^(azagaia|lança|lança montada|tridente)$/i.test(nome.trim())) return {ataque:0, dano:2};
+  return {ataque:0, dano:0};
+}
 function armasComMestreEmArma(f){
   return (f.poderesClasse||[]).filter(p=> p.nome==='Mestre em Arma' && p.sub).map(p=>p.sub);
+}
+// Acha, em QUALQUER lugar onde um poder possa estar guardado (poder geral da origem, poder geral
+// extra escolhido no level up, ou poder de classe — inclusive trocado por um geral), todas as
+// armas escolhidas pra um poder do tipo "escolha uma arma" (Foco em Arma, Especialização em Arma
+// etc.). Retorna uma lista, porque alguns desses poderes podem ser escolhidos várias vezes pra
+// armas diferentes.
+function armasComPoderEscolhido(f, nomePoder){
+  const armas = [];
+  if(f.poderGeral && f.poderGeral.nome===nomePoder && f.poderGeral.sub) armas.push(f.poderGeral.sub);
+  if(f.poderGeralExtra && f.poderGeralExtra.nome===nomePoder && f.poderGeralExtra.sub) armas.push(f.poderGeralExtra.sub);
+  (f.poderesClasse||[]).forEach(p=>{ if(p.nome===nomePoder && p.sub) armas.push(p.sub); });
+  return armas;
 }
 // Itens que só fazem sentido pro Mestre descrever/vender (estadia, mensageiro, refeição comum sem
 // bônus etc.) — não aparecem no catálogo do jogador, só na ferramenta de Loja da Mesa do Mestre.
@@ -893,8 +945,8 @@ function aplicarDescanso(f, qualidade){
   const nivel = nivelTotal(f);
   const mult = QUALIDADE_DESCANSO[qualidade] || 1;
   const recuperacao = Math.floor(nivel*mult);
-  f.pvatual = Math.min(parseInt(f.pvmax)||0, (parseInt(f.pvatual)||0)+recuperacao);
-  f.pmatual = Math.min(parseInt(f.pmmax)||0, (parseInt(f.pmatual)||0)+recuperacao);
+  f.pvatual = Math.min(pvMaxEfetivo(f), (parseInt(f.pvatual)||0)+recuperacao);
+  f.pmatual = Math.min(pmMaxEfetivo(f), (parseInt(f.pmatual)||0)+recuperacao);
   if((parseInt(f.pvatual)||0) > 0) f.estabilizado = false;
   resetarUsoPoderes(f, ['cena','dia']); // uma noite de sono também encerra a cena atual
   salvarPerfis(); render();
@@ -940,13 +992,22 @@ function penalidadeNaoProficienciaArmadura(f){
   return total;
 }
 
+// Armas alongadas (regra do livro, pág. 148-155) — dobram o alcance natural, mas não deixam
+// atacar quem está adjacente (isso fica só informativo, não é bloqueado no app).
+const ARMAS_ALONGADAS = new Set(['Alabarda', 'Lança montada', 'Pique']);
 function testeAtaqueArma(f, arma){
   const nomePericia = arma.pericia || (arma.distancia ? 'Pontaria' : 'Luta');
   const periciaInfo = PERICIAS.find(p=>p.nome===nomePericia);
   if(!periciaInfo) return 0;
   const base = periciaValor(f, periciaInfo);
   const bonusMelhoria = arma.bonusTesteExtra||0;
-  return (proficienteComArma(f, arma) ? base : base - 5) + bonusMelhoria;
+  const nomes = poderesAtivos(f);
+  const bonusUmaArma = (nomes.includes('Estilo de Uma Arma') && usandoUmaArmaSoNaMao(f)) ? 2 : 0;
+  const nomeArma = arma.nome || arma.n;
+  const bonusFocoArma = armasComPoderEscolhido(f, 'Foco em Arma').includes(nomeArma) ? 2 : 0;
+  const bonusRaca = bonusRacaCategoriaArma(f, nomeArma).ataque;
+  const bonusArmaLonga = (nomes.includes('Estilo de Arma Longa') && ARMAS_ALONGADAS.has(nomeArma)) ? 2 : 0;
+  return (proficienteComArma(f, arma) ? base : base - 5) + bonusMelhoria + bonusUmaArma + bonusFocoArma + bonusRaca + bonusArmaLonga;
 }
 // Bônus de dano = Força somada em armas corpo a corpo e de arremesso (não em armas de disparo,
 // a menos que tenha um poder que mude isso, como Acuidade com Arma ou Estilo de Disparo/Arremesso)
@@ -955,8 +1016,15 @@ function bonusDanoArma(f, arma){
   const acuidade = nomes.includes('Acuidade com Arma'); // usa Destreza em vez de Força (armas leves/arremesso)
   const estiloDisparo = nomes.includes('Estilo de Disparo'); // soma Destreza no dano de disparo
   const estiloArremessoPotente = nomes.includes('Arremesso Potente'); // soma Força no dano de arremesso
+  const estiloArremesso = nomes.includes('Estilo de Arremesso'); // +2 no dano de arremesso
+  const estiloDuasMaos = nomes.includes('Estilo de Duas Mãos'); // +5 no dano usando arma corpo a corpo com as duas mãos
   const isArremesso = arma.distancia && (arma.alcance==='Curto' || arma.alcance==='Médio') && !['Arco curto','Arco longo','Besta leve','Besta pesada','Pistola','Mosquete','Rede'].includes(arma.n||arma.nome);
   const bonusMelhoria = arma.bonusDanoExtra||0;
+  const bonusDuasMaos = (estiloDuasMaos && !arma.distancia && arma.maos===2) ? 5 : 0;
+  const bonusArremesso = (estiloArremesso && isArremesso) ? 2 : 0;
+  const nomeArma = arma.nome || arma.n;
+  const bonusEspecializacao = armasComPoderEscolhido(f, 'Especialização em Arma').includes(nomeArma) ? 2 : 0;
+  const bonusRacaDano = bonusRacaCategoriaArma(f, nomeArma).dano;
 
   let bonusAtributo;
   if(!arma.distancia){
@@ -968,7 +1036,7 @@ function bonusDanoArma(f, arma){
     // disparo (arco/besta/arma de fogo): não soma atributo, exceto com Estilo de Disparo
     bonusAtributo = estiloDisparo ? (parseInt(f.des)||0) : 0;
   }
-  return bonusAtributo + bonusMelhoria;
+  return bonusAtributo + bonusMelhoria + bonusDuasMaos + bonusArremesso + bonusEspecializacao + bonusRacaDano;
 }
 
 // ---- Itens Vestidos (limite de 4 simultâneos com benefício ativo — regra do livro, pág. 146) ----
@@ -991,8 +1059,9 @@ function itensVestidosTodos(f){
   });
   return fontes;
 }
-function itensVestidosAtivos(f){ return itensVestidosTodos(f).slice(0,4); }
-function itensVestidosExcedentes(f){ return itensVestidosTodos(f).slice(4); }
+function limiteItensVestidos(f){ return poderesAtivos(f).includes('Costas Largas') ? 5 : 4; }
+function itensVestidosAtivos(f){ return itensVestidosTodos(f).slice(0,limiteItensVestidos(f)); }
+function itensVestidosExcedentes(f){ return itensVestidosTodos(f).slice(limiteItensVestidos(f)); }
 function slotsVestidosUsados(f){ return itensVestidosTodos(f).length; }
 // Bônus de perícia vindo de itens vestidos ativos (só os 4 primeiros contam; regra do livro)
 function bonusPericiaDeItensVestidos(f, periciaNome){

@@ -237,7 +237,10 @@ function renderGerenciarGrupos(){
 // ---- VISÃO GERAL DO GRUPO ----
 function ajustarValorMestre(p, campo, campoMax, delta){
   const atual = parseInt(p[campo])||0;
-  const max = campoMax ? (parseInt(p[campoMax])||atual) : Infinity;
+  let max;
+  if(campoMax==='pvmax') max = pvMaxEfetivo(p);
+  else if(campoMax==='pmmax') max = pmMaxEfetivo(p);
+  else max = campoMax ? (parseInt(p[campoMax])||atual) : Infinity;
   const minimo = (campo==='pvatual') ? limiteMortePv(p) : 0;
   const novo = Math.max(minimo, Math.min(max, atual+delta));
   if(campo==='pvatual' && delta<0 && novo<=0) p.estabilizado = false;
@@ -262,7 +265,7 @@ async function salvarAjustePersonagemMestre(p){
 function criarCombatentePj(p){
   const iniciativaObj = PERICIAS.find(x=>x.nome==='Iniciativa');
   const bonus = iniciativaObj ? periciaValor(p, iniciativaObj) : 0;
-  return novoCombatente(p.nome, 'pj', bonus, p.pvatual, p.pvmax, p.foto, p.id);
+  return novoCombatente(p.nome, 'pj', bonus, p.pvatual, pvMaxEfetivo(p), p.foto, p.id);
 }
 
 // Popup só-leitura com um resumo bem completo da ficha — pro Mestre conferir tudo sem precisar
@@ -279,8 +282,8 @@ function renderPopupFichaCompletaMestre(p){
   ));
 
   const grid3 = el('div',{class:'row3', style:'margin:0 14px 10px;'},
-    el('div',{}, el('div',{class:'meta'},'PV'), el('div',{style:'font-weight:800;'}, (p.pvatual||0)+'/'+(p.pvmax||0))),
-    el('div',{}, el('div',{class:'meta'},'PM'), el('div',{style:'font-weight:800;'}, (p.pmatual||0)+'/'+(p.pmmax||0))),
+    el('div',{}, el('div',{class:'meta'},'PV'), el('div',{style:'font-weight:800;'}, (p.pvatual||0)+'/'+pvMaxEfetivo(p))),
+    el('div',{}, el('div',{class:'meta'},'PM'), el('div',{style:'font-weight:800;'}, (p.pmatual||0)+'/'+pmMaxEfetivo(p))),
     el('div',{}, el('div',{class:'meta'},'Defesa'), el('div',{style:'font-weight:800;'}, defesaTotal(p))),
   );
   sheet.appendChild(grid3);
@@ -375,8 +378,10 @@ function renderMestreGrupo(){
   todos.forEach(p=>{
     const nivel = nivelTotal(p);
     const classesTxt = (p.classesNiveis||[]).map(c=>c.classe+' '+c.nivel).join(' / ') || '—';
-    const pvPct = p.pvmax ? Math.max(0, Math.min(100, (p.pvatual||0)/p.pvmax*100)) : 0;
-    const pmPct = p.pmmax ? Math.max(0, Math.min(100, (p.pmatual||0)/p.pmmax*100)) : 0;
+    const pvMaxEf = pvMaxEfetivo(p);
+    const pvPct = pvMaxEf ? Math.max(0, Math.min(100, (p.pvatual||0)/pvMaxEf*100)) : 0;
+    const pmMaxEf = pmMaxEfetivo(p);
+    const pmPct = pmMaxEf ? Math.max(0, Math.min(100, (p.pmatual||0)/pmMaxEf*100)) : 0;
     const faixaPv = faixaPerigoStat(pvPct);
     const critico = faixaPv === 'critico';
     const card = el('div',{class:'panel faixa', style: critico ? 'border-color:var(--red-bright);' : ''},
@@ -398,7 +403,7 @@ function renderMestreGrupo(){
           el('label',{},'PV'),
           el('div',{style:'display:flex;align-items:center;gap:6px;'},
             el('button',{class:'btn ghost', style:'padding:2px 10px;width:auto;', onclick:()=>{ ajustarValorMestre(p,'pvatual','pvmax',-1); salvarAjustePersonagemMestre(p); render(); }}, '−'),
-            el('div',{style:'font-weight:800;min-width:56px;text-align:center;'+(critico?'color:var(--red-bright);':'')}, (p.pvatual||0)+'/'+(p.pvmax||0)),
+            el('div',{style:'font-weight:800;min-width:56px;text-align:center;'+(critico?'color:var(--red-bright);':'')}, (p.pvatual||0)+'/'+pvMaxEf),
             el('button',{class:'btn ghost', style:'padding:2px 10px;width:auto;', onclick:()=>{ ajustarValorMestre(p,'pvatual','pvmax',1); salvarAjustePersonagemMestre(p); render(); }}, '+')
           ),
           el('div',{class:'stat-bar', style:'margin-top:4px;'}, el('div',{class:'stat-bar-fill '+faixaPv, style:'width:'+pvPct+'%;'}))
@@ -407,7 +412,7 @@ function renderMestreGrupo(){
           el('label',{},'PM'),
           el('div',{style:'display:flex;align-items:center;gap:6px;'},
             el('button',{class:'btn ghost', style:'padding:2px 10px;width:auto;', onclick:()=>{ ajustarValorMestre(p,'pmatual','pmmax',-1); salvarAjustePersonagemMestre(p); render(); }}, '−'),
-            el('div',{style:'font-weight:800;min-width:56px;text-align:center;'}, (p.pmatual||0)+'/'+(p.pmmax||0)),
+            el('div',{style:'font-weight:800;min-width:56px;text-align:center;'}, (p.pmatual||0)+'/'+pmMaxEf),
             el('button',{class:'btn ghost', style:'padding:2px 10px;width:auto;', onclick:()=>{ ajustarValorMestre(p,'pmatual','pmmax',1); salvarAjustePersonagemMestre(p); render(); }}, '+')
           ),
           el('div',{class:'stat-bar', style:'margin-top:4px;'}, el('div',{class:'stat-bar-fill', style:'width:'+pmPct+'%;background:linear-gradient(90deg, #3d7ea6, #6fb3e0);'}))
@@ -743,7 +748,7 @@ function renderMestreCombate(){
           linha.appendChild(el('div',{style:'margin-top:10px;border-top:1px solid var(--line);padding-top:10px;'},
             el('div',{class:'row3'},
               el('div',{}, el('div',{class:'meta'},'Defesa'), el('div',{style:'font-weight:800;'}, defesaTotal(p))),
-              el('div',{}, el('div',{class:'meta'},'PM'), el('div',{style:'font-weight:800;'}, (p.pmatual||0)+'/'+(p.pmmax||0))),
+              el('div',{}, el('div',{class:'meta'},'PM'), el('div',{style:'font-weight:800;'}, (p.pmatual||0)+'/'+pmMaxEfetivo(p))),
               el('div',{}, el('div',{class:'meta'},'Nível'), el('div',{style:'font-weight:800;'}, nivelTotal(p))),
             ),
             condicoesAtivas(p).length>0 ? el('div',{class:'meta', style:'color:var(--gold);margin-top:8px;'}, '🩹 '+condicoesAtivas(p).join(', ')) : el('div',{class:'meta', style:'margin-top:8px;'}, 'Sem condições ativas.'),
@@ -1011,6 +1016,18 @@ function sortearArmaduraMagica(){
   const encanto = sortear(encantosValidos);
   return base.n+' '+encanto.nome.toLowerCase().replace('*','')+' ('+encanto.efeito+')';
 }
+// Acessório (anel, amuleto, manto etc.) — o tier (menor/médio/maior) pesa mais pro lado maior
+// conforme o ND vai subindo, seguindo o espírito da Tabela 8-1 (tesouro melhora com o nível).
+function sortearAcessorioMagico(nd){
+  const ndNum = typeof nd==='number' ? nd : (nd==='1/4'?0.25 : nd==='1/2'?0.5 : parseFloat(nd)||1);
+  let lista;
+  if(ndNum <= 4) lista = ACESSORIOS_MENORES;
+  else if(ndNum <= 9) lista = Math.random()<0.7 ? ACESSORIOS_MENORES : ACESSORIOS_MEDIOS;
+  else if(ndNum <= 14) lista = Math.random()<0.6 ? ACESSORIOS_MEDIOS : ACESSORIOS_MAIORES;
+  else lista = Math.random()<0.3 ? ACESSORIOS_MEDIOS : ACESSORIOS_MAIORES;
+  const item = sortear(lista);
+  return item.nome+' (acessório, T$ '+item.preco+')';
+}
 
 function gerarTesouro(nd){
   const tab = TESOURO_POR_ND.find(t=>t.nd===nd) || TESOURO_POR_ND[0];
@@ -1025,8 +1042,9 @@ function gerarTesouro(nd){
       itemTexto = 'Item: '+(entrada?entrada[2]:'algo interessante');
     } else if(rolagem < 0.6){
       const tipoRoll = Math.random();
-      if(tipoRoll<0.5){ itemTexto = 'Arma: '+sortearArmaMagica(); }
-      else if(tipoRoll<0.8){ itemTexto = 'Armadura/Escudo: '+sortearArmaduraMagica(); }
+      if(tipoRoll<0.35){ itemTexto = 'Arma: '+sortearArmaMagica(); }
+      else if(tipoRoll<0.6){ itemTexto = 'Armadura/Escudo: '+sortearArmaduraMagica(); }
+      else if(tipoRoll<0.85){ itemTexto = 'Acessório: '+sortearAcessorioMagico(nd); }
       else { itemTexto = 'Esotérico: '+sortear(ITENS_ESOTERICOS).n; }
     } else if(rolagem < 0.85){
       const pocaoSorteada = sortear(POCOES_MAGICAS);
