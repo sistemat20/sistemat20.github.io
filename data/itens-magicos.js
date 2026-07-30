@@ -65,6 +65,9 @@ AE("Machado Silvestre","Machado de batalha",70000,"Formidável. Em ambiente selv
 AE("Maça do Terror","Maça",45000,"Formidável. Lança Amedrontar (CD For/Car); –1 PM se já conhecer a magia."),
 AE("Martelo de Doherimm","Martelo de guerra",70000,"Formidável. Se empunhado por anão: ganha arremesso e +1d8 de dano (+2d8 contra Grandes ou maiores)."),
 AE("Punhal Sszzaazita","Adaga",100000,"Assassina, formidável, venenosa. 2 PM + ação padrão: vira objeto inofensivo disfarçado (indetectável por magia); voltar a ser arma é ação livre."),
+// Armas Específicas novas (Ameaças de Arton, pág. 404)
+AE("Pistola Demoníaca","Pistola",72250,"Formidável, profana. Não pode ser fabricada — só via pacto com um demônio da pólvora. Sempre carregada, nunca precisa de munição. 1x/dia, o dono é compelido a atirar numa criatura inteligente aleatória à vista (inclusive aliados); resiste com Vontade CD 25. Some se o dono morrer."),
+AE("Uyzrrak Da'ukthra","Machado de guerra",78050,"Magnífico, aumentado, atroz, de adamante. Empunhado por um duyshidakk: +2d8 de dano contra qualquer criatura não-duyshidakk, e ganha um encanto extra conforme o elemento do Akzath mais próximo do portador (varia a critério do Mestre)."),
 AE("Vingadora Sagrada","Espada longa",200000,"Formidável — mas só revela poder pra paladinos: +5 ataque/dano, Golpe Divino custa –1 PM, você e aliados em alcance curto ganham resistência a magia +5."),
 ];
 
@@ -113,6 +116,8 @@ AE("Escudo Espinhoso","Escudo pesado",50000,"Defensor. 2 PM + movimento: dispara
 AE("Escudo do Leão","Escudo pesado",50000,"Defensor. 2 PM, 1x/rodada: cabeça de leão morde um adjacente, acerta automático, 2d6+2 de perfuração."),
 AE("Loriga do Centurião","Loriga segmentada",45000,"Defensora. Liderando com Comandar (ou similar): ataques corpo a corpo causam +2d6 de fogo."),
 AE("Manto da Noite","Couro batido",45000,"Ajustado, defensor, sombrio. Sem penalidade de Furtividade ao se mover normal; penalidade por atacar cai pra –10."),
+// Armadura Específica nova (Ameaças de Arton, pág. 404)
+AE("Grilhão de Descrença","Armadura completa",24000,"Reforçada, selada. Amaldiçoada: uma vez vestida, não sai mais. Quem chega a 0 PV usando essa armadura não pode ser ressuscitado e vira um guerreiro perpétuo. Se a maldição for removida, vira uma armadura completa reforçada e selada com um encanto aleatório."),
 ];
 
 // Tabela 8-13/14/15: Acessórios (menor/médio/maior)
@@ -187,11 +192,31 @@ AC("Robe do arquimago",90000,"Se conjurador arcano: +Defesa (5+círculo máximo)
 AC("Orbe das tempestades",97500,"Lança Controlar o Clima e Fúria do Panteão (CD Sab); você e aliados adjacentes ganham Suporte Ambiental."),
 AC("Anel da regeneração",150000,"Cura Acelerada 5 (após 1 dia de uso)."),
 AC("Espelho do aprisionamento",150000,"Quem se aproximar e se olhar nele testa Reflexos (CD Int) ou é transportado pra dentro do espelho."),
+// Acessórios Maiores novos (Ameaças de Arton, pág. 403)
+AC("Chifre de Unicórnio",120000,"Empunhado: lança Curar Ferimentos e Purificação (–1 PM se já souber, cumulativo com outras reduções). Também lança Segunda Chance, mas perde todos os poderes depois disso. Pode ser empunhado como espada curta formidável. Não pode ser fabricado — só obtido de um unicórnio morto."),
+AC("Fragmento de Filactério",90000,"Conta como uma costela de lich poderosa: +20 PM (só após 1 dia de uso). Não pode ser fabricado — só obtido de um filactério de lich estilhaçado."),
 ];
 
 // Artefatos — únicos, não geráveis aleatoriamente; entram na campanha só por decisão do mestre
+// Quais acessórios mágicos são "vestidos" de verdade (ocupam um dos 4 slots de item vestido) —
+// anéis, mantos, botas, cintos, coroas etc. — versus os que são carregados/usados sem ocupar
+// esse limite (cordas, mochilas, tomos que se consomem ao ler, tapetes, espelhos fixos etc.).
+const ACESSORIOS_VESTIVEIS = new Set([
+  "Anel do sustento","Manto élfico","Brincos da sagacidade","Luvas da delicadeza","Manoplas da força do ogro",
+  "Manto da resistência","Manto do fascínio","Pingente da sensatez","Torque do vigor","Chapéu do disfarce",
+  "Anel da proteção","Anel do escudo mental","Pingente da saúde","Anel de telecinesia","Botas aladas",
+  "Braceletes de bronze","Anel da energia","Anel da vitalidade","Anel de invisibilidade","Braçadeiras do arqueiro",
+  "Brincos de Marah","Faixas do pugilista","Manto da aranha","Símbolo abençoado","Amuleto da robustez",
+  "Botas velozes","Cinto da força do gigante","Coroa majestosa","Estola da serenidade","Manto do morcego",
+  "Pulseiras da celeridade","Tiara da sapiência","Elmo do teletransporte","Medalhão de Lena","Anel refletor",
+  "Cinto do campeão","Colar guardião","Anel da liberdade","Braceletes de ouro","Robe do arquimago","Anel da regeneração",
+]);
+
 const ARTEFATOS = [
 {nome:"Espada-Deus", desc:"Espada longa atroz precisa pungente ameaçadora magnífica veloz (dano 2d12). Ignora RD e afeta até imunes a crítico. Indestrutível. Só pode ser usada por quem tem 15+ níveis em classe com Luta como perícia inicial — os demais erram todos os ataques."},
 {nome:"Joia da Alma", desc:"+3 Inteligência (após 1 dia). Magias arcanas de arcanistas custam 0 PM (aprimoramentos ainda custam). Empunhar exige Vontade CD 25 (+1/dia cumulativo) ou fica atordoado e solta a joia; falhar 3x transforma o personagem em NPC do mestre."},
 {nome:"Baralho do Caos", desc:"+10 em Jogatina (vira –10 se abusar da sorte). 'Aposto tudo': saca 1-4 cartas de um baralho de 22 efeitos aleatórios (bons e ruins, de +10.000 XP a perder todos os itens mágicos) — ver tabela própria no livro, pág. 347."},
+// Novos Artefatos (Ameaças de Arton, pág. 403-404)
+{nome:"Amuleto do Abutre", desc:"Um dos itens mais poderosos do Arquilich Ferren Asloth. Dá +50 PM (só após 1 dia de uso), +5 na CD pra resistir às suas magias arcanas, e permite usar Conhecimento Sequestrado (CD Int). MAS: funciona como um 2º filactério de Ferren — todo dia de uso, teste de Vontade (CD 20+1/dia adicional) ou começa a ter pensamentos cruéis; falhar 2x vira dependente do amuleto (não consegue mais tirar por vontade própria); falhar 3x destrói sua alma e traz o Arquilich de volta se ele estiver morto."},
+{nome:"Rompedor da Realidade", desc:"Machado de guerra gigante atroz pungente anticriatura (não lefeu) magnífico de matéria vermelha. Ignora redução de dano, fortificação e imunidade a crítico. Quem é atingido perde 1 ponto cumulativo permanente de um atributo aleatório (Fort CD For evita). Um não-lefeu que o empunhe fica debilitado até o fim da cena."},
 ];

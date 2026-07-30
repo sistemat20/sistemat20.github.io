@@ -44,6 +44,24 @@ W("Machado táurico","T$ 50","2d8","x3","—","Corte","Exótica",2,false,2),
 W("Rede","T$ 20","—","—","Curto","—","Exótica",1,true,1),
 W("Pistola","T$ 250","2d6","19/x3","Curto","Perfuração","Arma de Fogo",1,true,1),
 W("Mosquete","T$ 500","2d8","19/x3","Médio","Perfuração","Arma de Fogo",2,true,2),
+
+// Novas Armas (Ameaças de Arton, pág. 393-395) — equipamentos de povos/culturas específicas
+W("Porrete","T$ 2","1d6","x2","—","Impacto","Simples",1,false,1),
+W("Zarabatana","T$ 5","1d3","x2","Curto","Perfuração","Simples",1,true,1),
+W("Neko-te","T$ 10","1d4","19","—","Corte","Marcial",1,false,1),
+W("Gládio","T$ 12","1d6","19/x3","—","Perfuração","Marcial",1,false,1),
+W("Tetsubo","T$ 20","1d10","x2","—","Impacto","Marcial",2,false,2),
+W("Traque","T$ 75","2d6","19/x3","Curto","Perfuração","Arma de Fogo",1,true,1),
+W("Arcabuz","T$ 800","2d10","19/x3","Médio","Perfuração","Arma de Fogo",2,true,2),
+W("Bacamarte","T$ 450","4d6","19/x3","Especial","Perfuração","Arma de Fogo",2,true,2),
+W("Açoite finntroll","T$ 30","1d8","x2","—","Corte","Exótica",1,false,1),
+W("Espada vespa","T$ 75","2d4","18","—","Corte/perfuração","Exótica",1,false,1),
+W("Pistola-punhal","T$ 300","1d6","18","—","Perfuração","Exótica",1,false,1),
+W("Mordida do diabo","T$ 30","1d4","x2","—","Perfuração","Exótica",1,false,1),
+W("Presa de serpente","T$ 1.000","1d8","17","—","Corte","Exótica",1,false,1),
+W("Lança de fogo","T$ 1.000","1d8","x2","—","Perfuração","Exótica",2,false,2),
+W("Shuriken","T$ 1","1d4","x2","Curto","Perfuração","Exótica",1,true,0.5),
+W("Arpão","T$ 30","1d10","x3","Curto","Perfuração","Exótica",1,true,1),
 ];
 function A(n,preco,def,pen,esp,cat){ return {n,preco,def,pen,esp,cat}; }
 const ARMADURAS = [
@@ -57,10 +75,18 @@ A("Cota de malha","T$ 150",6,-2,5,"Pesada"),
 A("Loriga segmentada","T$ 250",7,-3,5,"Pesada"),
 A("Meia armadura","T$ 600",8,-4,5,"Pesada"),
 A("Armadura completa","T$ 3.000",10,-5,5,"Pesada"),
+
+// Novas Armaduras (Ameaças de Arton, pág. 396)
+A("Armadura de ossos","T$ 120",3,-2,2,"Leve"),
+A("Veste de teia de aranha","T$ 3.000",4,0,2,"Leve"),
+A("Armadura de quitina","T$ 350",7,-3,5,"Pesada"),
 ];
 const ESCUDOS = [
 A("Escudo leve","T$ 5",1,-1,1,"Escudo"),
 A("Escudo pesado","T$ 15",2,-2,2,"Escudo"),
+
+// Novo Escudo (Ameaças de Arton, pág. 396)
+A("Escudo de couro","T$ 3",1,-1,1,"Escudo"),
 ];
 
 function I(n,preco,esp,desc,cat,vestivel,bonusPericia,empunhavel,maos){
@@ -192,6 +218,41 @@ I("Mensageiro (por km)","T$ 0,5","—","envio de mensagens","Serviço"),
 I("Magia (1º círculo, por uso)","T$ 10","—","pagar um conjurador pra lançar uma magia de 1º círculo em você","Serviço"),
 I("Magia (2º círculo, por uso)","T$ 90","—","pagar um conjurador pra lançar uma magia de 2º círculo em você","Serviço"),
 I("Magia (3º círculo, por uso)","T$ 360","—","pagar um conjurador pra lançar uma magia de 3º círculo em você","Serviço"),
+
+// Novos Itens Gerais (Ameaças de Arton, pág. 397-399)
+I("Caixa de Voz","T$ 100","1","Tem 1d4 cargas: gasta 1 pra aumentar em um passo o alcance de uma habilidade de bardo/nobre com alcance curto ou médio. Não pode ser fabricada.","Aventura"),
+I("Corda de Teia","T$ 100","1","Corda de 10m feita de teia de aranha gigante; arrebentar exige 5 de dano de corte ou Força CD 28.","Aventura"),
+I("Dente de Wisphago","T$ 60","1","Vestido como amuleto. Gasta o item pra rolar de novo um teste de resistência contra magia arcana com +2 (some depois de usar). Não pode ser fabricado.","Aventura",true),
+I("Gema de Força","T$ 450","1","Tem 1d4 cargas. Gasta uma ação padrão e 1 carga pra criar um domo como Campo de Força; ou, ao lançar essa magia, gasta 1 carga pra reduzir o custo em –2 PM. Não pode ser fabricada.","Aventura"),
+I("Garra Feroz","T$ 60","1","Funciona como manopla, mas os benefícios também valem pra garras/armas naturais (tipo em Forma Selvagem).","Vestuário",true),
+I("Manto do Mantor","T$ 450","1","Na escuridão completa, dá camuflagem total — mesmo contra quem vê no escuro.","Vestuário",true),
+I("Manto Pesado","T$ 10","1","Imunidade à condição ofuscado; não conta como sob luz solar mesmo de dia.","Vestuário",true),
+I("Sombreiro","T$ 10","1","+2 de resistência a efeitos de sentidos.","Vestuário",true),
+I("Traje Selako","T$ 90","1","+2 em Atletismo pra nadar e +3m no deslocamento de natação.","Vestuário",true),
+I("Bálsamo de Drogadora","T$ 3","0.5","Ação completa: cura 4d6+4 PV.","Alquímico"),
+I("Bomba de Fumaça","T$ 36","0.5","Como a bomba comum, mas em vez de dano cria uma nuvem de fumaça (6m de raio, camuflagem leve a 1,5m/total a 3m) até o fim da cena.","Alquímico"),
+I("Elixir Quimérico","T$ 54","0.5","Ação padrão: até o fim da cena, ganha mordida (1d6, x2, perfuração). 1x/rodada, 1 PM: ataque extra de mordida junto com outro ataque.","Alquímico"),
+I("Éter Elemental","T$ 60","0.5","Cobre uma arma corpo a corpo ou 20 munições: +1d4 de dano elemental (à escolha) até o fim da cena.","Alquímico"),
+I("Isca Putrefata","T$ 60","0.5","Arremessada (Reflexos evita); atrai mortos-vivos não inteligentes em alcance curto por 1d6 rodadas.","Alquímico"),
+I("Lágrima Pétrea","T$ 30","0.5","Remove efeitos de metamorfose de uma criatura (Reflexos evita).","Alquímico"),
+I("Óleo de Baleia","T$ 30","0.5","Aplicado numa arma/munição: ignora penalidade de combate submerso até o fim da cena.","Alquímico"),
+I("Óleo de Besouro","T$ 50","0.5","Lançado (alcance curto): 4d6 de fogo e incendeia num raio de 3m (Reflexos reduz à metade e evita).","Alquímico"),
+I("Pó Azul","T$ 500","0.5","Inalar (ação completa): recupera 2d4 PM.","Alquímico"),
+I("Corrosivo Mineral","T$ 150","0.5","Catalisador: aumenta um passo o dado de dano de magias de ácido.","Catalisador"),
+I("Gelo Extremo","T$ 150","0.5","Catalisador: aumenta um passo o dado de dano de magias de frio.","Catalisador"),
+I("Pedaço de Língua","T$ 30","0.5","Catalisador: +1 na CD de Fortitude pra resistir às suas magias.","Catalisador"),
+I("Raio Cristalizado","T$ 150","0.5","Catalisador: aumenta um passo o dado de dano de magias de eletricidade.","Catalisador"),
+I("Esporos de Cogumelo","T$ 600","0.5","Veneno (inalação): paralisado (lento) por 1 rodada, depois imune a esse veneno na cena.","Veneno"),
+I("Peçonha Anciã","T$ 1.800","0.5","Veneno (contato): perde 3d12 PV/rodada por 3 rodadas, ignora imunidade a veneno.","Veneno"),
+I("Peçonha Irritante","T$ 10","0.5","Veneno leve (contato), sem resistência: perde 1d6 PV.","Veneno"),
+I("Veneno Batráquio","T$ 30","0.5","Veneno (contato): perde 1d12 PV e fica enjoado por 1 rodada (perde 1d6 PV).","Veneno"),
+I("Algravia","T$ 60","0.5","+1 em perícias baseadas em Carisma (cumulativo com outros itens); doses extras no dia arriscam ficar enjoado.","Alimentação"),
+I("Banquete de Canceronte","T$ 15","0.5","Gera 1d4+1 dados de auxílio (1d4 cada, some no teste de perícia).","Alimentação"),
+I("Coc-au-Triz","T$ 120","0.5","Escolha uma habilidade com custo em PM: esse custo cai –1 PM.","Alimentação"),
+I("Cozido de Serpe","T$ 60","0.5","+1 em todos os testes de perícia, cumulativo com outros itens (exige teste de Ofício pra preparar).","Alimentação"),
+I("Gorlogg Ensopado","T$ 6","0.5","Na próxima noite de sono, recupera +1 PV e +1 PM por nível.","Alimentação"),
+I("Omelete Monstruosa","T$ 15","0.5","+2 em rolagens de dano e –2 em perícias baseadas em Sabedoria, cumulativo com outros itens.","Alimentação"),
+I("Sashimi de Kraken","T$ 30","0.5","+2 em Diplomacia (cumulativo com outros itens) e 5 PM temporários.","Alimentação"),
 ];
 
 // Itens esotéricos são EMPUNHADOS (ocupam mão, como armas/escudos) — não "vestidos".
@@ -210,4 +271,8 @@ EI("Medalhão de prata","T$ 750",1,"–1 PM no custo de magias de alcance pessoa
 EI("Orbe cristalino","T$ 750",1,"+1 no limite de PM que pode gastar em magias arcanas.",1,[{tipo:'limite_pm_arcana',valor:1}]),
 EI("Tomo hermético","T$ 1.500",1,"+2 na CD para resistir às suas magias arcanas de uma escola específica (escolhida ao equipar).",1,[{tipo:'cd_arcana_escola',valor:2}]),
 EI("Varinha arcana","T$ 100",1,"+1 na CD para resistir a todas as suas magias arcanas.",1,[{tipo:'cd_arcana_geral',valor:1}]),
+// Novos Esotéricos (Ameaças de Arton, pág. 397)
+EI("Ankh Solar","T$ 1.000",1,"Também serve como arma leve simples corpo a corpo (dano 1d6, crítico 19, corte). Suas magias com teste de resistência ganham o aprimoramento +2 PM: quem falha no teste também não recupera PV por 1 rodada.",1,null),
+EI("Tomo de Guerra","T$ 300",1,"Ao lançar magia de evocação, +1 PM extra pra gastar em aprimoramentos.",1,null),
+EI("Tomo do Rancor","T$ 750",1,"Suas magias de dano ganham o aprimoramento +2 PM: causam +2d8+2 de dano extra (corte, impacto ou perfuração, à sua escolha).",1,null),
 ];

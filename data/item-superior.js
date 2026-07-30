@@ -44,6 +44,9 @@ const MELHORIAS = [
   ME("Cravejado de gemas", ['qualquer'], "+2 em Enganação"),
   ME("Discreto", ['qualquer'], "–1 espaço (mínimo 1), +5 em Ladinagem pra ocultar o item"),
   ME("Macabro", ['qualquer'], "+2 em Intimidação, –2 em Diplomacia"),
+  // Novas Melhorias (Ameaças de Arton, pág. 400)
+  ME("Multifuncional", ['ferramenta','vestuario'], "Só em item que já dá bônus/reduz penalidade numa perícia — escolha outra perícia do mesmo atributo-chave: o item passa a funcionar pra ela também (não vale pra testes de ataque)."),
+  ME("Penetrante", ['arma'], "A arma ignora 5 pontos de redução de dano.", null, "Cruel"),
 ];
 
 // Tabela 3-9: Preço Adicional de Materiais Especiais (por tipo de item)
@@ -86,6 +89,55 @@ const MATERIAIS_ESPECIAIS = [
     escudo: "–2 na penalidade de armadura.",
     esoterico: "Pague +2 PM ao lançar uma magia pra aumentar a CD dela em +2.",
     geral: "Itens de mitral ocupam –1 espaço (mínimo 1).",
+  }),
+  // Novos Materiais Especiais (Ameaças de Arton, pág. 400-402). Preços de Casco de Monstro,
+  // Lanajuste e Prata são estimados por semelhança com materiais parecidos (a tabela original
+  // veio com as colunas embaralhadas na extração do PDF) — confira com o Mestre antes de cravar
+  // um preço final. Couraça de Kaiju, Couro de Bulette, Cristal de Sol e Pena de Kraken são raros
+  // e não são vendidos no mercado normal (só obtidos como saque de criaturas específicas).
+  MAT("Casco de Monstro", 750, 750, 6000, 750, 750, {
+    arma: "Conta como arma primitiva pra Armamento da Natureza e efeitos parecidos.",
+    armadura: "Penalidade de armadura –1. Armadura pesada de casco: pode aplicar 1 ponto de Destreza na Defesa.",
+    escudo: "Penalidade de armadura –1.",
+    esoterico: "Ao lançar uma magia, ganha RD 5 contra o próximo dano até sua próxima rodada.",
+  }),
+  MAT("Couraça de Kaiju", null, null, null, null, null, {
+    arma: "(exige uma peça) Dano aumenta um passo. Gasta 2 PM ao atacar pra ignorar efeito de redução de dano do alvo (tipo Durão) — não vale contra RD.",
+    armadura: "Armadura leve/escudo (1 peça): RD 10/mágico. Armadura pesada (3 peças): RD 20/mágico.",
+    escudo: "Armadura leve/escudo (1 peça): RD 10/mágico. Armadura pesada (3 peças): RD 20/mágico.",
+    esoterico: "(exige uma peça) Ao lançar magia de dano, gasta 2 PM pra ignorar efeitos que reduzem o dano dela (tipo Durão/Evasão, exceto RD e resistência).",
+    geral: "Raríssimo — só obtido abatendo um kaiju, não é vendido nem tem preço de mercado padrão.",
+  }),
+  MAT("Couro de Bulette", null, null, null, null, null, {
+    armadura: "Armadura leve (1 peça): deslocamento de escavação = metade do normal, RD ácido 5. Pesada (3 peças): igual, mas RD ácido 10.",
+    esoterico: "(exige uma peça) Ao lançar magia de ácido com dano, pode rolar de novo qualquer resultado 1 no dano (mesmo em rodadas seguintes).",
+    geral: "Raro — só mantém as propriedades se curtido logo após extração; raramente encontrado à venda.",
+  }),
+  MAT("Cristal de Sol", 1500, 1500, 1500, 1500, 1500, {
+    arma: "(exige uma peça, só corte/perfuração) +2 de dano de fogo.",
+    armadura: "(exige uma peça) Testes de resistência contra frio: rola 2 dados, usa o melhor.",
+    escudo: "(exige uma peça) Testes de resistência contra frio: rola 2 dados, usa o melhor.",
+    esoterico: "(exige uma peça) Ao lançar magia de fogo, gasta 1 PM: quem falhar na resistência fica em chamas (ou, se já ficaria, +1d6 cumulativo no dano das chamas).",
+    geral: "Raro — perde as propriedades depois de algumas semanas sem uso, difícil de achar à venda.",
+  }),
+  MAT("Lanajuste", 3000, 1500, 600, 3000, 1500, {
+    arma: "Ignora penalidade de combate submerso. Pode ser usada por devoto do Oceano sem violar obrigações/restrições.",
+    armadura: "Redução de corte: leve/escudo 5, pesada 10.",
+    escudo: "Redução de corte: leve/escudo 5, pesada 10.",
+    esoterico: "Ao lançar magia de dano de corte, pode rolar de novo qualquer resultado 1 no dano.",
+  }),
+  MAT("Pena de Kraken", null, null, null, null, null, {
+    arma: "(exige uma peça) Em acerto crítico, dano aumenta dois passos (antes de multiplicar).",
+    armadura: "Leve/escudo (1 peça): quem errar ataque corpo a corpo contra você perde 5 PV. Pesada (3 peças): perde 10 PV.",
+    escudo: "Leve/escudo (1 peça): quem errar ataque corpo a corpo contra você perde 5 PV. Pesada (3 peças): perde 10 PV.",
+    esoterico: "(exige uma peça) Se o item já dá algum bônus numérico, esse bônus aumenta em +1.",
+    geral: "Raro e quebradiço no estado bruto — raramente encontrado à venda.",
+  }),
+  MAT("Prata", 1500, 1500, 600, 400, 1500, {
+    arma: "+2 de dano em espíritos e mortos-vivos; conta como mágica pra acertar essas criaturas.",
+    armadura: "Redução de dano contra espíritos/mortos-vivos: leve/escudo 5, pesada 10.",
+    escudo: "Redução de dano contra espíritos/mortos-vivos: leve/escudo 5, pesada 10.",
+    geral: "Por ser um revestimento, pode ser combinada com um 2º material especial (cada um conta como uma melhoria separada).",
   }),
 ];
 

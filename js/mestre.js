@@ -1050,7 +1050,7 @@ function aplicarTesouroEmPersonagem(personagem, tesouro){
   copia[campo] = (parseInt(copia[campo])||0) + tesouro.dinheiro.valor;
   if(tesouro.itemTexto){
     if(!copia.equip) copia.equip = [];
-    copia.equip.push({tipo:'geral', item: tesouro.itemTexto+' (recebido do Mestre)', qtd:'1', carga:'—'});
+    copia.equip.push(montarEntradaMochila(tesouro.itemTexto+' (recebido do Mestre)', 1, tesouro.itemTexto));
   }
   return copia;
 }
@@ -1078,7 +1078,7 @@ async function enviarItemAvulsoParaAlvo(nomeItem, precoTxt){
   if(!alvo){ flashMsg('⚠ Escolha um personagem primeiro.'); return; }
   const copia = JSON.parse(JSON.stringify(alvo));
   if(!copia.equip) copia.equip = [];
-  copia.equip.push({tipo:'geral', item:nomeItem+' (recebido do Mestre)', qtd:'1', carga:'—'});
+  copia.equip.push(montarEntradaMochila(nomeItem+' (recebido do Mestre)', 1, nomeItem));
   const ok = await atualizarPersonagemEResincronizar(copia);
   if(ok){
     flashMsg('✅ '+nomeItem+' enviado pra '+alvo.nome+'!');

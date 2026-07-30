@@ -261,6 +261,14 @@ function validarStep(stepId, w){
       const sub = w.poderConcedidoEscolhaSub||[];
       if(sub.filter(Boolean).length !== escolhaInfo.quantidade) return false;
     }
+    if(['Clérigo','Druida','Paladino'].includes(w.classeNome)){
+      if(!w.poderConcedidoEscolhido2) return false;
+      const escolhaInfo2 = PODER_CONCEDIDO_TREINA_PERICIA_ESCOLHA[w.poderConcedidoEscolhido2];
+      if(escolhaInfo2){
+        const sub2 = w.poderConcedidoEscolhaSub2||[];
+        if(sub2.filter(Boolean).length !== escolhaInfo2.quantidade) return false;
+      }
+    }
     return true;
   }
   if(stepId==='arcanistaCaminho'){
@@ -894,6 +902,43 @@ function stepDivindade(w){
       subPanel.appendChild(el('div',{class:'meta', style:'font-size:0.75rem;color:var(--ink-soft);margin-top:6px;'}, w.poderConcedidoEscolhaSub.length+' / '+escolhaInfo.quantidade+' escolhidas'));
       wrap.appendChild(subPanel);
     }
+
+    // Clérigo, Druida e Paladino recebem DOIS Poderes Concedidos (Devoto Fiel/Abençoado),
+    // não só um — mostra um segundo painel de escolha assim que o primeiro estiver definido.
+    const classesDoisPoderes = ['Clérigo','Druida','Paladino'];
+    if(classesDoisPoderes.includes(w.classeNome) && w.poderConcedidoEscolhido && (!escolhaInfo || w.poderConcedidoEscolhaSub.length===escolhaInfo.quantidade)){
+      const pod2Panel = el('div',{class:'panel'}, el('h2',{},'Escolha o 2º poder concedido'), el('div',{class:'tip', style:'font-size:0.78rem;'}, w.classeNome+' recebe dois Poderes Concedidos, não só um.'));
+      const grid2 = el('div',{class:'option-grid'});
+      deus.poderes.filter(nomePoder=>nomePoder!==w.poderConcedidoEscolhido).forEach(nomePoder=>{
+        const info = PODERES_CONCEDIDOS.find(p=>p.nome===nomePoder);
+        const aberto = w._poder2Expandido === nomePoder;
+        const card = el('button',{class:'option-card '+(w.poderConcedidoEscolhido2===nomePoder?'selected':''), onclick:()=>{ w.poderConcedidoEscolhido2=nomePoder; w._poder2Expandido=nomePoder; w.poderConcedidoEscolhaSub2=[]; render(); }},
+          el('div',{class:'opt-nome'}, nomePoder)
+        );
+        if(aberto) card.appendChild(el('div',{class:'opt-sub'}, info?info.desc:''));
+        grid2.appendChild(card);
+      });
+      pod2Panel.appendChild(grid2);
+      wrap.appendChild(pod2Panel);
+
+      const escolhaInfo2 = w.poderConcedidoEscolhido2 ? PODER_CONCEDIDO_TREINA_PERICIA_ESCOLHA[w.poderConcedidoEscolhido2] : null;
+      if(escolhaInfo2){
+        if(!w.poderConcedidoEscolhaSub2) w.poderConcedidoEscolhaSub2 = [];
+        const subPanel2 = el('div',{class:'panel'}, el('h2',{}, escolhaInfo2.label));
+        const subGrid2 = el('div',{class:'option-grid'});
+        PERICIAS.filter(p=> p.attr===escolhaInfo2.filtroAttr).forEach(p=>{
+          const marcado = w.poderConcedidoEscolhaSub2.includes(p.nome);
+          subGrid2.appendChild(el('button',{class:'option-card '+(marcado?'selected':''), onclick:()=>{
+            if(marcado){ w.poderConcedidoEscolhaSub2 = w.poderConcedidoEscolhaSub2.filter(x=>x!==p.nome); }
+            else if(w.poderConcedidoEscolhaSub2.length < escolhaInfo2.quantidade){ w.poderConcedidoEscolhaSub2 = [...w.poderConcedidoEscolhaSub2, p.nome]; }
+            render();
+          }}, el('div',{class:'opt-nome'}, p.nome)));
+        });
+        subPanel2.appendChild(subGrid2);
+        subPanel2.appendChild(el('div',{class:'meta', style:'font-size:0.75rem;color:var(--ink-soft);margin-top:6px;'}, w.poderConcedidoEscolhaSub2.length+' / '+escolhaInfo2.quantidade+' escolhidas'));
+        wrap.appendChild(subPanel2);
+      }
+    }
   }
   return wrap;
 }
@@ -937,7 +982,11 @@ async function finalizarCriacao(){
   f.jogador = w.jogador; f.nome = w.nome;
   f.raca = w.racaNome; f.origem = w.origemNome || '(sem origem)';
   f.divindade = w.divindadeNome || '';
-  f.poderConcedido = w.poderConcedidoEscolhido ? {nome: w.poderConcedidoEscolhido, deus: w.divindadeNome, sub: (w.poderConcedidoEscolhaSub||[]).slice()} : null;
+  const poderesConcedidos = [];
+  if(w.poderConcedidoEscolhido) poderesConcedidos.push({nome: w.poderConcedidoEscolhido, deus: w.divindadeNome, sub: (w.poderConcedidoEscolhaSub||[]).slice()});
+  if(w.poderConcedidoEscolhido2) poderesConcedidos.push({nome: w.poderConcedidoEscolhido2, deus: w.divindadeNome, sub: (w.poderConcedidoEscolhaSub2||[]).slice()});
+  f.poderesConcedidos = poderesConcedidos;
+  f.poderConcedido = poderesConcedidos[0] || null; // compatibilidade com código antigo que só olha o primeiro
   f.panteaoEnergia = w.divindadeNome==='Panteão' ? w.panteaoEnergia : null;
   f.classesNiveis = [{classe:w.classeNome, nivel:1}];
   if(['Bardo','Druida'].includes(w.classeNome)){
@@ -1004,7 +1053,8 @@ async function finalizarCriacao(){
 
   const origemObj = ORIGENS.find(o=>o.nome===w.origemNome);
   const racaObjFinal = RACAS.find(r=>r.nome===w.racaNome);
-  f.habilidadesIniciais = (racaObjFinal ? racaObjFinal.poderes.map(([nome,desc])=>({fonte:'Raça: '+w.racaNome, nome, desc})) : []);
+  f.habilidadesIniciais = (racaObjFinal ? racaObjFinal.poderes.map(([nome,desc])=>({fonte:'Raça: '+w.racaNome, nome, desc})) : [])
+    .concat([{classe:w.classeNome, nivel:1}].flatMap(c=> (CLASSES[c.classe] && CLASSES[c.classe].habilidadesClasse) ? CLASSES[c.classe].habilidadesClasse.map(([nome,desc])=>({fonte:'Classe: '+c.classe, nome, desc})) : []));
   if(origemObj && origemObj.itens){
     f.habilidadesIniciais.push({fonte:'Origem: '+w.origemNome, nome:'Itens iniciais', desc: origemObj.itens});
   }

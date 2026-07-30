@@ -23,6 +23,16 @@ function renderMenuOverlay(){
     el('span',{class:'ico'}, pendencias.length>0?'⚠️':'📋'),
     el('span',{}, 'Pendências'+(pendencias.length>0?' ('+pendencias.length+') !':''))
   ));
+  sheet.appendChild(el('button',{class:'menu-item', onclick:()=>{ state._menuAberto=false; state._logAberto=true; render(); }},
+    el('span',{class:'ico'}, '📜'), el('span',{}, 'Log de Alterações')
+  ));
+  const temParaDesfazer = !!(state._paraDesfazer && state._paraDesfazer[fichaAtual().id]);
+  sheet.appendChild(el('button',{class:'menu-item', style: temParaDesfazer ? '' : 'opacity:0.45;', onclick:()=>{
+    if(!temParaDesfazer){ flashMsg('Não tem nada recente pra desfazer.'); return; }
+    desfazerUltimaAlteracao(fichaAtual());
+  }},
+    el('span',{class:'ico'}, '↩️'), el('span',{}, 'Desfazer Última Alteração')
+  ));
   sheet.appendChild(el('button',{class:'menu-item', onclick:alternarTemaMesa},
     el('span',{class:'ico'}, document.documentElement.dataset.tema==='mesa'?'☀️':'🌓'), el('span',{}, document.documentElement.dataset.tema==='mesa'?'Modo Padrão':'Modo Mesa (alto contraste)')
   ));
@@ -35,6 +45,33 @@ function renderMenuOverlay(){
 // (normalmente porque a ficha foi criada antes da gente adicionar aquela mecânica). Reaproveita
 // os mesmos blocos de escolha do wizard/level-up, só que gravando direto na ficha existente —
 // não mexe em mais nada (mochila, PV atual, magias, histórico, etc. ficam intocados).
+// Histórico simples do que foi feito na ficha — cada evento vem de registrarLog(), chamado nos
+// pontos de mudança mais relevantes (PV/PM, level up, itens, magias, condições). Só leitura.
+function renderPopupLog(f){
+  const overlay = el('div',{class:'menu-overlay', onclick:(e)=>{ if(e.target===e.currentTarget){ state._logAberto=false; render(); } }});
+  const sheet = el('div',{class:'menu-sheet', style:'max-width:480px;'});
+  sheet.appendChild(el('div',{class:'wizard-title', style:'padding:6px 14px 0;'},'Log de Alterações'));
+  const log = f.log||[];
+  if(log.length===0){
+    sheet.appendChild(el('div',{class:'empty'},'Nada registrado ainda — as próximas mudanças na ficha vão aparecer aqui.'));
+  } else {
+    sheet.appendChild(el('div',{class:'tip', style:'margin:6px 14px;font-size:0.78rem;'}, 'Mostrando as '+log.length+' alterações mais recentes (mais nova primeiro).'));
+    const lista = el('div',{style:'margin:0 14px;'});
+    log.forEach(entrada=>{
+      const data = new Date(entrada.ts);
+      const horaTxt = data.toLocaleDateString('pt-BR')+' '+data.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+      lista.appendChild(el('div',{style:'padding:8px 0;border-bottom:1px solid var(--line);'},
+        el('div',{}, entrada.texto),
+        el('div',{class:'meta', style:'font-size:0.68rem;'}, horaTxt)
+      ));
+    });
+    sheet.appendChild(lista);
+  }
+  sheet.appendChild(el('button',{class:'menu-close', onclick:()=>{ state._logAberto=false; render(); }}, 'Fechar'));
+  overlay.appendChild(sheet);
+  return overlay;
+}
+
 function renderPopupPendencias(f){
   const overlay = el('div',{class:'menu-overlay', onclick:(e)=>{ if(e.target===e.currentTarget){ state._pendenciasAberto=false; state._pendenciaResolvendo=null; render(); } }});
   const sheet = el('div',{class:'menu-sheet', style:'max-width:480px;'});
@@ -59,6 +96,23 @@ function renderPopupPendencias(f){
 
     if(p.tipo==='divindadeForcada'){
       card.appendChild(el('button',{class:'btn', onclick:()=>{ state._pendenciasAberto=false; state._divindadeFluxo={passo:'escolher'}; render(); }}, 'Resolver agora →'));
+    }
+
+    if(p.tipo==='habilidadesClasse'){
+      card.appendChild(el('button',{class:'btn', onclick:()=>{
+        const fontesAtuais = (f.habilidadesIniciais||[]).map(h=>h.fonte);
+        (f.classesNiveis||[]).forEach(c=>{
+          const habs = CLASSES[c.classe] && CLASSES[c.classe].habilidadesClasse;
+          if(habs && !fontesAtuais.includes('Classe: '+c.classe)){
+            habs.forEach(([nome,desc])=>{
+              f.habilidadesIniciais.push({fonte:'Classe: '+c.classe, nome, desc});
+            });
+          }
+        });
+        salvarPerfis();
+        flashMsg('✅ Habilidades de classe adicionadas!');
+        render();
+      }}, 'Resolver agora'));
     }
 
     if(p.tipo==='arcanistaCaminho'){
@@ -203,7 +257,10 @@ function renderFichaScreen(){
   if(state._pendenciasAberto){
     wrap.appendChild(renderPopupPendencias(fichaAtual()));
   }
-  const semMenuAberto = !state._menuAberto && !state._divindadeFluxo && !state._cropperFoto && !(state.levelUp&&state.levelUp.aberto) && !state._enviarItemFluxo && !state._pendenciasAberto;
+  if(state._logAberto){
+    wrap.appendChild(renderPopupLog(fichaAtual()));
+  }
+  const semMenuAberto = !state._menuAberto && !state._divindadeFluxo && !state._cropperFoto && !(state.levelUp&&state.levelUp.aberto) && !state._enviarItemFluxo && !state._pendenciasAberto && !state._logAberto;
   if(estaMorto(f) && semMenuAberto){
     wrap.appendChild(el('div',{class:'aviso-sobrecarga aviso-morte'}, '💀 '+(f.nome||'Personagem')+' morreu.'));
   } else if(estaInconsciente(f) && semMenuAberto){
@@ -386,15 +443,39 @@ function equiparEsotericoDaMochila(idx){
   render();
 }
 function addItemGeral(it, vestir){
-  fichaAtual().equip.push({tipo:'geral', item:it.n, qtd:'1', carga:String(it.esp), vestido:!!vestir});
+  const f = fichaAtual();
+  f.equip.push({tipo:'geral', item:it.n, qtd:'1', carga:String(it.esp), vestido:!!vestir});
+  registrarLog(f, (vestir?'Vestiu: ':'Adicionou à mochila: ')+it.n);
   salvarPerfis();
   flashMsg(vestir ? '"'+it.n+'" vestido — já contando nos 4 slots (aba Ficha).' : '"'+it.n+'" adicionado à mochila (aba Ficha).');
 }
 
 // Adiciona uma poção mágica ou item mágico nomeado (arma/armadura específica, acessório) à
 // mochila — esses itens não têm "equipar" próprio no app (efeitos únicos), então só guardam.
+// Descobre o jeito certo de guardar um item na mochila a partir só do nome — se for uma arma/
+// armadura/escudo mágico específico do catálogo (ex: "Arco do Poder"), conecta com o item base
+// de verdade (dá pra equipar com as estatísticas certas); senão, cai como item genérico comum.
+// `nomeBusca` é o nome "limpo" pra procurar no catálogo (sem sufixo tipo "(recebido do Mestre)"),
+// `nomeExibicao` é o que aparece pro jogador (pode ter o sufixo).
+function montarEntradaMochila(nomeExibicao, esp, nomeBusca){
+  const busca = nomeBusca || nomeExibicao;
+  const armaEsp = (typeof ARMAS_ESPECIFICAS!=='undefined') ? ARMAS_ESPECIFICAS.find(a=>a.nome===busca) : null;
+  if(armaEsp){
+    const base = ARMAS.find(a=>a.n===armaEsp.base);
+    if(base) return {tipo:'arma', ref:base.n, item:nomeExibicao, qtd:'1', carga:String(base.esp||1), superior:true, bonusTesteExtra:0, bonusDanoExtra:0, melhoriasTxt:armaEsp.desc};
+  }
+  const armaduraEsp = (typeof ARMADURAS_ESPECIFICAS!=='undefined') ? ARMADURAS_ESPECIFICAS.find(a=>a.nome===busca) : null;
+  if(armaduraEsp){
+    const baseArmadura = ARMADURAS.find(a=>a.n===armaduraEsp.base);
+    if(baseArmadura) return {tipo:'armadura', ref:baseArmadura.n, item:nomeExibicao, qtd:'1', carga:String(baseArmadura.esp||1), superior:true, bonusDefExtra:0, bonusPenExtra:0, melhoriasTxt:armaduraEsp.desc};
+    const baseEscudo = ESCUDOS.find(a=>a.n===armaduraEsp.base);
+    if(baseEscudo) return {tipo:'escudo', ref:baseEscudo.n, item:nomeExibicao, qtd:'1', carga:String(baseEscudo.esp||1), superior:true, bonusDefExtra:0, bonusPenExtra:0, melhoriasTxt:armaduraEsp.desc};
+  }
+  return {tipo:'geral', item:nomeExibicao, qtd:'1', carga:String(esp||1)};
+}
 function addItemMagicoGenerico(nome, esp){
-  fichaAtual().equip.push({tipo:'geral', item:nome, qtd:'1', carga:String(esp||1)});
+  const f = fichaAtual();
+  f.equip.push(montarEntradaMochila(nome, esp, nome));
   salvarPerfis();
   flashMsg('"'+nome+'" adicionado à mochila (aba Personagem → Mochila).');
 }
@@ -420,6 +501,7 @@ function equiparDaMochila(idx){
     }
     f.armas.push(armaMontada);
     f.equip.splice(idx,1);
+    registrarLog(f, 'Equipou a arma: '+armaMontada.nome);
     flashMsg('"'+armaMontada.nome+'" equipada — adicionada aos seus ataques.');
   } else if(row.tipo==='armadura'){
     const a = ARMADURAS.find(x=>x.n===row.ref);
@@ -430,6 +512,7 @@ function equiparDaMochila(idx){
     f.armadura = {nome: row.superior?row.item:a.n, refBase:a.n, def:a.def+bonusDef, pen:a.pen+bonusPen, cat:a.cat, esp:a.esp, equipado:true,
       superior:!!row.superior, bonusDefExtra:row.bonusDefExtra||0, bonusPenExtra:row.bonusPenExtra||0, melhoriasTxt:row.melhoriasTxt||null};
     f.equip.splice(idx,1);
+    registrarLog(f, 'Equipou a armadura: '+f.armadura.nome);
     flashMsg('"'+f.armadura.nome+'" equipada — sua Defesa foi atualizada.');
   } else if(row.tipo==='escudo'){
     const a = ESCUDOS.find(x=>x.n===row.ref);
@@ -441,6 +524,7 @@ function equiparDaMochila(idx){
     f.escudo = {nome: row.superior?row.item:a.n, refBase:a.n, def:a.def+bonusDefEsc, pen:a.pen+bonusPenEsc, cat:a.cat, esp:a.esp, equipado:true,
       superior:!!row.superior, bonusDefExtra:row.bonusDefExtra||0, bonusPenExtra:row.bonusPenExtra||0, melhoriasTxt:row.melhoriasTxt||null};
     f.equip.splice(idx,1);
+    registrarLog(f, 'Equipou o escudo: '+f.escudo.nome);
     flashMsg('"'+f.escudo.nome+'" equipado — sua Defesa foi atualizada.');
   }
   salvarPerfis();
@@ -485,6 +569,7 @@ function addMagiaFicha(s, tradEscolhida){
     return;
   }
   f.magias.push({...s, tradEscolhida});
+  registrarLog(f, 'Aprendeu a magia: '+s.n);
   salvarPerfis();
   flashMsg('"'+s.n+'" adicionada às suas magias (aba Ficha).');
 }
@@ -498,6 +583,33 @@ function flashSaved(){
   const elMsg = document.getElementById('save-msg');
   if(elMsg){ elMsg.textContent = 'Salvo ✓'; setTimeout(()=>{ if(elMsg) elMsg.textContent=''; }, 1800); }
   flashMsg('✅ Ficha salva!');
+}
+
+// Log de alterações — um histórico simples do que foi feito na ficha, pra quem tá jogando ter
+// uma ideia do que aconteceu (e o Mestre também, ao ver a ficha completa). Guarda só os 50 mais
+// recentes, do mais novo pro mais antigo.
+function registrarLog(f, texto){
+  if(!f.log) f.log = [];
+  f.log.unshift({ts: Date.now(), texto});
+  if(f.log.length > 50) f.log.length = 50;
+}
+
+// Restaura o personagem pro estado de ANTES do último salvamento (guardado automaticamente
+// dentro de salvarPerfis()). Funciona pra qualquer tipo de mudança — PV, level up, item, magia,
+// condição etc. — sem precisar de um botão específico "desfazer level up", "desfazer PV" etc.
+// Só guarda 1 passo pra trás: desfazer de novo logo em seguida volta pro estado anterior a esse
+// (funciona como um "alternar" entre os dois últimos estados, não um histórico longo).
+async function desfazerUltimaAlteracao(f){
+  const anterior = state._paraDesfazer && state._paraDesfazer[f.id];
+  if(!anterior){ flashMsg('Não tem nada recente pra desfazer.'); return; }
+  if(!confirm('Desfazer a última alteração salva nessa ficha? Isso volta pro estado de antes do último salvamento.')) return;
+  const idx = state.perfis.findIndex(p=>p.id===f.id);
+  if(idx<0) return;
+  state.perfis[idx] = JSON.parse(JSON.stringify(anterior));
+  await salvarPerfis();
+  flashMsg('↩️ Última alteração desfeita.');
+  state._menuAberto = false;
+  render();
 }
 
 // ============ RENDER ============
@@ -515,7 +627,7 @@ function renderCampoDivindade(f){
     wrap.appendChild(el('div',{},
       el('label',{},'Divindade'),
       el('div',{class:'valor-fixo'}, f.divindade),
-      f.poderConcedido ? el('div',{class:'meta', style:'color:var(--gold);'}, 'Poder concedido: '+f.poderConcedido.nome) : null,
+      listaPoderesConcedidos(f).length>0 ? el('div',{class:'meta', style:'color:var(--gold);'}, 'Poder'+(listaPoderesConcedidos(f).length>1?'es concedidos: ':' concedido: ')+listaPoderesConcedidos(f).map(pc=>pc.nome).join(', ')) : null,
       el('button',{class:'btn ghost', style:'font-size:0.7rem;padding:5px 8px;margin-top:4px;', onclick:()=>{ state._divindadeFluxo={passo:'escolher'}; render(); }}, 'Trocar divindade')
     ));
   } else {
@@ -538,6 +650,25 @@ function renderCampoDivindade(f){
 
 // Pop-up (modal) com o fluxo de escolher divindade — lista em modo acordeão (toque expande
 // um resumo, toque de novo confirma e avança pra tela seguinte).
+// Decide se, depois de escolher um poder concedido, precisa pedir um SEGUNDO (Clérigo/Druida/
+// Paladino recebem dois) ou se já pode gravar tudo na ficha e fechar o fluxo.
+function finalizarEscolhaPoderConcedido(f, deusNome, poderEscolhido, fluxo, numeroAtual, precisaDoSegundo){
+  if(precisaDoSegundo && numeroAtual===1){
+    state._divindadeFluxo = {passo:'poder', deus:deusNome, numeroPoder:2, poder1:poderEscolhido};
+    state._poderExpandido = null;
+    render();
+    return;
+  }
+  const poderes = numeroAtual===2 ? [fluxo.poder1, poderEscolhido] : [poderEscolhido];
+  f.divindade = deusNome;
+  f.poderesConcedidos = poderes.map(p=>({nome:p.nome, deus:deusNome, sub:p.sub||[]}));
+  f.poderConcedido = f.poderesConcedidos[0];
+  state._divindadeFluxo = null;
+  state._poderExpandido = null;
+  salvarPerfis();
+  flashMsg(numeroAtual===2 ? '✅ Poderes concedidos escolhidos!' : '✅ Poder concedido escolhido!');
+  render();
+}
 function renderPopupDivindade(f, fluxo){
   const overlay = el('div',{class:'menu-overlay', onclick:(e)=>{ if(e.target===e.currentTarget){ state._divindadeFluxo=null; render(); } }});
   const sheet = el('div',{class:'menu-sheet'});
@@ -581,6 +712,7 @@ function renderPopupDivindade(f, fluxo){
         if(!confirm('Abandonar a fé em '+f.divindade+' e ficar sem devoção a nenhuma divindade?')) return;
         f.divindade = null;
         f.poderConcedido = null;
+        f.poderesConcedidos = [];
         f.panteaoEnergia = null;
         state._divindadeFluxo = null;
         salvarPerfis();
@@ -594,11 +726,11 @@ function renderPopupDivindade(f, fluxo){
     sheet.appendChild(el('div',{class:'tip', style:'margin:8px 14px;'}, 'Escolha a energia que canaliza — não pode ser mudada depois.'));
     sheet.appendChild(el('div',{class:'row', style:'margin:8px 14px;'},
       el('button',{class:'btn', onclick:()=>{
-        f.divindade = 'Panteão'; f.poderConcedido = null; f.panteaoEnergia = 'positiva';
+        f.divindade = 'Panteão'; f.poderConcedido = null; f.poderesConcedidos = []; f.panteaoEnergia = 'positiva';
         state._divindadeFluxo = null; salvarPerfis(); flashMsg('✅ Agora você cultua o Panteão (energia positiva).'); render();
       }}, 'Energia Positiva'),
       el('button',{class:'btn', onclick:()=>{
-        f.divindade = 'Panteão'; f.poderConcedido = null; f.panteaoEnergia = 'negativa';
+        f.divindade = 'Panteão'; f.poderConcedido = null; f.poderesConcedidos = []; f.panteaoEnergia = 'negativa';
         state._divindadeFluxo = null; salvarPerfis(); flashMsg('✅ Agora você cultua o Panteão (energia negativa).'); render();
       }}, 'Energia Negativa')
     ));
@@ -615,21 +747,24 @@ function renderPopupDivindade(f, fluxo){
     ));
   } else if(fluxo.passo==='poder'){
     const deus = DEUSES.find(d=>d.nome===fluxo.deus);
-    sheet.appendChild(el('div',{class:'wizard-title', style:'padding:6px 14px 0;'},'Poder concedido de '+deus.nome));
-    deus.poderes.forEach(nomePoder=>{
+    const classesDoisPoderes = ['Clérigo','Druida','Paladino'];
+    const precisaDoSegundo = classesDoisPoderes.some(c=>(f.classesNiveis||[]).some(cn=>cn.classe===c));
+    const numeroAtual = fluxo.numeroPoder || 1;
+    sheet.appendChild(el('div',{class:'wizard-title', style:'padding:6px 14px 0;'}, (numeroAtual===2?'2º poder':'Poder')+' concedido de '+deus.nome));
+    if(numeroAtual===2){
+      sheet.appendChild(el('div',{class:'tip', style:'margin:0 14px 8px;font-size:0.78rem;'}, 'Sua classe recebe dois Poderes Concedidos — 1º já escolhido: '+fluxo.poder1.nome+'.'));
+    }
+    deus.poderes.filter(nomePoder=> numeroAtual!==2 || nomePoder!==fluxo.poder1.nome).forEach(nomePoder=>{
       const info = PODERES_CONCEDIDOS.find(p=>p.nome===nomePoder);
       const aberto = state._poderExpandido === nomePoder;
       const item = el('button',{class:'menu-item'+(aberto?' active':''), onclick:()=>{
         if(aberto){
           const escolhaInfo = PODER_CONCEDIDO_TREINA_PERICIA_ESCOLHA[nomePoder];
           if(escolhaInfo){
-            state._divindadeFluxo = {passo:'escolhaPericia', deus:deus.nome, poder:nomePoder};
+            state._divindadeFluxo = {passo:'escolhaPericia', deus:deus.nome, poder:nomePoder, numeroPoder:numeroAtual, poder1:fluxo.poder1};
             state._divindadeEscolhaSub = [];
           } else {
-            f.divindade = deus.nome;
-            f.poderConcedido = {nome: nomePoder, deus: deus.nome};
-            state._divindadeFluxo = null;
-            salvarPerfis();
+            finalizarEscolhaPoderConcedido(f, deus.nome, {nome:nomePoder}, fluxo, numeroAtual, precisaDoSegundo);
           }
           state._poderExpandido = null;
         } else {
@@ -646,6 +781,9 @@ function renderPopupDivindade(f, fluxo){
     sheet.appendChild(el('button',{class:'menu-close', onclick:()=>{ state._divindadeFluxo=null; state._poderExpandido=null; render(); }}, 'Cancelar'));
   } else if(fluxo.passo==='escolhaPericia'){
     const deus = DEUSES.find(d=>d.nome===fluxo.deus);
+    const classesDoisPoderes2 = ['Clérigo','Druida','Paladino'];
+    const precisaDoSegundo2 = classesDoisPoderes2.some(c=>(f.classesNiveis||[]).some(cn=>cn.classe===c));
+    const numeroAtual2 = fluxo.numeroPoder || 1;
     const escolhaInfo = PODER_CONCEDIDO_TREINA_PERICIA_ESCOLHA[fluxo.poder];
     sheet.appendChild(el('div',{class:'wizard-title', style:'padding:6px 14px 0;'}, escolhaInfo.label));
     if(!state._divindadeEscolhaSub) state._divindadeEscolhaSub = [];
@@ -663,13 +801,8 @@ function renderPopupDivindade(f, fluxo){
     const completo = state._divindadeEscolhaSub.length === escolhaInfo.quantidade;
     sheet.appendChild(el('button',{class:'btn', style: 'margin:0 14px 8px; ' + (completo?'':'opacity:0.5;'), onclick:()=>{
       if(!completo) return;
-      f.divindade = deus.nome;
-      f.poderConcedido = {nome: fluxo.poder, deus: deus.nome, sub: state._divindadeEscolhaSub.slice()};
-      state._divindadeFluxo = null;
-      state._poderExpandido = null;
+      finalizarEscolhaPoderConcedido(f, deus.nome, {nome:fluxo.poder, sub:state._divindadeEscolhaSub.slice()}, fluxo, numeroAtual2, precisaDoSegundo2);
       state._divindadeEscolhaSub = null;
-      salvarPerfis();
-      render();
     }}, 'Confirmar'));
     sheet.appendChild(el('button',{class:'menu-close', onclick:()=>{ state._divindadeFluxo=null; state._poderExpandido=null; state._divindadeEscolhaSub=null; render(); }}, 'Cancelar'));
   }
@@ -1205,8 +1338,9 @@ function renderPersonagemMochila(){
       const rotulo = {arma:'Arma', armadura:'Armadura', escudo:'Escudo', esoterico:'Esotérico', geral:'Item'}[row.tipo] || 'Item';
       const corpo = [];
       if(row.tipo==='geral'){
-        const itemCatalogo = ITENS_GERAIS.find(i=>i.n===row.item);
-        const ehVestivel = itemCatalogo && itemCatalogo.vestivel;
+        const nomeSemSufixo = row.item.replace(' (recebido do Mestre)','');
+        const itemCatalogo = ITENS_GERAIS.find(i=>i.n===nomeSemSufixo);
+        const ehVestivel = (itemCatalogo && itemCatalogo.vestivel) || ACESSORIOS_VESTIVEIS.has(nomeSemSufixo);
         corpo.push(
           el('label',{},'Nome'),
           el('input',{id:'mochila-nome-'+idx, type:'text', value:row.item, oninput:(e)=>{row.item=e.target.value;}, onchange:()=>{salvarPerfis(); render();}}),
@@ -1219,7 +1353,7 @@ function renderPersonagemMochila(){
             (/^\d+$/.test(String(row.qtd).trim()) && parseInt(row.qtd)>0) ? el('button',{class:'btn', onclick:()=> usarItemMochila(f, idx)}, 'Usar (−1) ✨') : null,
             ehVestivel ? el('button',{class:'btn ghost', onclick:()=>{ row.vestido=!row.vestido; salvarPerfis(); render(); }}, row.vestido?'Guardar':'Vestir') : null,
             el('button',{class:'btn ghost', onclick:()=>abrirEnviarItem(idx)}, 'Enviar 📤'),
-            el('button',{class:'btn ghost', onclick:()=>{ if(!confirm('Remover "'+row.item+'" da mochila? Não tem como desfazer.')) return; f.equip.splice(idx,1); salvarPerfis(); render(); }}, 'Remover 🗑️')
+            el('button',{class:'btn ghost', onclick:()=>{ if(!confirm('Remover "'+row.item+'" da mochila? Não tem como desfazer.')) return; registrarLog(f, 'Removeu da mochila: '+row.item); f.equip.splice(idx,1); salvarPerfis(); render(); }}, 'Remover 🗑️')
           )
         );
       } else {
@@ -1231,7 +1365,7 @@ function renderPersonagemMochila(){
           el('div',{class:'row', style:'margin-top:8px;'},
             podeEquipar ? el('button',{class:'btn ghost', onclick:()=> row.tipo==='esoterico' ? equiparEsotericoDaMochila(idx) : equiparDaMochila(idx)}, 'Equipar') : null,
             el('button',{class:'btn ghost', onclick:()=>abrirEnviarItem(idx)}, 'Enviar 📤'),
-            el('button',{class:'btn ghost', onclick:()=>{ if(!confirm('Remover "'+row.item+'" da mochila? Não tem como desfazer.')) return; f.equip.splice(idx,1); salvarPerfis(); render(); }}, 'Remover 🗑️')
+            el('button',{class:'btn ghost', onclick:()=>{ if(!confirm('Remover "'+row.item+'" da mochila? Não tem como desfazer.')) return; registrarLog(f, 'Removeu da mochila: '+row.item); f.equip.splice(idx,1); salvarPerfis(); render(); }}, 'Remover 🗑️')
           )
         );
       }
@@ -1673,7 +1807,7 @@ function renderPersonagemMagias(){
     magPanel.appendChild(el('div',{class:'empty'},'Nenhuma magia adicionada ainda. Vá no Menu → Magias pra buscar e adicionar.'));
   } else {
     f.magias.forEach((s,idx)=>{
-      const card = renderCardMagia(s, 'minhas', null, ()=>{ if(!confirm('Remover "'+s.n+'" das suas magias conhecidas? Não tem como desfazer.')) return; f.magias.splice(idx,1); salvarPerfis(); render(); }, f);
+      const card = renderCardMagia(s, 'minhas', null, ()=>{ if(!confirm('Remover "'+s.n+'" das suas magias conhecidas? Não tem como desfazer.')) return; registrarLog(f, 'Esqueceu a magia: '+s.n); f.magias.splice(idx,1); salvarPerfis(); render(); }, f);
       if(f.arcanistaCaminho==='Mago'){
         const memorizada = (f.magiasMemorizadas||[]).includes(s.n);
         card.querySelector('.head .name')?.appendChild(el('span',{class:'pill', style:'margin-left:6px;background:'+(memorizada?'#2e5e3e':'#4a3a1e')+';color:#e8f5e9;'}, memorizada?'📖 memorizada':'não memorizada'));

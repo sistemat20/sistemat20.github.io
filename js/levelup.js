@@ -279,6 +279,7 @@ async function aplicarLevelUp(f){
   const lv = state.levelUp;
   const entradaAtual = (f.classesNiveis||[]).find(c=>c.classe===lv.classeEscolhida);
   const novoNivel = entradaAtual ? entradaAtual.nivel+1 : 1;
+  registrarLog(f, 'Level up: '+lv.classeEscolhida+' nível '+novoNivel+(entradaAtual?'':' (nova classe)'));
   if(entradaAtual){ entradaAtual.nivel = novoNivel; }
   else { f.classesNiveis.push({classe:lv.classeEscolhida, nivel:1}); }
   if(lv.classeEscolhida==='Arcanista' && lv.arcanistaCaminho && !f.arcanistaCaminho){

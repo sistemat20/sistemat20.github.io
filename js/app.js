@@ -212,12 +212,20 @@ const PODER_CONCEDIDO_TREINA_PERICIA_FIXA = {};
 const PODER_CONCEDIDO_TREINA_PERICIA_ESCOLHA = {
   'Conhecimento Enciclopédico': { quantidade:2, filtroAttr:'Int', label:'Quais 2 perícias baseadas em Inteligência?' },
 };
+// Retorna a lista de poderes concedidos do personagem — usa o array novo (f.poderesConcedidos),
+// e cai pro campo singular antigo (f.poderConcedido) se for uma ficha de antes dessa mudança.
+function listaPoderesConcedidos(f){
+  if(Array.isArray(f.poderesConcedidos) && f.poderesConcedidos.length>0) return f.poderesConcedidos;
+  return f.poderConcedido ? [f.poderConcedido] : [];
+}
 function bonusPericiaDeDivindade(f, periciaNome){
-  if(!f.poderConcedido || !f.poderConcedido.nome) return 0;
-  const regras = PODER_CONCEDIDO_BONUS_PERICIA[f.poderConcedido.nome];
-  if(!regras) return 0;
   let total = 0;
-  regras.forEach(([alvo,valor])=>{ if(alvo===periciaNome) total += valor; });
+  listaPoderesConcedidos(f).forEach(pc=>{
+    if(!pc || !pc.nome) return;
+    const regras = PODER_CONCEDIDO_BONUS_PERICIA[pc.nome];
+    if(!regras) return;
+    regras.forEach(([alvo,valor])=>{ if(alvo===periciaNome) total += valor; });
+  });
   return total;
 }
 // Retorna o conjunto EFETIVO de perícias treinadas, somando o que o poder concedido atual dá.
@@ -226,13 +234,14 @@ function bonusPericiaDeDivindade(f, periciaNome){
 // o mesmo poder nunca duplica nada.
 function periciasTreinadasComDivindade(f){
   const set = new Set(f.periciasTreinadas||[]);
-  if(f.poderConcedido && f.poderConcedido.nome){
-    const fixa = PODER_CONCEDIDO_TREINA_PERICIA_FIXA[f.poderConcedido.nome];
+  listaPoderesConcedidos(f).forEach(pc=>{
+    if(!pc || !pc.nome) return;
+    const fixa = PODER_CONCEDIDO_TREINA_PERICIA_FIXA[pc.nome];
     if(fixa) fixa.forEach(p=>set.add(p));
-    if(PODER_CONCEDIDO_TREINA_PERICIA_ESCOLHA[f.poderConcedido.nome] && Array.isArray(f.poderConcedido.sub)){
-      f.poderConcedido.sub.forEach(p=>{ if(p) set.add(p); });
+    if(PODER_CONCEDIDO_TREINA_PERICIA_ESCOLHA[pc.nome] && Array.isArray(pc.sub)){
+      pc.sub.forEach(p=>{ if(p) set.add(p); });
     }
-  }
+  });
   return set;
 }
 
@@ -313,6 +322,7 @@ function ajustarPV(f, delta){
   // Constituição — "sangrando de novo", não fica estabilizado de graça.
   if(delta<0 && novo<=0) f.estabilizado = false;
   if(novo>0) f.estabilizado = false; // volta consciente, o estado de sangramento não importa mais
+  if(novo!==atual) registrarLog(f, (delta>0?'+':'')+delta+' PV ('+atual+' → '+novo+')');
   f.pvatual = novo;
   salvarPerfis(); render();
 }
@@ -330,7 +340,9 @@ function estabilizarPersonagem(f){
 function ajustarPM(f, delta){
   const max = parseInt(f.pmmax)||0;
   const atual = parseInt(f.pmatual)||0;
-  f.pmatual = Math.max(0, Math.min(max, atual+delta));
+  const novo = Math.max(0, Math.min(max, atual+delta));
+  if(novo!==atual) registrarLog(f, (delta>0?'+':'')+delta+' PM ('+atual+' → '+novo+')');
+  f.pmatual = novo;
   salvarPerfis(); render();
 }
 
@@ -611,6 +623,17 @@ const PENDENCIAS_DEFINICOES = [
     detecta: (f)=> (f.classesNiveis||[]).some(c=>['Clérigo','Druida','Paladino'].includes(c.classe)) && !f.divindade,
     resumo: 'Clérigo, Druida e Paladino são devotos automáticos de uma divindade (ou, só pro Clérigo, podem cultuar o Panteão) — esse personagem está sem fé, o que não deveria ser possível pra classe dele.',
   },
+  {
+    tipo: 'habilidadesClasse',
+    titulo: 'Habilidades Automáticas de Classe',
+    detecta: (f)=>{
+      const classesComHab = (f.classesNiveis||[]).filter(c=> CLASSES[c.classe] && CLASSES[c.classe].habilidadesClasse && CLASSES[c.classe].habilidadesClasse.length>0);
+      if(classesComHab.length===0) return false;
+      const fontesAtuais = (f.habilidadesIniciais||[]).map(h=>h.fonte);
+      return classesComHab.some(c=> !fontesAtuais.includes('Classe: '+c.classe));
+    },
+    resumo: 'A ficha foi criada antes da gente catalogar as habilidades automáticas de classe (tipo Inspiração do Bardo, Fúria do Bárbaro etc.) — estão faltando na lista de Habilidades Iniciais.',
+  },
 ];
 function detectarPendencias(f){
   return PENDENCIAS_DEFINICOES.filter(p=>p.detecta(f));
@@ -751,7 +774,8 @@ function condicoesAtivas(f){ return f.condicoesAtivas || []; }
 function alternarCondicao(f, nome){
   if(!f.condicoesAtivas) f.condicoesAtivas = [];
   const idx = f.condicoesAtivas.indexOf(nome);
-  if(idx>=0) f.condicoesAtivas.splice(idx,1); else f.condicoesAtivas.push(nome);
+  if(idx>=0){ f.condicoesAtivas.splice(idx,1); registrarLog(f, 'Removeu a condição: '+nome); }
+  else { f.condicoesAtivas.push(nome); registrarLog(f, 'Ganhou a condição: '+nome); }
   salvarPerfis(); render();
 }
 
@@ -839,7 +863,11 @@ function todosOsPoderesComDesc(f){
   if(f.poderGeral){ const info = PODERES_GERAIS.find(x=>x.nome===f.poderGeral.nome); lista.push({nome:f.poderGeral.nome, desc:(info&&info.desc)||''}); }
   if(f.poderGeralExtra){ const info = PODERES_GERAIS.find(x=>x.nome===f.poderGeralExtra.nome); lista.push({nome:f.poderGeralExtra.nome, desc:(info&&info.desc)||''}); }
   if(f.poderRaca){ const info = PODERES_GERAIS.find(x=>x.nome===f.poderRaca.nome); lista.push({nome:f.poderRaca.nome, desc:(info&&info.desc)||''}); }
-  if(f.poderConcedido){ const info = (typeof PODERES_CONCEDIDOS!=='undefined') ? PODERES_CONCEDIDOS.find(x=>x.nome===f.poderConcedido.nome) : null; lista.push({nome:f.poderConcedido.nome, desc:(info&&info.desc)||''}); }
+  listaPoderesConcedidos(f).forEach(pc=>{
+    if(!pc || !pc.nome) return;
+    const info = (typeof PODERES_CONCEDIDOS!=='undefined') ? PODERES_CONCEDIDOS.find(x=>x.nome===pc.nome) : null;
+    lista.push({nome:pc.nome, desc:(info&&info.desc)||''});
+  });
   return lista;
 }
 function poderesComLimiteUso(f){
@@ -1087,16 +1115,43 @@ function aplicarMigracoesPerfis(){
   state.perfis.forEach(f=>{
     if(!f.habilidadesIniciais){
       const racaObj = getRacaObj(f);
-      f.habilidadesIniciais = racaObj ? racaObj.poderes.map(([nome,desc])=>({fonte:'Raça: '+f.raca, nome, desc})) : [];
+      f.habilidadesIniciais = (racaObj ? racaObj.poderes.map(([nome,desc])=>({fonte:'Raça: '+f.raca, nome, desc})) : [])
+        .concat((f.classesNiveis||[]).flatMap(c=> (CLASSES[c.classe] && CLASSES[c.classe].habilidadesClasse) ? CLASSES[c.classe].habilidadesClasse.map(([nome,desc])=>({fonte:'Classe: '+c.classe, nome, desc})) : []));
     }
   });
 }
 async function carregarPerfis(){
   state.perfis = await carregarPerfisArmazenamento();
   aplicarMigracoesPerfis();
+  state._ultimoEstadoSalvo = {};
+  (state.perfis||[]).forEach(p=>{ state._ultimoEstadoSalvo[p.id] = JSON.parse(JSON.stringify(p)); });
 }
 async function salvarPerfis(){
+  // "Desfazer" precisa saber qual era o estado de CADA personagem antes deste save. Guardamos
+  // sempre uma cópia do "último estado salvo conhecido" (state._ultimoEstadoSalvo); antes de
+  // sobrescrever, ela vira o alvo de desfazer (state._paraDesfazer) — e só depois é atualizada
+  // pro que acabamos de salvar, pronta pra servir de referência da PRÓXIMA mudança.
+  if(!state._ultimoEstadoSalvo) state._ultimoEstadoSalvo = {};
+  if(!state._paraDesfazer) state._paraDesfazer = {};
+  (state.perfis||[]).forEach(p=>{
+    if(state._ultimoEstadoSalvo[p.id]){
+      state._paraDesfazer[p.id] = state._ultimoEstadoSalvo[p.id];
+    }
+  });
+
   await salvarPerfisArmazenamento(state.perfis);
+
+  (state.perfis||[]).forEach(p=>{
+    state._ultimoEstadoSalvo[p.id] = JSON.parse(JSON.stringify(p));
+  });
+  // Depois de salvar, local e servidor ficam em sincronia — atualiza o "retrato" de moeda
+  // conhecido, senão o próximo ciclo de atualização automática compara contra um valor antigo
+  // e acha, por engano, que o Mestre acabou de mandar dinheiro (quando foi o próprio jogador
+  // que editou e salvou).
+  if(!state._ultimoServidorMoeda) state._ultimoServidorMoeda = {};
+  (state.perfis||[]).forEach(p=>{
+    state._ultimoServidorMoeda[p.id] = {ts:p.ts, tc:p.tc, to:p.to};
+  });
 }
 
 // ---- Notificação de "o Mestre te mandou algo" ----
@@ -1130,13 +1185,22 @@ function iniciarAtualizacaoAutomaticaJogador(){
           precisaRender = true;
         }
       }
+      // Moedas: compara contra o último valor que a GENTE MESMA viu vir do servidor (não contra
+      // o valor local atual, que pode estar sendo editado agora e ainda não foi salvo). Assim,
+      // um presente de verdade do Mestre soma por cima da edição em andamento, em vez de
+      // sobrescrever e "desfazer" o que o jogador estava digitando.
+      if(!state._ultimoServidorMoeda) state._ultimoServidorMoeda = {};
+      if(!state._ultimoServidorMoeda[fAtual.id]) state._ultimoServidorMoeda[fAtual.id] = {ts:fNovo.ts, tc:fNovo.tc, to:fNovo.to};
+      const snapshot = state._ultimoServidorMoeda[fAtual.id];
       ['ts','tc','to'].forEach(campo=>{
-        const antes = parseInt(fAtual[campo])||0, depois = parseInt(fNovo[campo])||0;
-        if(depois > antes){
-          flashMsg('💰 '+fAtual.nome+' recebeu +'+(depois-antes)+' '+(campo==='ts'?'T$':campo==='tc'?'TC':'TO')+'!');
-          fAtual[campo] = depois;
+        const servidorAntes = parseInt(snapshot[campo])||0, servidorDepois = parseInt(fNovo[campo])||0;
+        if(servidorDepois > servidorAntes){
+          const delta = servidorDepois - servidorAntes;
+          flashMsg('💰 '+fAtual.nome+' recebeu +'+delta+' '+(campo==='ts'?'T$':campo==='tc'?'TC':'TO')+'!');
+          fAtual[campo] = (parseInt(fAtual[campo])||0) + delta;
           precisaRender = true;
         }
+        snapshot[campo] = servidorDepois;
       });
     });
     if(precisaRender){ salvarNoLocalStorage(state.perfis); render(); }
