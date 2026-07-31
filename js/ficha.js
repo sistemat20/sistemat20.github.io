@@ -33,6 +33,9 @@ function renderMenuOverlay(){
   }},
     el('span',{class:'ico'}, '↩️'), el('span',{}, 'Desfazer Última Alteração')
   ));
+  sheet.appendChild(el('button',{class:'menu-item', onclick:()=>{ alternarNotificacaoSom(); render(); }},
+    el('span',{class:'ico'}, notificacaoSomAtiva()?'🔔':'🔕'), el('span',{}, notificacaoSomAtiva()?'Aviso Sonoro/Vibração: Ligado':'Aviso Sonoro/Vibração: Desligado')
+  ));
   sheet.appendChild(el('button',{class:'menu-item', onclick:alternarTemaMesa},
     el('span',{class:'ico'}, document.documentElement.dataset.tema==='mesa'?'☀️':'🌓'), el('span',{}, document.documentElement.dataset.tema==='mesa'?'Modo Padrão':'Modo Mesa (alto contraste)')
   ));
@@ -312,10 +315,54 @@ function renderFichaScreen(){
   return wrap;
 }
 
+// Patamares de progressão (Novato/Veterano/Campeão/Lenda) — usados na trilha de progressão e
+// também na moldura do retrato (fica com a cor do patamar atual do personagem).
+const PATAMARES = [
+  {nome:'Novato', de:1, ate:4, cor:'#7c1f1f'},
+  {nome:'Veterano', de:5, ate:10, cor:'#8a6a1e'},
+  {nome:'Campeão', de:11, ate:16, cor:'#2c3a52'},
+  {nome:'Lenda', de:17, ate:20, cor:'#3b5c3b'},
+];
+function patamarAtual(nivel){
+  return PATAMARES.find(p=> nivel>=p.de && nivel<=p.ate) || PATAMARES[0];
+}
+
 function flashMsg(msg){
   state.addMsg = msg;
   render();
   setTimeout(()=>{ if(state.addMsg===msg){ state.addMsg=''; render(); } }, 2200);
+}
+
+// Aviso "o Mestre te mandou algo" — além do toast na tela, toca um som curto e vibra (se o
+// aparelho suportar), pra não passar batido quando o celular tá de lado sem estar olhando.
+// Pode ser desligado no Menu; a preferência fica salva no aparelho (não na ficha).
+const CHAVE_NOTIFICACAO_SOM = 'painel_aventureiro_notif_som';
+function notificacaoSomAtiva(){
+  try{ return localStorage.getItem(CHAVE_NOTIFICACAO_SOM) !== 'off'; }catch(e){ return true; }
+}
+function alternarNotificacaoSom(){
+  const ligar = !notificacaoSomAtiva();
+  try{ localStorage.setItem(CHAVE_NOTIFICACAO_SOM, ligar ? 'on' : 'off'); }catch(e){}
+  flashMsg(ligar ? '🔔 Aviso sonoro/vibração ligado.' : '🔕 Aviso sonoro/vibração desligado.');
+}
+function tocarSomNotificacao(){
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = 'sine'; osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.16, ctx.currentTime+0.03);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.55);
+    osc.start(); osc.stop(ctx.currentTime+0.6);
+  }catch(e){ /* navegador sem suporte a áudio — sem problema, o toast/vibração continuam */ }
+}
+function notificarComSom(msg){
+  flashMsg(msg);
+  if(!notificacaoSomAtiva()) return;
+  if(navigator.vibrate){ try{ navigator.vibrate([90,60,90]); }catch(e){} }
+  tocarSomNotificacao();
 }
 
 function montarArmaEquipada(w){
@@ -817,11 +864,14 @@ function renderPersonagemFicha(){
   wrap.appendChild(el('div',{class:'panel faixa'},
     el('h2',{},'Personagem'),
     el('div',{class:'foto-row'},
-      el('label',{class:'foto-upload'},
+      el('label',{class:'foto-upload', style:'border-color:'+patamarAtual(nivelTotal(f)).cor+';box-shadow:0 0 0 3px var(--bg-2), 0 0 0 5px '+patamarAtual(nivelTotal(f)).cor+', inset 0 0 14px rgba(0,0,0,0.45), 0 3px 8px var(--shadow);'},
         f.foto ? el('img',{src:f.foto}) : el('span',{class:'foto-placeholder'},'📷'),
         el('input',{type:'file', accept:'image/*', style:'display:none;', onchange:(e)=>{ if(e.target.files[0]) handleFotoUpload(f, e.target.files[0]); }})
       ),
-      el('div',{class:'meta'}, f.foto ? 'Toque na foto pra trocar' : 'Toque pra adicionar uma foto')
+      el('div',{},
+        el('div',{class:'meta'}, f.foto ? 'Toque na foto pra trocar' : 'Toque pra adicionar uma foto'),
+        el('div',{class:'meta', style:'color:'+patamarAtual(nivelTotal(f)).cor+';font-weight:700;margin-top:2px;'}, '◆ '+patamarAtual(nivelTotal(f)).nome)
+      )
     ),
     el('div',{class:'row'},
       el('div',{style:'flex:1;'}, el('label',{},'Jogador'), bindInput(f,'jogador')),
@@ -1103,6 +1153,7 @@ function renderPersonagemNotas(){
 
   wrap.appendChild(renderPainelMissoes(f));
   wrap.appendChild(renderPainelFaccoes(f));
+  wrap.appendChild(renderPainelRelacionamentos(f));
   wrap.appendChild(renderPainelLocais(f));
 
   wrap.appendChild(el('div',{class:'panel'},
@@ -1168,6 +1219,49 @@ function renderPainelFaccoes(f){
     state._novaFaccaoNome = '';
     salvarPerfis(); render();
   }}, 'Adicionar facção +'));
+  return wrap;
+}
+
+// ---- Relacionamentos: PNJs importantes pro personagem (aliados, rivais, família...) ----
+const TIPOS_RELACIONAMENTO = ['Aliado','Rival','Família','Mentor','Amor','Outro'];
+const ICONE_RELACIONAMENTO = {Aliado:'🤝', Rival:'⚔️', Família:'👪', Mentor:'📖', Amor:'❤️', Outro:'👤'};
+function renderPainelRelacionamentos(f){
+  if(!f.relacionamentos) f.relacionamentos = [];
+  const wrap = el('div',{class:'panel'}, el('h2',{},'Relacionamentos'));
+  wrap.appendChild(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'PNJs importantes pro seu personagem — aliados, rivais, família, quem for. Toque num nome pra ver/editar a nota.'));
+  if(f.relacionamentos.length===0){
+    wrap.appendChild(el('div',{class:'empty'},'Nenhum relacionamento anotado ainda.'));
+  } else {
+    f.relacionamentos.forEach((rel,idx)=>{
+      const aberto = state._relacionamentoAberto === idx;
+      const card = el('div',{class:'option-card', style:'margin-top:8px;cursor:pointer;', onclick:(e)=>{ if(e.target.closest('button')) return; state._relacionamentoAberto = aberto?null:idx; render(); }},
+        el('div',{class:'row', style:'align-items:center;'},
+          el('div',{style:'flex:1;'},
+            el('div',{class:'opt-nome'}, ICONE_RELACIONAMENTO[rel.tipo]||'👤', ' ', rel.nome),
+            el('div',{class:'opt-sub'}, rel.tipo)
+          ),
+          el('button',{class:'remove-x', onclick:()=>{ if(!confirm('Remover "'+rel.nome+'" dos relacionamentos?')) return; f.relacionamentos.splice(idx,1); salvarPerfis(); render(); }},'✕')
+        )
+      );
+      if(aberto){
+        card.appendChild(el('input',{type:'text', value:rel.nome, placeholder:'nome do PNJ', style:'margin-top:8px;', oninput:(e)=>{rel.nome=e.target.value;}, onchange:()=>{salvarPerfis(); render();}, onclick:(e)=>e.stopPropagation()}));
+        const selTipo = el('select',{style:'margin-top:6px;', onchange:(e)=>{rel.tipo=e.target.value; salvarPerfis(); render();}, onclick:(e)=>e.stopPropagation()});
+        TIPOS_RELACIONAMENTO.forEach(t=> selTipo.appendChild(el('option',{value:t, ...(rel.tipo===t?{selected:'selected'}:{})}, t)));
+        card.appendChild(selTipo);
+        card.appendChild(textareaAutoResize({oninput:(e)=>{rel.nota=e.target.value;}, onchange:()=>salvarPerfis(), onclick:(e)=>e.stopPropagation(), placeholder:'quem é, como se conheceram, o que sente por essa pessoa...'}, rel.nota||''));
+      }
+      wrap.appendChild(card);
+    });
+  }
+  if(!state._novoRelNome) state._novoRelNome = '';
+  wrap.appendChild(el('input',{id:'novo-rel-nome', type:'text', placeholder:'nome do PNJ...', style:'margin-top:10px;', value:state._novoRelNome, oninput:(e)=>{state._novoRelNome=e.target.value;}}));
+  wrap.appendChild(el('button',{class:'btn ghost', onclick:()=>{
+    if(!state._novoRelNome.trim()) return;
+    f.relacionamentos.push({nome:state._novoRelNome.trim(), tipo:'Aliado', nota:''});
+    registrarLog(f, 'Novo relacionamento anotado: '+state._novoRelNome.trim());
+    state._novoRelNome = '';
+    salvarPerfis(); render();
+  }}, 'Adicionar relacionamento +'));
   return wrap;
 }
 
@@ -2050,12 +2144,6 @@ function renderGuia(){
 
   // Trilha de progressão com patamares (Novato/Veterano/Campeão/Lenda), como na ficha oficial
   const tablePanel = el('div',{class:'panel faixa'}, el('h2',{},'Progressão (1º ao 20º)'));
-  const PATAMARES = [
-    {nome:'Novato', de:1, ate:4, cor:'#7c1f1f'},
-    {nome:'Veterano', de:5, ate:10, cor:'#8a6a1e'},
-    {nome:'Campeão', de:11, ate:16, cor:'#2c3a52'},
-    {nome:'Lenda', de:17, ate:20, cor:'#3b5c3b'},
-  ];
   PATAMARES.forEach(pat=>{
     const linhasPatamar = cls.tabela.filter(t=> t.nivel>=pat.de && t.nivel<=pat.ate);
     if(linhasPatamar.length===0) return;

@@ -30,7 +30,7 @@ function pararAtualizacaoAutomaticaMestre(){
 
 // As 9 telas do Mestre, agrupadas em 3 categorias — evita uma barra de abas gigante.
 const CATEGORIAS_MESTRE = {
-  combate: {label:'Combate', abas:[['combate','Combate'],['preparar','Preparar Encontro'],['grupo','Grupo']]},
+  combate: {label:'Combate', abas:[['combate','Combate'],['grade','Grade de Combate'],['preparar','Preparar Encontro'],['grupo','Grupo']]},
   bestiario: {label:'Bestiário', abas:[['bestiario','Bestiário'],['npc','NPC Rápido'],['nomes','Nomes']]},
   recursos: {label:'Recursos', abas:[['tesouro','Tesouro'],['loja','Loja'],['itens','Itens'],['magicos','Itens Mágicos']]},
 };
@@ -65,6 +65,7 @@ function renderMestreScreen(){
 
   const main = el('main',{});
   if(state.mestreTab==='combate') main.appendChild(renderMestreCombate());
+  if(state.mestreTab==='grade') main.appendChild(renderMestreGrade());
   if(state.mestreTab==='preparar') main.appendChild(renderMestrePreparar());
   if(state.mestreTab==='grupo') main.appendChild(renderMestreGrupo());
   if(state.mestreTab==='bestiario') main.appendChild(renderMestreBestiario());
@@ -513,6 +514,42 @@ function nivelMedioDoGrupoAtual(){
   const soma = membros.reduce((s,p)=> s+nivelTotal(p), 0);
   return Math.max(1, Math.round(soma/membros.length));
 }
+// Combina o ND de várias criaturas num "ND de combate" só, seguindo a regra da pág. 282: pra
+// ND<1, soma direto (multiplicado pela quantidade); pra ND>=1, +2 a cada vez que a quantidade
+// dobra. Quando o encontro mistura criaturas DIFERENTES, soma a contribuição de cada uma
+// separadamente — o livro só cobre grupos de uma criatura igual, isso aqui é uma extensão
+// razoável pra grupos mistos, não é 100% RAW.
+function ndCombateTotal(criaturas){
+  if(!criaturas || criaturas.length===0) return 0;
+  const grupos = {};
+  criaturas.forEach(c=>{
+    const nd = (c.nd===20.5?20:c.nd);
+    if(!grupos[c.nome]) grupos[c.nome] = {nd, qtd:0};
+    grupos[c.nome].qtd++;
+  });
+  let total = 0;
+  Object.values(grupos).forEach(g=>{
+    if(g.nd < 1) total += g.nd * g.qtd;
+    else total += g.nd + 2*Math.log2(g.qtd);
+  });
+  return total;
+}
+// Balanço do encontro: compara o ND combinado do encontro montado contra o que seria
+// "equilibrado" pro grupo ATUAL (nível médio + ajuste pela quantidade de jogadores — a regra
+// só é calibrada pra 4; cada jogador a mais/a menos desloca o alvo em ~1 ND, aproximação nossa
+// já que o livro não dá um número exato pra isso).
+function balancoEncontro(ndEncontroCombinado){
+  const nivelGrupo = nivelMedioDoGrupoAtual();
+  const qtdJogadores = personagensDoGrupoAtual().length || 4;
+  const ndAlvo = Math.max(0.25, nivelGrupo + (qtdJogadores-4));
+  const diff = ndEncontroCombinado - ndAlvo;
+  let nivel, cor, texto;
+  if(diff <= -3){ nivel='facil'; cor='var(--pm-accent)'; texto='Fácil'; }
+  else if(diff <= 2){ nivel='equilibrado'; cor='var(--gold)'; texto='Equilibrado'; }
+  else if(diff <= 5){ nivel='dificil'; cor='#e0955a'; texto='Difícil'; }
+  else { nivel='mortal'; cor='var(--red-bright)'; texto='Mortal ☠️'; }
+  return {nivel, cor, texto, ndAlvo, diff};
+}
 function renderEncontroAleatorio(combate){
   const panel = el('div',{class:'panel faixa'}, el('h2',{},'Encontro Aleatório 🎲'));
   const nivelGrupo = nivelMedioDoGrupoAtual();
@@ -593,6 +630,12 @@ function renderEncontrosSalvos(combate){
           el('button',{class:'remove-x', onclick:()=>{ rasc.criaturas.splice(idx,1); render(); }},'✕')
         ));
       });
+      const ndCombinado = ndCombateTotal(rasc.criaturas);
+      const balanco = balancoEncontro(ndCombinado);
+      wrap.appendChild(el('div',{class:'tip', style:'margin-top:8px;border:1px solid '+balanco.cor+';'},
+        el('b',{style:'color:'+balanco.cor+';'}, '⚖️ '+balanco.texto),
+        ' — ND de combate ≈ '+ndTexto(ndMaisProximo(ndCombinado))+' (grupo atual pede por volta de ND '+ndTexto(ndMaisProximo(balanco.ndAlvo))+', considerando nível médio e quantidade de jogadores).'
+      ));
     }
 
     if(!state._mestreEncontroRascunhoBusca) state._mestreEncontroRascunhoBusca = '';
@@ -632,10 +675,12 @@ function renderEncontrosSalvos(combate){
   }
   state._mestreEncontrosSalvos.forEach(enc=>{
     const ndTotal = enc.criaturas.reduce((s,c)=>s+ (c.nd===20.5?20:c.nd), 0);
+    const balancoSalvo = balancoEncontro(ndCombateTotal(enc.criaturas));
     wrap.appendChild(el('div',{class:'row', style:'align-items:center;margin-top:6px;'},
       el('div',{style:'flex:1;'},
         el('div',{style:'font-weight:700;'}, enc.nome),
-        el('div',{class:'meta'}, enc.criaturas.length+' criatura'+(enc.criaturas.length>1?'s':'')+': '+enc.criaturas.map(c=>c.nome).join(', '))
+        el('div',{class:'meta'}, enc.criaturas.length+' criatura'+(enc.criaturas.length>1?'s':'')+': '+enc.criaturas.map(c=>c.nome).join(', ')),
+        el('div',{class:'meta', style:'color:'+balancoSalvo.cor+';font-weight:700;'}, '⚖️ '+balancoSalvo.texto+' pro grupo atual')
       ),
       el('button',{class:'btn ghost', style:'width:auto;padding:6px 12px;flex-shrink:0;', onclick:()=>{
         enc.criaturas.forEach(c=>{
@@ -662,6 +707,124 @@ function renderEncontrosSalvos(combate){
 }
 
 // ---- COMBATE (tela ao vivo — só quem já foi enviado da Preparação) ----
+// ---- GRADE DE COMBATE ----
+// Um tabuleiro simples (não substitui um VTT de verdade) pra visualizar posição relativa dos
+// combatentes, desenhar paredes (fina = passa dano à distância mas não movimento; grossa = não
+// passa nada) e ver o alcance de uma arma/magia a partir de um token. Guardado dentro do próprio
+// combate (state._mestreIniciativa.grade), assim reseta junto quando o combate termina.
+const GRADE_LARGURA = 14, GRADE_ALTURA = 10;
+const ALCANCES_QUADROS = {curto:6, medio:20, longo:60}; // 1 quadrado = 1,5m (regra pág. 148)
+function garantirGrade(combate){
+  if(!combate.grade){
+    combate.grade = { paredes:{}, posicoes:{} };
+  }
+  return combate.grade;
+}
+function corTokenPorTipo(tipo){
+  return tipo==='pj' ? 'var(--pm-accent)' : tipo==='monstro' ? 'var(--red-bright)' : 'var(--gold)';
+}
+function renderMestreGrade(){
+  const wrap = el('div',{});
+  if(!state._mestreIniciativa) state._mestreIniciativa = {combatentes:[], turnoIdx:0, rodada:1};
+  const combate = state._mestreIniciativa;
+  const grade = garantirGrade(combate);
+
+  if(combate.combatentes.length===0){
+    wrap.appendChild(el('div',{class:'tip'}, el('b',{},'Nada em combate ainda'), 'Monte o encontro em "Preparar Encontro" e mande pro combate — os tokens aparecem aqui automaticamente.'));
+    return wrap;
+  }
+
+  wrap.appendChild(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Tabuleiro de apoio — não substitui um mapa de verdade, mas ajuda a ver posição relativa. 1 quadrado = 1,5m. Escolha um modo, depois toque no tabuleiro.'));
+
+  if(!state._gradeModo) state._gradeModo = 'mover';
+  const modos = [['mover','🚶 Mover'],['parede_fina','🧱 Parede Fina'],['parede_grossa','🟫 Parede Grossa'],['apagar','🧹 Apagar'],['alcance','📏 Alcance']];
+  const modoRow = el('div',{class:'tab-grid'});
+  modos.forEach(([id,label])=>{
+    modoRow.appendChild(el('button',{class: state._gradeModo===id?'on':'', onclick:()=>{ state._gradeModo=id; render(); }}, label));
+  });
+  wrap.appendChild(modoRow);
+
+  // Lista de combatentes ainda sem posição na grade (pra "chegarem" nela) + já posicionados,
+  // como chips selecionáveis quando o modo pede escolher UM combatente (mover/alcance).
+  if(state._gradeModo==='mover' || state._gradeModo==='alcance'){
+    if(!state._gradeSelecionado || !combate.combatentes.some(c=>c.id===state._gradeSelecionado)){
+      state._gradeSelecionado = combate.combatentes[0].id;
+    }
+    const chipsRow = el('div',{style:'display:flex;gap:6px;overflow-x:auto;padding:4px 2px 10px;'});
+    combate.combatentes.forEach(c=>{
+      const noTabuleiro = !!grade.posicoes[c.id];
+      chipsRow.appendChild(el('button',{class:'iniciativa-chip'+(state._gradeSelecionado===c.id?' atual':''), style:'flex-shrink:0;'+(noTabuleiro?'':'opacity:0.55;'), onclick:()=>{ state._gradeSelecionado=c.id; render(); }},
+        el('div',{class:'iniciativa-chip-icone'}, c.tipo==='pj'?'🧝':c.tipo==='monstro'?'👹':'❔'),
+        el('div',{class:'iniciativa-chip-nome'}, c.nome),
+        !noTabuleiro ? el('div',{class:'meta', style:'font-size:0.6rem;'},'fora') : null
+      ));
+    });
+    wrap.appendChild(chipsRow);
+  }
+
+  if(state._gradeModo==='alcance'){
+    if(!state._gradeAlcance) state._gradeAlcance = 'curto';
+    const alcanceRow = el('div',{class:'row', style:'margin-bottom:10px;'});
+    [['curto','Curto (9m)'],['medio','Médio (30m)'],['longo','Longo (90m)']].forEach(([id,label])=>{
+      alcanceRow.appendChild(el('button',{class:'btn'+(state._gradeAlcance===id?'':' ghost'), onclick:()=>{ state._gradeAlcance=id; render(); }}, label));
+    });
+    wrap.appendChild(alcanceRow);
+  }
+
+  // ---- O tabuleiro em si ----
+  const origemAlcance = (state._gradeModo==='alcance') ? grade.posicoes[state._gradeSelecionado] : null;
+  const raioAlcance = origemAlcance ? ALCANCES_QUADROS[state._gradeAlcance] : 0;
+
+  const tabuleiro = el('div',{style:'display:grid; grid-template-columns:repeat('+GRADE_LARGURA+', 1fr); gap:1px; background:var(--line); border:2px solid var(--line); border-radius:6px; overflow:hidden; max-width:100%; aspect-ratio:'+GRADE_LARGURA+'/'+GRADE_ALTURA+';'});
+  for(let y=0;y<GRADE_ALTURA;y++){
+    for(let x=0;x<GRADE_LARGURA;x++){
+      const chave = x+','+y;
+      const parede = grade.paredes[chave];
+      const combatenteAqui = Object.keys(grade.posicoes).find(id=> grade.posicoes[id].x===x && grade.posicoes[id].y===y);
+      const c = combatenteAqui ? combate.combatentes.find(cc=>cc.id===combatenteAqui) : null;
+      let dentroDoAlcance = false;
+      if(origemAlcance){
+        const dist = Math.max(Math.abs(x-origemAlcance.x), Math.abs(y-origemAlcance.y)); // distância "de tabuleiro" (Chebyshev, como em quase todo RPG de grade)
+        dentroDoAlcance = dist>0 && dist<=raioAlcance;
+      }
+      const bgCelula = parede==='grossa' ? '#3a2a1a' : parede==='fina' ? '#5a4a2a' : dentroDoAlcance ? 'rgba(224,69,58,0.28)' : 'var(--card)';
+      const celula = el('div',{
+        style:'aspect-ratio:1;background:'+bgCelula+';display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;min-width:0;',
+        onclick:()=>{
+          if(state._gradeModo==='mover'){
+            Object.keys(grade.posicoes).forEach(id=>{ if(grade.posicoes[id].x===x && grade.posicoes[id].y===y && id!==state._gradeSelecionado) delete grade.posicoes[id]; });
+            grade.posicoes[state._gradeSelecionado] = {x,y};
+          } else if(state._gradeModo==='parede_fina'){
+            grade.paredes[chave] = (parede==='fina') ? undefined : 'fina';
+            if(grade.paredes[chave]===undefined) delete grade.paredes[chave];
+          } else if(state._gradeModo==='parede_grossa'){
+            grade.paredes[chave] = (parede==='grossa') ? undefined : 'grossa';
+            if(grade.paredes[chave]===undefined) delete grade.paredes[chave];
+          } else if(state._gradeModo==='apagar'){
+            if(combatenteAqui) delete grade.posicoes[combatenteAqui];
+            else if(parede) delete grade.paredes[chave];
+          }
+          render();
+        }
+      });
+      if(c){
+        celula.appendChild(el('div',{style:'width:80%;height:80%;border-radius:50%;background:'+corTokenPorTipo(c.tipo)+';display:flex;align-items:center;justify-content:center;font-size:0.55rem;font-weight:800;color:#1a0f0a;overflow:hidden;'}, c.nome.slice(0,2).toUpperCase()));
+      }
+      tabuleiro.appendChild(celula);
+    }
+  }
+  wrap.appendChild(tabuleiro);
+
+  wrap.appendChild(el('div',{class:'meta', style:'margin-top:8px;font-size:0.72rem;'}, '🧱 Parede fina: bloqueia passagem, mas ainda deixa ver/atacar à distância através dela. 🟫 Parede grossa: bloqueia tudo (visão, movimento, ataque à distância).'));
+  wrap.appendChild(el('button',{class:'btn ghost', style:'margin-top:10px;', onclick:()=>{
+    if(!confirm('Limpar o tabuleiro inteiro (posições e paredes)? Não mexe na iniciativa/PV de ninguém.')) return;
+    combate.grade = { paredes:{}, posicoes:{} };
+    render();
+  }}, 'Limpar Tabuleiro 🗑️'));
+
+  return wrap;
+}
+
 function renderMestreCombate(){
   const wrap = el('div',{});
   if(!state._mestreIniciativa) state._mestreIniciativa = {combatentes:[], turnoIdx:0, rodada:1};
@@ -1421,23 +1584,50 @@ function gerarNome(racaChave){
 
 function renderMestreNomes(){
   const wrap = el('div',{});
-  wrap.appendChild(el('div',{class:'tip'}, el('b',{},'Sobre esta ferramenta'), 'O livro não traz listas oficiais de nomes por raça — isto é um gerador de apoio próprio, com sílabas inspiradas no clima de Arton, pra dar um nome rápido a qualquer NPC.'));
+  wrap.appendChild(el('div',{class:'tip'}, el('b',{},'Sobre esta ferramenta'), 'O livro não traz listas oficiais de nomes por raça — isto é um gerador de apoio próprio, com sílabas inspiradas no clima de Arton, cobrindo as 17 raças do livro.'));
 
   if(!state._mestreNomeRaca) state._mestreNomeRaca = 'Humano';
   const sel = el('select',{onchange:(e)=>{state._mestreNomeRaca=e.target.value; render();}});
   Object.keys(NOMES_SILABAS).forEach(r=> sel.appendChild(el('option',{value:r, ...(state._mestreNomeRaca===r?{selected:'selected'}:{})}, r)));
   wrap.appendChild(sel);
 
-  wrap.appendChild(el('button',{class:'btn', style:'margin-top:10px;', onclick:()=>{
-    const novos = [];
-    for(let i=0;i<6;i++) novos.push(gerarNome(state._mestreNomeRaca));
-    state._mestreNomesGerados = novos;
-    render();
-  }}, 'Sortear 6 Nomes 🎲'));
+  wrap.appendChild(el('div',{class:'row', style:'margin-top:10px;'},
+    el('button',{class:'btn', onclick:()=>{
+      const novos = [];
+      for(let i=0;i<6;i++) novos.push(gerarNome(state._mestreNomeRaca));
+      state._mestreNomesGerados = novos;
+      state._mestreNpcsGerados = null;
+      render();
+    }}, 'Sortear 6 Nomes 🎲'),
+    el('button',{class:'btn ghost', onclick:()=>{
+      const novos = [];
+      for(let i=0;i<3;i++) novos.push(sortearNpcCompleto(state._mestreNomeRaca));
+      state._mestreNpcsGerados = novos;
+      state._mestreNomesGerados = null;
+      render();
+    }}, 'Sortear NPC Completo 🎭')
+  ));
 
   if(state._mestreNomesGerados && state._mestreNomesGerados.length){
     const panel = el('div',{class:'panel faixa'}, el('h2',{},'Nomes sorteados'));
     state._mestreNomesGerados.forEach(nome=> panel.appendChild(el('div',{class:'power-item'}, nome)));
+    wrap.appendChild(panel);
+  }
+
+  if(state._mestreNpcsGerados && state._mestreNpcsGerados.length){
+    const panel = el('div',{class:'panel faixa'}, el('h2',{},'NPCs sorteados'));
+    state._mestreNpcsGerados.forEach((npc,idx)=>{
+      panel.appendChild(el('div',{class:'option-card', style:'margin-top:8px;'},
+        el('div',{class:'opt-nome'}, npc.nome),
+        el('div',{class:'opt-sub'}, npc.raca),
+        el('div',{class:'tip', style:'margin-top:6px;font-size:0.82rem;'}, el('b',{},'Traço: '), npc.traco),
+        el('div',{class:'tip', style:'font-size:0.82rem;'}, el('b',{},'Segredo: '), npc.segredo),
+        el('button',{class:'btn ghost', style:'margin-top:6px;', onclick:()=>{
+          state._mestreNpcsGerados[idx] = sortearNpcCompleto(state._mestreNomeRaca);
+          render();
+        }}, 'Sortear de novo esse 🎲')
+      ));
+    });
     wrap.appendChild(panel);
   }
   return wrap;

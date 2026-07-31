@@ -1248,7 +1248,7 @@ function iniciarAtualizacaoAutomaticaJogador(){
         const novosItens = equipNovo.filter(e=> e.item.includes('(recebido do Mestre)') && !nomesAntigos.includes(e.item));
         if(novosItens.length>0){
           novosItens.forEach(it=>{
-            flashMsg('🎁 '+fAtual.nome+' recebeu: '+it.item.replace(' (recebido do Mestre)','')+'!');
+            notificarComSom('🎁 '+fAtual.nome+' recebeu: '+it.item.replace(' (recebido do Mestre)','')+'!');
             fAtual.equip.push(it); // só ACRESCENTA o item novo — nunca substitui a lista inteira,
           });                       // pra não apagar uma mudança local (equipar/guardar) ainda não salva
           precisaRender = true;
@@ -1265,7 +1265,7 @@ function iniciarAtualizacaoAutomaticaJogador(){
         const servidorAntes = parseInt(snapshot[campo])||0, servidorDepois = parseInt(fNovo[campo])||0;
         if(servidorDepois > servidorAntes){
           const delta = servidorDepois - servidorAntes;
-          flashMsg('💰 '+fAtual.nome+' recebeu +'+delta+' '+(campo==='ts'?'T$':campo==='tc'?'TC':'TO')+'!');
+          notificarComSom('💰 '+fAtual.nome+' recebeu +'+delta+' '+(campo==='ts'?'T$':campo==='tc'?'TC':'TO')+'!');
           fAtual[campo] = (parseInt(fAtual[campo])||0) + delta;
           precisaRender = true;
         }
