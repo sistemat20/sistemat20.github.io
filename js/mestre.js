@@ -444,6 +444,51 @@ function todasCriaturasCompletas(){
   AMEACAS_CATEGORIAS.forEach(cat=> cat.criaturas.forEach(m=> lista.push(m)));
   return lista;
 }
+// As 19 criaturas do Livro Básico não vêm organizadas por categoria temática (diferente das de
+// Ameaças de Arton, que já ficam em blocos por local/tema) — aqui mapeamos elas pro mesmo
+// "Grupo" que a Tabela 7-1 do livro usa oficialmente, pra tudo funcionar junto no sorteio por local.
+const GRUPO_MONSTROS_BASICO = {
+  "Lobo":"Ermos", "Gorlogg":"Ermos", "Trog (guerreiro)":"Ermos", "Gnoll Saqueador":"Ermos",
+  "Centauro Combatente":"Ermos", "Gnoll Filibusteiro":"Ermos", "Lobo-das-Cavernas":"Ermos",
+  "Centauro Xamã":"Ermos", "Cão do Inferno":"Ermos", "Grifo":"Ermos", "Basilisco":"Ermos",
+  "Ogro":"Ermos", "Urso-Coruja":"Ermos", "Capelão de Guerra":"Puristas", "Serpe":"Ermos",
+  "Ganchador":"Trolls Nobres", "capitão-Baluarte":"Puristas", "Tirano do Terceiro":"Dragões",
+  "Vampiro":"Reino dos Mortos",
+};
+function grupoDaCriatura(m){
+  if(GRUPO_MONSTROS_BASICO[m.nome]) return GRUPO_MONSTROS_BASICO[m.nome];
+  const cat = AMEACAS_CATEGORIAS.find(c=> c.criaturas.includes(m));
+  return cat ? cat.nome : 'Outros';
+}
+function todosOsLocais(){
+  const set = new Set(Object.values(GRUPO_MONSTROS_BASICO));
+  AMEACAS_CATEGORIAS.forEach(c=>set.add(c.nome));
+  return Array.from(set).sort();
+}
+// Sorteia um encontro TEMÁTICO — só criaturas do local/grupo escolhido, tentando chegar perto do
+// ND alvo. Às vezes sorteia 1 criatura solo (a mais próxima do ND), às vezes um grupo de várias
+// cópias de uma criatura mais fraca, calculando quantas dão um combate parecido com o ND alvo
+// (mesma fórmula da pág. 282 já usada no Balanço do Encontro).
+function sortearEncontroPorLocal(local, ndAlvo){
+  const pool = todasCriaturasCompletas().filter(m=> grupoDaCriatura(m)===local);
+  if(pool.length===0) return [];
+  if(pool.length===1 || Math.random()<0.4){
+    const m = pool.reduce((melhor,c)=> Math.abs(c.nd-ndAlvo)<Math.abs(melhor.nd-ndAlvo)?c:melhor, pool[0]);
+    return [m];
+  }
+  const fracos = pool.filter(c=>c.nd < ndAlvo);
+  const base = fracos.length>0 ? sortear(fracos) : sortear(pool);
+  let qtd = 1;
+  while(qtd<8){
+    const ndTeste = base.nd<1 ? base.nd*(qtd+1) : base.nd + 2*Math.log2(qtd+1);
+    if(ndTeste > ndAlvo+1) break;
+    qtd++;
+  }
+  qtd = Math.max(1, Math.min(qtd, 6));
+  const resultado = [];
+  for(let i=0;i<qtd;i++) resultado.push(base);
+  return resultado;
+}
 // Extrai o bônus de "Iniciativa +N" do texto de sentidos de uma criatura do bestiário.
 function extrairBonusIniciativa(sentidos){
   const m = String(sentidos||'').match(/Iniciativa\s*([+-]\d+)/);
@@ -699,30 +744,103 @@ function renderEncontrosSalvos(combate){
       }},'✕')
     ));
   });
-  wrap.appendChild(el('button',{class:'btn', style:'margin-top:10px;', onclick:()=>{
-    state._mestreEncontroRascunho = {nome:'', criaturas:[]};
-    render();
-  }}, 'Montar Encontro Manual +'));
+  wrap.appendChild(el('div',{class:'row', style:'margin-top:10px;'},
+    el('button',{class:'btn', onclick:()=>{
+      state._mestreEncontroRascunho = {nome:'', criaturas:[]};
+      render();
+    }}, 'Montar Encontro Manual +'),
+    el('button',{class:'btn ghost', onclick:()=>{
+      state._mestreEncontroLocalPopup = {local: todosOsLocais()[0], resultado:null};
+      render();
+    }}, '🗺️ Encontro por Local')
+  ));
+  if(state._mestreEncontroLocalPopup){
+    const pop = state._mestreEncontroLocalPopup;
+    const popPanel = el('div',{class:'panel', style:'margin-top:10px;'}, el('h2',{},'Encontro por Local'));
+    popPanel.appendChild(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Escolhe um lugar/tema e sorteia criaturas que fazem sentido ali, tentando chegar perto de um combate equilibrado pro grupo atual.'));
+    const sel = el('select',{onchange:(e)=>{pop.local=e.target.value; pop.resultado=null; render();}});
+    todosOsLocais().forEach(l=> sel.appendChild(el('option',{value:l, ...(pop.local===l?{selected:'selected'}:{})}, l)));
+    popPanel.appendChild(sel);
+    popPanel.appendChild(el('button',{class:'btn', style:'margin-top:8px;', onclick:()=>{
+      const nivelGrupo = nivelMedioDoGrupoAtual();
+      pop.resultado = sortearEncontroPorLocal(pop.local, nivelGrupo);
+      render();
+    }}, 'Sortear 🎲'));
+
+    if(pop.resultado){
+      if(pop.resultado.length===0){
+        popPanel.appendChild(el('div',{class:'empty'},'Nenhuma criatura catalogada nesse local ainda.'));
+      } else {
+        const balanco = balancoEncontro(ndCombateTotal(pop.resultado));
+        popPanel.appendChild(el('div',{class:'tip', style:'margin-top:8px;'}, 'Resultado ('+pop.resultado.length+' criatura'+(pop.resultado.length>1?'s':'')+'): '+pop.resultado.map(c=>c.nome).join(', ')));
+        popPanel.appendChild(el('div',{class:'tip', style:'border:1px solid '+balanco.cor+';'}, el('b',{style:'color:'+balanco.cor+';'}, '⚖️ '+balanco.texto)));
+        popPanel.appendChild(el('div',{class:'row', style:'margin-top:8px;'},
+          el('button',{class:'btn', onclick:()=>{
+            if(!state._mestreIniciativa) state._mestreIniciativa = {combatentes:[], turnoIdx:0, rodada:1};
+            pop.resultado.forEach(m=>{
+              const bonus = extrairBonusIniciativa(m.sentidos);
+              state._mestreIniciativa.combatentes.push(novoCombatente(m.nome, 'monstro', bonus, m.pv, m.pv, null, m));
+            });
+            flashMsg('⚔️ Encontro de "'+pop.local+'" adicionado ao combate!');
+            state._mestreEncontroLocalPopup = null;
+            render();
+          }}, 'Usar Agora ⚔️'),
+          el('button',{class:'btn ghost', onclick:()=>{
+            const criaturasParaSalvar = pop.resultado.map(m=>({nome:m.nome, nd:m.nd, pv:m.pv, sentidos:m.sentidos}));
+            state._mestreEncontrosSalvos.push({id:'enc'+Date.now(), nome:pop.local+' ('+new Date().toLocaleDateString('pt-BR')+')', criaturas:criaturasParaSalvar});
+            salvarEncontrosLocal();
+            flashMsg('✅ Encontro salvo!');
+            state._mestreEncontroLocalPopup = null;
+            render();
+          }}, 'Salvar')
+        ));
+      }
+    }
+    popPanel.appendChild(el('button',{class:'menu-close', style:'margin-top:6px;', onclick:()=>{ state._mestreEncontroLocalPopup=null; render(); }}, 'Fechar'));
+    wrap.appendChild(popPanel);
+  }
   return wrap;
 }
 
-// ---- COMBATE (tela ao vivo — só quem já foi enviado da Preparação) ----
 // ---- GRADE DE COMBATE ----
-// Um tabuleiro simples (não substitui um VTT de verdade) pra visualizar posição relativa dos
-// combatentes, desenhar paredes (fina = passa dano à distância mas não movimento; grossa = não
-// passa nada) e ver o alcance de uma arma/magia a partir de um token. Guardado dentro do próprio
-// combate (state._mestreIniciativa.grade), assim reseta junto quando o combate termina.
-const GRADE_LARGURA = 14, GRADE_ALTURA = 10;
+// Um tabuleiro de apoio (não substitui um VTT de verdade) pra visualizar posição, desenhar
+// obstáculos e ver alcance. Guardado dentro do próprio combate (state._mestreIniciativa.grade),
+// reseta junto quando o combate termina.
+const GRADE_LARGURA = 18, GRADE_ALTURA = 12;
 const ALCANCES_QUADROS = {curto:6, medio:20, longo:60}; // 1 quadrado = 1,5m (regra pág. 148)
+const BLOCO_TIPOS = {
+  parede_grossa: {emoji:'🟫', label:'Parede Grossa', cor:'#141414', quebravel:false, desc:'Bloqueia tudo — movimento, visão e ataque à distância. Não quebra.'},
+  parede_fina:   {emoji:'🧱', label:'Parede Fina',   cor:'#6b4423', quebravel:true,  desc:'Bloqueia movimento. No modo "Quebrar", um toque abre passagem.'},
+  janela:        {emoji:'🪟', label:'Janela',        cor:'#3a6a7a', quebravel:true,  desc:'Bloqueia movimento, mas dá pra ver/atirar através. Quebra igual à parede fina.'},
+  arvore:        {emoji:'🌳', label:'Árvore',        cor:'#2d5016', quebravel:false, desc:'Bloqueia movimento e visão. Não quebra (mas dá pra Apagar se cortar ela).'},
+  rocha:         {emoji:'🪨', label:'Rocha',         cor:'#5a5a5a', quebravel:false, desc:'Bloqueia movimento e visão. Não quebra.'},
+};
 function garantirGrade(combate){
   if(!combate.grade){
-    combate.grade = { paredes:{}, posicoes:{} };
+    combate.grade = { blocos:{}, posicoes:{} };
   }
+  if(combate.grade.paredes && !combate.grade.blocos){
+    // migração de fichas com o formato antigo (só fina/grossa, sem paleta)
+    combate.grade.blocos = {};
+    Object.keys(combate.grade.paredes).forEach(chave=>{
+      combate.grade.blocos[chave] = {tipo: combate.grade.paredes[chave]==='grossa' ? 'parede_grossa' : 'parede_fina'};
+    });
+    delete combate.grade.paredes;
+  }
+  if(!combate.grade.blocos) combate.grade.blocos = {};
+  if(!combate.grade.posicoes) combate.grade.posicoes = {};
   return combate.grade;
 }
 function corTokenPorTipo(tipo){
   return tipo==='pj' ? 'var(--pm-accent)' : tipo==='monstro' ? 'var(--red-bright)' : 'var(--gold)';
 }
+// PJ mostra a própria foto no token, se tiver uma cadastrada na ficha; senão cai pras iniciais.
+function fotoDoCombatente(c){
+  if(c.tipo!=='pj' || !c.origemId) return null;
+  const p = (state.perfisTodos||[]).find(x=>x.id===c.origemId);
+  return (p && p.foto) ? p.foto : null;
+}
+
 function renderMestreGrade(){
   const wrap = el('div',{});
   if(!state._mestreIniciativa) state._mestreIniciativa = {combatentes:[], turnoIdx:0, rodada:1};
@@ -734,18 +852,39 @@ function renderMestreGrade(){
     return wrap;
   }
 
-  wrap.appendChild(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Tabuleiro de apoio — não substitui um mapa de verdade, mas ajuda a ver posição relativa. 1 quadrado = 1,5m. Escolha um modo, depois toque no tabuleiro.'));
+  wrap.appendChild(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Tabuleiro de apoio — não substitui um mapa de verdade. 1 quadrado = 1,5m. Escolha um modo, depois toque (ou arraste um token) no tabuleiro. Se o tabuleiro ficar maior que a tela, arraste com o dedo pra rolar.'));
 
   if(!state._gradeModo) state._gradeModo = 'mover';
-  const modos = [['mover','🚶 Mover'],['parede_fina','🧱 Parede Fina'],['parede_grossa','🟫 Parede Grossa'],['apagar','🧹 Apagar'],['alcance','📏 Alcance']];
+  if(!state._gradeZoom) state._gradeZoom = 30;
+  const modos = [['mover','🚶 Mover'],['blocos','🧊 Blocos'],['quebrar','🔨 Quebrar'],['apagar','🧹 Apagar'],['alcance','📏 Alcance']];
   const modoRow = el('div',{class:'tab-grid'});
   modos.forEach(([id,label])=>{
     modoRow.appendChild(el('button',{class: state._gradeModo===id?'on':'', onclick:()=>{ state._gradeModo=id; render(); }}, label));
   });
   wrap.appendChild(modoRow);
 
-  // Lista de combatentes ainda sem posição na grade (pra "chegarem" nela) + já posicionados,
-  // como chips selecionáveis quando o modo pede escolher UM combatente (mover/alcance).
+  // ---- Zoom ----
+  wrap.appendChild(el('div',{class:'row', style:'align-items:center;gap:8px;margin:8px 0;'},
+    el('button',{class:'btn ghost', style:'width:auto;padding:6px 14px;', onclick:()=>{ state._gradeZoom = Math.max(18, state._gradeZoom-4); render(); }}, '➖'),
+    el('div',{class:'meta', style:'flex:none;'}, 'Zoom'),
+    el('button',{class:'btn ghost', style:'width:auto;padding:6px 14px;', onclick:()=>{ state._gradeZoom = Math.min(48, state._gradeZoom+4); render(); }}, '➕')
+  ));
+
+  // ---- Paleta de blocos (só no modo "blocos") ----
+  if(state._gradeModo==='blocos'){
+    if(!state._gradeBlocoSelecionado) state._gradeBlocoSelecionado = 'parede_grossa';
+    const paleta = el('div',{class:'option-grid'});
+    Object.keys(BLOCO_TIPOS).forEach(id=>{
+      const info = BLOCO_TIPOS[id];
+      paleta.appendChild(el('button',{class:'option-card'+(state._gradeBlocoSelecionado===id?' selected':''), onclick:()=>{ state._gradeBlocoSelecionado=id; render(); }},
+        el('div',{class:'opt-nome'}, info.emoji+' '+info.label),
+        el('div',{class:'opt-sub'}, info.desc)
+      ));
+    });
+    wrap.appendChild(paleta);
+  }
+
+  // ---- Chips de combatentes (mover/alcance) ----
   if(state._gradeModo==='mover' || state._gradeModo==='alcance'){
     if(!state._gradeSelecionado || !combate.combatentes.some(c=>c.id===state._gradeSelecionado)){
       state._gradeSelecionado = combate.combatentes[0].id;
@@ -753,13 +892,15 @@ function renderMestreGrade(){
     const chipsRow = el('div',{style:'display:flex;gap:6px;overflow-x:auto;padding:4px 2px 10px;'});
     combate.combatentes.forEach(c=>{
       const noTabuleiro = !!grade.posicoes[c.id];
+      const foto = fotoDoCombatente(c);
       chipsRow.appendChild(el('button',{class:'iniciativa-chip'+(state._gradeSelecionado===c.id?' atual':''), style:'flex-shrink:0;'+(noTabuleiro?'':'opacity:0.55;'), onclick:()=>{ state._gradeSelecionado=c.id; render(); }},
-        el('div',{class:'iniciativa-chip-icone'}, c.tipo==='pj'?'🧝':c.tipo==='monstro'?'👹':'❔'),
+        foto ? el('img',{src:foto, style:'width:22px;height:22px;border-radius:50%;object-fit:cover;'}) : el('div',{class:'iniciativa-chip-icone'}, c.tipo==='pj'?'🧝':c.tipo==='monstro'?'👹':'❔'),
         el('div',{class:'iniciativa-chip-nome'}, c.nome),
         !noTabuleiro ? el('div',{class:'meta', style:'font-size:0.6rem;'},'fora') : null
       ));
     });
     wrap.appendChild(chipsRow);
+    if(state._gradeModo==='mover') wrap.appendChild(el('div',{class:'meta', style:'margin-bottom:6px;'}, 'Toque num quadrado pra colocar o "'+combate.combatentes.find(c=>c.id===state._gradeSelecionado).nome+'" lá, ou arraste o token dele direto no tabuleiro.'));
   }
 
   if(state._gradeModo==='alcance'){
@@ -774,51 +915,110 @@ function renderMestreGrade(){
   // ---- O tabuleiro em si ----
   const origemAlcance = (state._gradeModo==='alcance') ? grade.posicoes[state._gradeSelecionado] : null;
   const raioAlcance = origemAlcance ? ALCANCES_QUADROS[state._gradeAlcance] : 0;
+  const tam = state._gradeZoom;
 
-  const tabuleiro = el('div',{style:'display:grid; grid-template-columns:repeat('+GRADE_LARGURA+', 1fr); gap:1px; background:var(--line); border:2px solid var(--line); border-radius:6px; overflow:hidden; max-width:100%; aspect-ratio:'+GRADE_LARGURA+'/'+GRADE_ALTURA+';'});
+  function tentarMoverPara(combatenteId, x, y){
+    const bloco = grade.blocos[x+','+y];
+    if(bloco){ flashMsg('Esse quadrado tem '+BLOCO_TIPOS[bloco.tipo].label.toLowerCase()+' — não dá pra entrar ali.'); return false; }
+    const ocupante = Object.keys(grade.posicoes).find(id=> id!==combatenteId && grade.posicoes[id].x===x && grade.posicoes[id].y===y);
+    if(ocupante){ flashMsg('Já tem alguém nesse quadrado.'); return false; }
+    grade.posicoes[combatenteId] = {x,y};
+    return true;
+  }
+
+  const scrollWrap = el('div',{style:'max-width:100%; max-height:60vh; overflow:auto; -webkit-overflow-scrolling:touch; border:2px solid var(--line); border-radius:6px; cursor:grab;'});
+  const tabuleiro = el('div',{style:'display:grid; grid-template-columns:repeat('+GRADE_LARGURA+', '+tam+'px); gap:1px; background:var(--line); width:max-content;'});
+
+  // Arrastar o mapa com o mouse (no touch já rola nativo com o dedo). Só entra em modo "pan"
+  // se o clique NÃO começou em cima de um token (senão atrapalharia o arrastar-token). Se o
+  // mouse se moveu mais que uns pixels, marca "acabei de arrastar" pra suprimir o click que o
+  // navegador dispara logo depois (senão colocaria um bloco/moveria token sem querer).
+  let panEstado = null;
+  scrollWrap.addEventListener('mousedown',(e)=>{
+    if(e.target.closest('.grade-token')) return;
+    panEstado = {startX:e.clientX, startY:e.clientY, scrollLeft:scrollWrap.scrollLeft, scrollTop:scrollWrap.scrollTop, moveu:false};
+    scrollWrap.style.cursor = 'grabbing';
+  });
+  window.addEventListener('mousemove',(e)=>{
+    if(!panEstado) return;
+    const dx = e.clientX - panEstado.startX, dy = e.clientY - panEstado.startY;
+    if(Math.abs(dx)>4 || Math.abs(dy)>4) panEstado.moveu = true;
+    if(panEstado.moveu){
+      scrollWrap.scrollLeft = panEstado.scrollLeft - dx;
+      scrollWrap.scrollTop = panEstado.scrollTop - dy;
+    }
+  });
+  window.addEventListener('mouseup',()=>{
+    if(panEstado){
+      scrollWrap.style.cursor = 'grab';
+      if(panEstado.moveu) state._gradeSuprimirProximoClique = true;
+    }
+    panEstado = null;
+  });
+
   for(let y=0;y<GRADE_ALTURA;y++){
     for(let x=0;x<GRADE_LARGURA;x++){
       const chave = x+','+y;
-      const parede = grade.paredes[chave];
-      const combatenteAqui = Object.keys(grade.posicoes).find(id=> grade.posicoes[id].x===x && grade.posicoes[id].y===y);
-      const c = combatenteAqui ? combate.combatentes.find(cc=>cc.id===combatenteAqui) : null;
+      const bloco = grade.blocos[chave];
+      const combatenteId = Object.keys(grade.posicoes).find(id=> grade.posicoes[id].x===x && grade.posicoes[id].y===y);
+      const c = combatenteId ? combate.combatentes.find(cc=>cc.id===combatenteId) : null;
       let dentroDoAlcance = false;
       if(origemAlcance){
-        const dist = Math.max(Math.abs(x-origemAlcance.x), Math.abs(y-origemAlcance.y)); // distância "de tabuleiro" (Chebyshev, como em quase todo RPG de grade)
+        const dist = Math.max(Math.abs(x-origemAlcance.x), Math.abs(y-origemAlcance.y));
         dentroDoAlcance = dist>0 && dist<=raioAlcance;
       }
-      const bgCelula = parede==='grossa' ? '#3a2a1a' : parede==='fina' ? '#5a4a2a' : dentroDoAlcance ? 'rgba(224,69,58,0.28)' : 'var(--card)';
+      const bgCelula = bloco ? BLOCO_TIPOS[bloco.tipo].cor : dentroDoAlcance ? 'rgba(224,69,58,0.28)' : 'var(--card)';
       const celula = el('div',{
-        style:'aspect-ratio:1;background:'+bgCelula+';display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;min-width:0;',
+        'data-gx':x, 'data-gy':y,
+        style:'width:'+tam+'px;height:'+tam+'px;background:'+bgCelula+';display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;',
         onclick:()=>{
+          if(state._gradeSuprimirProximoClique){ state._gradeSuprimirProximoClique = false; return; }
           if(state._gradeModo==='mover'){
-            Object.keys(grade.posicoes).forEach(id=>{ if(grade.posicoes[id].x===x && grade.posicoes[id].y===y && id!==state._gradeSelecionado) delete grade.posicoes[id]; });
-            grade.posicoes[state._gradeSelecionado] = {x,y};
-          } else if(state._gradeModo==='parede_fina'){
-            grade.paredes[chave] = (parede==='fina') ? undefined : 'fina';
-            if(grade.paredes[chave]===undefined) delete grade.paredes[chave];
-          } else if(state._gradeModo==='parede_grossa'){
-            grade.paredes[chave] = (parede==='grossa') ? undefined : 'grossa';
-            if(grade.paredes[chave]===undefined) delete grade.paredes[chave];
+            tentarMoverPara(state._gradeSelecionado, x, y);
+          } else if(state._gradeModo==='blocos'){
+            if(c){ flashMsg('Tem um combatente aqui — mude ele de lugar antes de colocar bloco.'); return; }
+            grade.blocos[chave] = {tipo: state._gradeBlocoSelecionado};
+          } else if(state._gradeModo==='quebrar'){
+            if(bloco && BLOCO_TIPOS[bloco.tipo].quebravel) delete grade.blocos[chave];
+            else if(bloco) flashMsg(BLOCO_TIPOS[bloco.tipo].label+' não quebra — use o modo Apagar se quiser remover mesmo assim.');
           } else if(state._gradeModo==='apagar'){
-            if(combatenteAqui) delete grade.posicoes[combatenteAqui];
-            else if(parede) delete grade.paredes[chave];
+            if(combatenteId) delete grade.posicoes[combatenteId];
+            else if(bloco) delete grade.blocos[chave];
           }
           render();
         }
       });
+      if(bloco) celula.appendChild(el('div',{style:'font-size:'+Math.round(tam*0.6)+'px;opacity:0.9;'}, BLOCO_TIPOS[bloco.tipo].emoji));
       if(c){
-        celula.appendChild(el('div',{style:'width:80%;height:80%;border-radius:50%;background:'+corTokenPorTipo(c.tipo)+';display:flex;align-items:center;justify-content:center;font-size:0.55rem;font-weight:800;color:#1a0f0a;overflow:hidden;'}, c.nome.slice(0,2).toUpperCase()));
+        const foto = fotoDoCombatente(c);
+        const token = el('div',{
+          class:'grade-token',
+          draggable:'true',
+          style:'width:88%;height:88%;border-radius:50%;background:'+corTokenPorTipo(c.tipo)+';display:flex;align-items:center;justify-content:center;font-weight:800;color:#1a0f0a;overflow:hidden;box-shadow:0 0 0 2px rgba(0,0,0,0.4);cursor:grab;font-size:'+Math.round(tam*0.34)+'px;',
+          ondragstart:(e)=>{ e.dataTransfer.setData('text/plain', c.id); e.dataTransfer.effectAllowed='move'; },
+        }, foto ? el('img',{src:foto, style:'width:100%;height:100%;object-fit:cover;border-radius:50%;'}) : c.nome.slice(0,2).toUpperCase());
+        // toque simples no token seleciona ele (útil antes de escolher outro quadrado)
+        token.addEventListener('click',(e)=>{ e.stopPropagation(); if(state._gradeModo==='mover'){ state._gradeSelecionado=c.id; render(); } });
+        celula.appendChild(token);
       }
+      // alvo de soltar (arrastar-e-soltar, funciona com mouse; em touch cai pro toque simples acima)
+      celula.addEventListener('dragover',(e)=>{ e.preventDefault(); });
+      celula.addEventListener('drop',(e)=>{
+        e.preventDefault();
+        const idArrastado = e.dataTransfer.getData('text/plain');
+        if(idArrastado) tentarMoverPara(idArrastado, x, y);
+        render();
+      });
       tabuleiro.appendChild(celula);
     }
   }
-  wrap.appendChild(tabuleiro);
+  scrollWrap.appendChild(tabuleiro);
+  wrap.appendChild(scrollWrap);
 
-  wrap.appendChild(el('div',{class:'meta', style:'margin-top:8px;font-size:0.72rem;'}, '🧱 Parede fina: bloqueia passagem, mas ainda deixa ver/atacar à distância através dela. 🟫 Parede grossa: bloqueia tudo (visão, movimento, ataque à distância).'));
+  wrap.appendChild(el('div',{class:'meta', style:'margin-top:8px;font-size:0.72rem;'}, '🟫 Parede grossa e 🌳🪨 árvore/rocha bloqueiam tudo e não quebram. 🧱 Parede fina e 🪟 janela bloqueiam movimento mas quebram no modo "Quebrar". No computador dá pra arrastar o token direto; no celular, selecione o combatente e toque no quadrado.'));
   wrap.appendChild(el('button',{class:'btn ghost', style:'margin-top:10px;', onclick:()=>{
-    if(!confirm('Limpar o tabuleiro inteiro (posições e paredes)? Não mexe na iniciativa/PV de ninguém.')) return;
-    combate.grade = { paredes:{}, posicoes:{} };
+    if(!confirm('Limpar o tabuleiro inteiro (posições e blocos)? Não mexe na iniciativa/PV de ninguém.')) return;
+    combate.grade = { blocos:{}, posicoes:{} };
     render();
   }}, 'Limpar Tabuleiro 🗑️'));
 
