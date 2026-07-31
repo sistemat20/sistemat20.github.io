@@ -108,6 +108,7 @@ function renderCriadorItemSuperior(){
   const calc = calcularItemSuperior(b);
   const precoBase = precoParaNumero(b.baseItem.preco);
   const precoTotal = precoBase + calc.precoExtra + calc.precoMaterial;
+  const materialSemPreco = b.materialEscolhido && precoMaterialParaCategoria(b.materialEscolhido, b.categoria)==null;
   wrap.appendChild(el('div',{class:'panel faixa'},
     el('h2',{},'Resumo'),
     el('div',{class:'tip'},
@@ -116,7 +117,8 @@ function renderCriadorItemSuperior(){
       calc.precoMaterial ? el('div',{}, el('b',{},'Acréscimo do material: '), '+T$ '+calc.precoMaterial) : null,
       el('div',{style:'font-weight:800;margin-top:6px;border-top:1px solid var(--line);padding-top:6px;'}, 'Preço total: T$ '+precoTotal),
       calc.cd ? el('div',{}, el('b',{},'CD extra pra fabricar: '), '+'+calc.cd) : null,
-    )
+    ),
+    materialSemPreco ? el('div',{class:'tip', style:'border:1px solid var(--red-bright);'}, '⚠️ '+b.materialEscolhido.nome+' é raro e não tem preço de mercado — só é possível obter como saque de uma criatura específica, combine com o Mestre. O preço total acima não inclui o custo desse material.') : null
   ));
 
   const podeCriar = b.melhoriasEscolhidas.length>0 && (!b.melhoriasEscolhidas.includes('Material especial') || b.materialEscolhido);

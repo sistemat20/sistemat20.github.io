@@ -95,7 +95,7 @@ const MATERIAIS_ESPECIAIS = [
   // veio com as colunas embaralhadas na extração do PDF) — confira com o Mestre antes de cravar
   // um preço final. Couraça de Kaiju, Couro de Bulette, Cristal de Sol e Pena de Kraken são raros
   // e não são vendidos no mercado normal (só obtidos como saque de criaturas específicas).
-  MAT("Casco de Monstro", 750, 750, 6000, 750, 750, {
+  MAT("Casco de Monstro", null, null, null, null, null, {
     arma: "Conta como arma primitiva pra Armamento da Natureza e efeitos parecidos.",
     armadura: "Penalidade de armadura –1. Armadura pesada de casco: pode aplicar 1 ponto de Destreza na Defesa.",
     escudo: "Penalidade de armadura –1.",
@@ -120,7 +120,7 @@ const MATERIAIS_ESPECIAIS = [
     esoterico: "(exige uma peça) Ao lançar magia de fogo, gasta 1 PM: quem falhar na resistência fica em chamas (ou, se já ficaria, +1d6 cumulativo no dano das chamas).",
     geral: "Raro — perde as propriedades depois de algumas semanas sem uso, difícil de achar à venda.",
   }),
-  MAT("Lanajuste", 3000, 1500, 600, 3000, 1500, {
+  MAT("Lanajuste", 600, 1500, 3000, 1500, 3000, {
     arma: "Ignora penalidade de combate submerso. Pode ser usada por devoto do Oceano sem violar obrigações/restrições.",
     armadura: "Redução de corte: leve/escudo 5, pesada 10.",
     escudo: "Redução de corte: leve/escudo 5, pesada 10.",
@@ -133,7 +133,7 @@ const MATERIAIS_ESPECIAIS = [
     esoterico: "(exige uma peça) Se o item já dá algum bônus numérico, esse bônus aumenta em +1.",
     geral: "Raro e quebradiço no estado bruto — raramente encontrado à venda.",
   }),
-  MAT("Prata", 1500, 1500, 600, 400, 1500, {
+  MAT("Prata", 600, 1500, 3000, 1500, 400, {
     arma: "+2 de dano em espíritos e mortos-vivos; conta como mágica pra acertar essas criaturas.",
     armadura: "Redução de dano contra espíritos/mortos-vivos: leve/escudo 5, pesada 10.",
     escudo: "Redução de dano contra espíritos/mortos-vivos: leve/escudo 5, pesada 10.",

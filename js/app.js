@@ -188,10 +188,13 @@ const PERICIA_BONUS_RACA = {
 function bonusPericiaDeRaca(f, periciaNome){
   const racaObj = getRacaObj(f);
   if(!racaObj) return 0;
-  const regras = PERICIA_BONUS_RACA[racaObj.nome];
-  if(!regras) return 0;
   let total = 0;
-  regras.forEach(([alvo,valor])=>{ if(alvo===periciaNome) total += valor; });
+  const regras = PERICIA_BONUS_RACA[racaObj.nome];
+  if(regras) regras.forEach(([alvo,valor])=>{ if(alvo===periciaNome) total += valor; });
+  // Deformidade (Lefou) e Vanguardista (Kliren): +2 em perícia(s) À ESCOLHA do jogador, não fixa
+  // pela raça — por isso ficam separadas da tabela acima, guardadas na própria ficha.
+  if(racaObj.nome==='Lefou' && (f.deformidadeEscolhas||[]).includes(periciaNome)) total += 2;
+  if(racaObj.nome==='Kliren' && f.vanguardistaOficio===periciaNome) total += 2;
   return total;
 }
 
@@ -619,13 +622,17 @@ function pvMaxEfetivo(f){
   const base = parseInt(f.pvmax)||0;
   const nomes = poderesAtivos(f);
   const bonusVitalidade = nomes.includes('Vitalidade') ? nivelTotal(f) : 0;
-  return base + bonusVitalidade;
+  // Duro como Pedra (Anão): +3 PV no 1º nível, +1 a cada nível seguinte = nível + 2
+  const bonusDuroComoPedra = (f.raca==='Anão') ? nivelTotal(f)+2 : 0;
+  return base + bonusVitalidade + bonusDuroComoPedra;
 }
 function pmMaxEfetivo(f){
   const base = parseInt(f.pmmax)||0;
   const nomes = poderesAtivos(f);
   const bonusVontadeFerro = nomes.includes('Vontade de Ferro') ? Math.floor(nivelTotal(f)/2) : 0;
-  return base + bonusVontadeFerro;
+  // Sangue Mágico (Elfo): +1 PM por nível
+  const bonusSangueMagico = (f.raca==='Elfo') ? nivelTotal(f) : 0;
+  return base + bonusVontadeFerro + bonusSangueMagico;
 }
 
 // ---- Pendências ----
@@ -635,6 +642,18 @@ function pmMaxEfetivo(f){
 // `detecta`) e como resolver (`resolver`, chamado com a própria ficha `f` — grava direto nela).
 // Pra adicionar uma pendência nova no futuro, é só acrescentar um objeto nesta lista.
 const PENDENCIAS_DEFINICOES = [
+  {
+    tipo: 'deformidade',
+    titulo: 'Deformidade (Lefou)',
+    detecta: (f)=> f.raca==='Lefou' && (!f.deformidadeEscolhas || f.deformidadeEscolhas.length<2),
+    resumo: 'Lefou recebe +2 em duas perícias à sua escolha — esse personagem ainda não escolheu quais.',
+  },
+  {
+    tipo: 'vanguardista',
+    titulo: 'Vanguardista (Kliren)',
+    detecta: (f)=> f.raca==='Kliren' && !f.vanguardistaOficio,
+    resumo: 'Kliren recebe +2 num Ofício à escolha — esse personagem ainda não escolheu qual.',
+  },
   {
     tipo: 'arcanistaCaminho',
     titulo: 'Caminho do Arcanista',
@@ -1573,6 +1592,21 @@ function renderPerfisScreen(){
   ));
 
   wrap.appendChild(grid);
+  wrap.appendChild(el('label',{class:'btn ghost', style:'margin-top:12px;display:block;text-align:center;'},
+    '📂 Importar Cópia de Segurança',
+    el('input',{type:'file', accept:'.json', style:'display:none;', onchange: async (e)=>{
+      const arquivo = e.target.files[0];
+      if(!arquivo) return;
+      const dados = await lerArquivoBackup(arquivo);
+      if(!dados){ flashMsg('⚠ Esse arquivo não parece ser um backup de personagem válido.'); return; }
+      if(!confirm('Importar "'+dados.nome+'" como um personagem novo? (Se você já tinha ele nessa lista, vai ficar duplicado — apague o antigo depois se for o caso.)')) return;
+      dados.id = 'p'+Date.now()+Math.floor(Math.random()*10000);
+      state.perfis.push(dados);
+      salvarPerfis();
+      flashMsg('✅ "'+dados.nome+'" importado!');
+      render();
+    }})
+  ));
   if(state.perfis.length>0){
     wrap.appendChild(el('div',{class:'perfil-manage'},
       el('button',{onclick:()=>{ state.gerenciandoPerfis=!state.gerenciandoPerfis; render(); }}, state.gerenciandoPerfis?'Concluir':'Gerenciar personagens')

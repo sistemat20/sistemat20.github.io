@@ -809,12 +809,47 @@ function renderEncontrosSalvos(combate){
 const GRADE_LARGURA = 18, GRADE_ALTURA = 12;
 const ALCANCES_QUADROS = {curto:6, medio:20, longo:60}; // 1 quadrado = 1,5m (regra pág. 148)
 const BLOCO_TIPOS = {
-  parede_grossa: {emoji:'🟫', label:'Parede Grossa', cor:'#141414', quebravel:false, desc:'Bloqueia tudo — movimento, visão e ataque à distância. Não quebra.'},
-  parede_fina:   {emoji:'🧱', label:'Parede Fina',   cor:'#6b4423', quebravel:true,  desc:'Bloqueia movimento. No modo "Quebrar", um toque abre passagem.'},
-  janela:        {emoji:'🪟', label:'Janela',        cor:'#3a6a7a', quebravel:true,  desc:'Bloqueia movimento, mas dá pra ver/atirar através. Quebra igual à parede fina.'},
-  arvore:        {emoji:'🌳', label:'Árvore',        cor:'#2d5016', quebravel:false, desc:'Bloqueia movimento e visão. Não quebra (mas dá pra Apagar se cortar ela).'},
-  rocha:         {emoji:'🪨', label:'Rocha',         cor:'#5a5a5a', quebravel:false, desc:'Bloqueia movimento e visão. Não quebra.'},
+  parede_grossa: {emoji:'🟫', label:'Parede Grossa', cor:'#141414', quebravel:false, bloqueiaMovimento:true, desc:'Bloqueia tudo — movimento, visão e ataque à distância. Não quebra.'},
+  parede_fina:   {emoji:'🧱', label:'Parede Fina',   cor:'#6b4423', quebravel:true,  bloqueiaMovimento:true, desc:'Bloqueia movimento. No modo "Quebrar", um toque abre passagem.'},
+  janela:        {emoji:'🪟', label:'Janela',        cor:'#3a6a7a', quebravel:true,  bloqueiaMovimento:true, desc:'Bloqueia movimento, mas dá pra ver/atirar através. Quebra igual à parede fina.'},
+  arvore:        {emoji:'🌳', label:'Árvore',        cor:'#2d5016', quebravel:false, bloqueiaMovimento:true, desc:'Bloqueia movimento e visão. Não quebra (mas dá pra Apagar se cortar ela).'},
+  rocha:         {emoji:'🪨', label:'Rocha',         cor:'#5a5a5a', quebravel:false, bloqueiaMovimento:true, desc:'Bloqueia movimento e visão. Não quebra.'},
+  dificil:       {emoji:'💧', label:'Terreno Difícil', cor:'#3a5a1a', quebravel:false, bloqueiaMovimento:false, desc:'Água rasa, lama, mato alto... NÃO bloqueia entrar, mas gasta o dobro de deslocamento pra atravessar (regra do livro) — só um aviso, o app não desconta nada sozinho.'},
 };
+// Tamanho da criatura em quadrados (regra padrão: Médio ou menor = 1, Grande = 2, Enorme = 3,
+// Colossal = 4 — cada lado do quadrado que o token ocupa).
+const TAMANHO_QUADRADOS = {'Minúsculo':1,'Diminuto':1,'Pequeno':1,'Médio':1,'Grande':2,'Enorme':3,'Colossal':4};
+function tamanhoTokenCombatente(c){
+  if(c.tipo==='monstro' && c.dados && c.dados.tamanho) return TAMANHO_QUADRADOS[c.dados.tamanho]||1;
+  if(c.tipo==='pj' && c.origemId){
+    const p = (state.perfisTodos||[]).find(x=>x.id===c.origemId);
+    const racaObj = p && getRacaObj(p);
+    if(racaObj && racaObj.tamanho) return TAMANHO_QUADRADOS[racaObj.tamanho]||1;
+  }
+  return 1;
+}
+function celulasOcupadasPorToken(x,y,tam){
+  const lista = [];
+  for(let dy=0;dy<tam;dy++) for(let dx=0;dx<tam;dx++) lista.push((x+dx)+','+(y+dy));
+  return lista;
+}
+// Ícone pra mostrar em cima do token quando o combatente tem alguma condição ativa. Só PJ tem
+// condicoesAtivas rastreado hoje (a ficha dele); monstro fica de fora por enquanto.
+function condicaoIconeCombatente(c){
+  if(c.tipo!=='pj' || !c.origemId) return null;
+  const p = (state.perfisTodos||[]).find(x=>x.id===c.origemId);
+  if(!p || !p.condicoesAtivas || p.condicoesAtivas.length===0) return null;
+  return {qtd: p.condicoesAtivas.length, primeira: p.condicoesAtivas[0]};
+}
+// Mapas salvos ficam no aparelho do Mestre (localStorage), não na ficha de ninguém — são
+// layouts reutilizáveis (só os blocos, não os tokens) pra não remontar a mesma sala toda vez.
+const CHAVE_MAPAS_GRADE = 'painel_aventureiro_mapas_grade';
+function carregarMapasGradeSalvos(){
+  try{ return JSON.parse(localStorage.getItem(CHAVE_MAPAS_GRADE)||'[]'); }catch(e){ return []; }
+}
+function salvarMapasGradeSalvos(lista){
+  try{ localStorage.setItem(CHAVE_MAPAS_GRADE, JSON.stringify(lista)); }catch(e){}
+}
 function garantirGrade(combate){
   if(!combate.grade){
     combate.grade = { blocos:{}, posicoes:{} };
@@ -841,6 +876,40 @@ function fotoDoCombatente(c){
   return (p && p.foto) ? p.foto : null;
 }
 
+// Calcula quais quadrados uma área de efeito atinge. "Alvo" é só a direção (não precisa ser
+// exatamente onde o raio termina). Cone abre ~90° na direção do alvo, como a maioria das áreas
+// de cone do livro.
+function calcularCelulasArea(forma, origemX, origemY, alvoX, alvoY, raioQuadros){
+  const celulas = new Set();
+  if(forma==='circulo'){
+    for(let y=origemY-raioQuadros; y<=origemY+raioQuadros; y++){
+      for(let x=origemX-raioQuadros; x<=origemX+raioQuadros; x++){
+        if(Math.max(Math.abs(x-origemX), Math.abs(y-origemY))<=raioQuadros) celulas.add(x+','+y);
+      }
+    }
+  } else if(forma==='linha'){
+    const dx = alvoX-origemX, dy = alvoY-origemY;
+    const dist = Math.max(Math.abs(dx), Math.abs(dy)) || 1;
+    const passoX = dx/dist, passoY = dy/dist;
+    for(let i=1;i<=raioQuadros;i++){
+      celulas.add(Math.round(origemX+passoX*i)+','+Math.round(origemY+passoY*i));
+    }
+  } else if(forma==='cone'){
+    if(alvoX===origemX && alvoY===origemY) return celulas;
+    const anguloAlvo = Math.atan2(alvoY-origemY, alvoX-origemX);
+    for(let y=origemY-raioQuadros; y<=origemY+raioQuadros; y++){
+      for(let x=origemX-raioQuadros; x<=origemX+raioQuadros; x++){
+        if(x===origemX && y===origemY) continue;
+        if(Math.hypot(x-origemX, y-origemY)>raioQuadros) continue;
+        let diff = Math.abs(Math.atan2(y-origemY, x-origemX) - anguloAlvo);
+        if(diff>Math.PI) diff = 2*Math.PI-diff;
+        if(diff <= Math.PI/4) celulas.add(x+','+y);
+      }
+    }
+  }
+  return celulas;
+}
+
 function renderMestreGrade(){
   const wrap = el('div',{});
   if(!state._mestreIniciativa) state._mestreIniciativa = {combatentes:[], turnoIdx:0, rodada:1};
@@ -856,10 +925,10 @@ function renderMestreGrade(){
 
   if(!state._gradeModo) state._gradeModo = 'mover';
   if(!state._gradeZoom) state._gradeZoom = 30;
-  const modos = [['mover','🚶 Mover'],['blocos','🧊 Blocos'],['quebrar','🔨 Quebrar'],['apagar','🧹 Apagar'],['alcance','📏 Alcance']];
+  const modos = [['mover','🚶 Mover'],['blocos','🧊 Blocos'],['quebrar','🔨 Quebrar'],['apagar','🧹 Apagar'],['alcance','📏 Alcance'],['area','💥 Área'],['medir','📐 Medir']];
   const modoRow = el('div',{class:'tab-grid'});
   modos.forEach(([id,label])=>{
-    modoRow.appendChild(el('button',{class: state._gradeModo===id?'on':'', onclick:()=>{ state._gradeModo=id; render(); }}, label));
+    modoRow.appendChild(el('button',{class: state._gradeModo===id?'on':'', onclick:()=>{ state._gradeModo=id; state._gradeMedirPontos=null; render(); }}, label));
   });
   wrap.appendChild(modoRow);
 
@@ -869,6 +938,45 @@ function renderMestreGrade(){
     el('div',{class:'meta', style:'flex:none;'}, 'Zoom'),
     el('button',{class:'btn ghost', style:'width:auto;padding:6px 14px;', onclick:()=>{ state._gradeZoom = Math.min(48, state._gradeZoom+4); render(); }}, '➕')
   ));
+
+  // ---- Mapas salvos (só os blocos, não os tokens — ficam no aparelho, não na ficha) ----
+  if(!state._gradeMapaNomeNovo) state._gradeMapaNomeNovo = '';
+  const mapasSalvos = carregarMapasGradeSalvos();
+  const painelMapas = el('div',{class:'panel', style:'margin-bottom:10px;'}, el('h2',{},'Mapas Salvos'));
+  painelMapas.appendChild(el('div',{class:'row'},
+    el('input',{type:'text', placeholder:'nome desse layout...', value:state._gradeMapaNomeNovo, oninput:(e)=>{state._gradeMapaNomeNovo=e.target.value;}}),
+    el('button',{class:'btn ghost', style:'width:auto;flex:none;', onclick:()=>{
+      const nome = state._gradeMapaNomeNovo.trim();
+      if(!nome){ flashMsg('Dá um nome pro mapa antes de salvar.'); return; }
+      const lista = carregarMapasGradeSalvos();
+      lista.push({nome, blocos: grade.blocos});
+      salvarMapasGradeSalvos(lista);
+      state._gradeMapaNomeNovo = '';
+      flashMsg('💾 Mapa "'+nome+'" salvo!');
+      render();
+    }}, 'Salvar layout atual')
+  ));
+  if(mapasSalvos.length>0){
+    mapasSalvos.forEach((mapa,idx)=>{
+      painelMapas.appendChild(el('div',{class:'row', style:'align-items:center;margin-top:6px;'},
+        el('div',{style:'flex:1;'}, mapa.nome),
+        el('button',{class:'btn ghost', style:'width:auto;', onclick:()=>{
+          if(!confirm('Carregar "'+mapa.nome+'"? Isso substitui os blocos do tabuleiro atual (os tokens continuam onde estão).')) return;
+          grade.blocos = JSON.parse(JSON.stringify(mapa.blocos));
+          flashMsg('📂 Mapa "'+mapa.nome+'" carregado!');
+          render();
+        }}, 'Carregar'),
+        el('button',{class:'remove-x', onclick:()=>{
+          if(!confirm('Apagar o layout "'+mapa.nome+'" salvo?')) return;
+          salvarMapasGradeSalvos(carregarMapasGradeSalvos().filter((_,i)=>i!==idx));
+          render();
+        }}, '✕')
+      ));
+    });
+  } else {
+    painelMapas.appendChild(el('div',{class:'meta', style:'margin-top:6px;'}, 'Nenhum layout salvo ainda.'));
+  }
+  wrap.appendChild(painelMapas);
 
   // ---- Paleta de blocos (só no modo "blocos") ----
   if(state._gradeModo==='blocos'){
@@ -884,8 +992,8 @@ function renderMestreGrade(){
     wrap.appendChild(paleta);
   }
 
-  // ---- Chips de combatentes (mover/alcance) ----
-  if(state._gradeModo==='mover' || state._gradeModo==='alcance'){
+  // ---- Chips de combatentes (mover/alcance/área) ----
+  if(state._gradeModo==='mover' || state._gradeModo==='alcance' || state._gradeModo==='area'){
     if(!state._gradeSelecionado || !combate.combatentes.some(c=>c.id===state._gradeSelecionado)){
       state._gradeSelecionado = combate.combatentes[0].id;
     }
@@ -900,7 +1008,7 @@ function renderMestreGrade(){
       ));
     });
     wrap.appendChild(chipsRow);
-    if(state._gradeModo==='mover') wrap.appendChild(el('div',{class:'meta', style:'margin-bottom:6px;'}, 'Toque num quadrado pra colocar o "'+combate.combatentes.find(c=>c.id===state._gradeSelecionado).nome+'" lá, ou arraste o token dele direto no tabuleiro.'));
+    if(state._gradeModo==='mover') wrap.appendChild(el('div',{class:'meta', style:'margin-bottom:6px;'}, 'Toque num quadrado pra colocar o "'+combate.combatentes.find(c=>c.id===state._gradeSelecionado).nome+'" lá (toque num token pra selecionar ele), ou arraste o token direto no tabuleiro.'));
   }
 
   if(state._gradeModo==='alcance'){
@@ -912,27 +1020,70 @@ function renderMestreGrade(){
     wrap.appendChild(alcanceRow);
   }
 
+  if(state._gradeModo==='area'){
+    if(!state._gradeAreaForma) state._gradeAreaForma = 'circulo';
+    if(!state._gradeAreaTamanho) state._gradeAreaTamanho = 4;
+    wrap.appendChild(el('div',{class:'row', style:'margin-bottom:6px;'},
+      ...[['circulo','⭕ Círculo/Esfera'],['cone','🔺 Cone'],['linha','➖ Linha']].map(([id,label])=>
+        el('button',{class:'btn'+(state._gradeAreaForma===id?'':' ghost'), onclick:()=>{ state._gradeAreaForma=id; render(); }}, label)
+      )
+    ));
+    wrap.appendChild(el('div',{class:'row', style:'align-items:center;gap:8px;margin-bottom:10px;'},
+      el('div',{class:'meta', style:'flex:none;'}, 'Tamanho:'),
+      el('button',{class:'btn ghost', style:'width:auto;padding:4px 10px;', onclick:()=>{ state._gradeAreaTamanho=Math.max(1,state._gradeAreaTamanho-1); render(); }}, '➖'),
+      el('div',{style:'flex:none;font-weight:700;'}, state._gradeAreaTamanho+'q ('+(state._gradeAreaTamanho*1.5)+'m)'),
+      el('button',{class:'btn ghost', style:'width:auto;padding:4px 10px;', onclick:()=>{ state._gradeAreaTamanho=Math.min(20,state._gradeAreaTamanho+1); render(); }}, '➕')
+    ));
+    wrap.appendChild(el('div',{class:'meta', style:'margin-bottom:6px;'}, state._gradeAreaForma==='circulo' ? 'Toque num quadrado pra centralizar a área ali.' : 'Toque num quadrado pra apontar a direção, saindo de "'+combate.combatentes.find(c=>c.id===state._gradeSelecionado).nome+'".'));
+  }
+
+  if(state._gradeModo==='medir'){
+    wrap.appendChild(el('div',{class:'tip', style:'margin-bottom:6px;'}, 'Toque em 2 quadrados quaisquer pra medir a distância entre eles.'));
+    if(state._gradeMedirPontos && state._gradeMedirPontos.length===2){
+      const [p1,p2] = state._gradeMedirPontos;
+      const dist = Math.max(Math.abs(p1.x-p2.x), Math.abs(p1.y-p2.y));
+      wrap.appendChild(el('div',{class:'tip', style:'border:1px solid var(--gold);'}, el('b',{},'Distância: '), dist+' quadrados ('+(dist*1.5)+'m)'));
+    }
+  }
+
   // ---- O tabuleiro em si ----
   const origemAlcance = (state._gradeModo==='alcance') ? grade.posicoes[state._gradeSelecionado] : null;
   const raioAlcance = origemAlcance ? ALCANCES_QUADROS[state._gradeAlcance] : 0;
+  const origemArea = (state._gradeModo==='area' && state._gradeAreaForma!=='circulo') ? grade.posicoes[state._gradeSelecionado] : null;
   const tam = state._gradeZoom;
 
   function tentarMoverPara(combatenteId, x, y){
-    const bloco = grade.blocos[x+','+y];
-    if(bloco){ flashMsg('Esse quadrado tem '+BLOCO_TIPOS[bloco.tipo].label.toLowerCase()+' — não dá pra entrar ali.'); return false; }
-    const ocupante = Object.keys(grade.posicoes).find(id=> id!==combatenteId && grade.posicoes[id].x===x && grade.posicoes[id].y===y);
+    const alvo = combate.combatentes.find(cc=>cc.id===combatenteId);
+    const tamToken = tamanhoTokenCombatente(alvo);
+    if(x+tamToken>GRADE_LARGURA || y+tamToken>GRADE_ALTURA){ flashMsg('Não cabe aqui — o token dele ocupa '+tamToken+'×'+tamToken+' quadrados.'); return false; }
+    const celulasAlvo = celulasOcupadasPorToken(x,y,tamToken);
+    for(const chaveCel of celulasAlvo){
+      const bloco = grade.blocos[chaveCel];
+      if(bloco && BLOCO_TIPOS[bloco.tipo].bloqueiaMovimento){ flashMsg('Esse quadrado tem '+BLOCO_TIPOS[bloco.tipo].label.toLowerCase()+' — não dá pra entrar ali.'); return false; }
+    }
+    const ocupante = Object.keys(grade.posicoes).find(id=>{
+      if(id===combatenteId) return false;
+      const outro = combate.combatentes.find(cc=>cc.id===id);
+      if(!outro) return false;
+      const celulasOutro = celulasOcupadasPorToken(grade.posicoes[id].x, grade.posicoes[id].y, tamanhoTokenCombatente(outro));
+      return celulasOutro.some(c=>celulasAlvo.includes(c));
+    });
     if(ocupante){ flashMsg('Já tem alguém nesse quadrado.'); return false; }
     grade.posicoes[combatenteId] = {x,y};
     return true;
   }
 
   const scrollWrap = el('div',{style:'max-width:100%; max-height:60vh; overflow:auto; -webkit-overflow-scrolling:touch; border:2px solid var(--line); border-radius:6px; cursor:grab;'});
-  const tabuleiro = el('div',{style:'display:grid; grid-template-columns:repeat('+GRADE_LARGURA+', '+tam+'px); gap:1px; background:var(--line); width:max-content;'});
+  const letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const tabuleiro = el('div',{style:'display:grid; grid-template-columns:'+Math.round(tam*0.7)+'px repeat('+GRADE_LARGURA+', '+tam+'px); gap:1px; background:var(--line); width:max-content;'});
 
-  // Arrastar o mapa com o mouse (no touch já rola nativo com o dedo). Só entra em modo "pan"
-  // se o clique NÃO começou em cima de um token (senão atrapalharia o arrastar-token). Se o
-  // mouse se moveu mais que uns pixels, marca "acabei de arrastar" pra suprimir o click que o
-  // navegador dispara logo depois (senão colocaria um bloco/moveria token sem querer).
+  // canto vazio + letras das colunas
+  tabuleiro.appendChild(el('div',{style:'width:'+Math.round(tam*0.7)+'px;height:'+Math.round(tam*0.6)+'px;'}));
+  for(let x=0;x<GRADE_LARGURA;x++){
+    tabuleiro.appendChild(el('div',{style:'width:'+tam+'px;height:'+Math.round(tam*0.6)+'px;display:flex;align-items:center;justify-content:center;font-size:'+Math.round(tam*0.32)+'px;color:var(--ink-soft);'}, letras[x]||''));
+  }
+
+  // Arrastar o mapa com o mouse (no touch já rola nativo com o dedo).
   let panEstado = null;
   scrollWrap.addEventListener('mousedown',(e)=>{
     if(e.target.closest('.grade-token')) return;
@@ -956,52 +1107,91 @@ function renderMestreGrade(){
     panEstado = null;
   });
 
+  // Mapa de "qual token ocupa essa célula" — pra criatura Grande+ desenhar em várias células
+  // de uma vez sem duplicar o desenho, e pra qualquer célula dela reagir a toque igual à âncora.
+  const anchorPorCelula = {};
+  Object.keys(grade.posicoes).forEach(id=>{
+    const c = combate.combatentes.find(cc=>cc.id===id);
+    if(!c) return;
+    const {x,y} = grade.posicoes[id];
+    celulasOcupadasPorToken(x,y,tamanhoTokenCombatente(c)).forEach(chave=>{ anchorPorCelula[chave] = id; });
+  });
+
+  const areaDestacada = (state._gradeModo==='area' && state._gradeAreaHover)
+    ? calcularCelulasArea(
+        state._gradeAreaForma,
+        state._gradeAreaForma==='circulo' ? state._gradeAreaHover.x : (origemArea?origemArea.x:state._gradeAreaHover.x),
+        state._gradeAreaForma==='circulo' ? state._gradeAreaHover.y : (origemArea?origemArea.y:state._gradeAreaHover.y),
+        state._gradeAreaHover.x, state._gradeAreaHover.y, state._gradeAreaTamanho)
+    : new Set();
+
   for(let y=0;y<GRADE_ALTURA;y++){
+    tabuleiro.appendChild(el('div',{style:'width:'+Math.round(tam*0.7)+'px;height:'+tam+'px;display:flex;align-items:center;justify-content:center;font-size:'+Math.round(tam*0.32)+'px;color:var(--ink-soft);'}, String(y+1)));
     for(let x=0;x<GRADE_LARGURA;x++){
       const chave = x+','+y;
       const bloco = grade.blocos[chave];
-      const combatenteId = Object.keys(grade.posicoes).find(id=> grade.posicoes[id].x===x && grade.posicoes[id].y===y);
-      const c = combatenteId ? combate.combatentes.find(cc=>cc.id===combatenteId) : null;
+      const anchorId = anchorPorCelula[chave];
+      const ehAncora = anchorId && grade.posicoes[anchorId].x===x && grade.posicoes[anchorId].y===y;
+      const c = ehAncora ? combate.combatentes.find(cc=>cc.id===anchorId) : null;
       let dentroDoAlcance = false;
       if(origemAlcance){
         const dist = Math.max(Math.abs(x-origemAlcance.x), Math.abs(y-origemAlcance.y));
         dentroDoAlcance = dist>0 && dist<=raioAlcance;
       }
-      const bgCelula = bloco ? BLOCO_TIPOS[bloco.tipo].cor : dentroDoAlcance ? 'rgba(224,69,58,0.28)' : 'var(--card)';
+      const dentroDaArea = areaDestacada.has(chave);
+      const bgCelula = bloco ? BLOCO_TIPOS[bloco.tipo].cor : dentroDaArea ? 'rgba(224,69,58,0.4)' : dentroDoAlcance ? 'rgba(224,69,58,0.28)' : 'var(--card)';
       const celula = el('div',{
         'data-gx':x, 'data-gy':y,
         style:'width:'+tam+'px;height:'+tam+'px;background:'+bgCelula+';display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;',
+        onmouseenter: (state._gradeModo==='area') ? (()=>{ state._gradeAreaHover={x,y}; render(); }) : null,
         onclick:()=>{
           if(state._gradeSuprimirProximoClique){ state._gradeSuprimirProximoClique = false; return; }
           if(state._gradeModo==='mover'){
+            if(anchorId){ state._gradeSelecionado = anchorId; render(); return; }
             tentarMoverPara(state._gradeSelecionado, x, y);
           } else if(state._gradeModo==='blocos'){
-            if(c){ flashMsg('Tem um combatente aqui — mude ele de lugar antes de colocar bloco.'); return; }
+            if(anchorId){ flashMsg('Tem um combatente aqui — mude ele de lugar antes de colocar bloco.'); return; }
             grade.blocos[chave] = {tipo: state._gradeBlocoSelecionado};
           } else if(state._gradeModo==='quebrar'){
             if(bloco && BLOCO_TIPOS[bloco.tipo].quebravel) delete grade.blocos[chave];
             else if(bloco) flashMsg(BLOCO_TIPOS[bloco.tipo].label+' não quebra — use o modo Apagar se quiser remover mesmo assim.');
           } else if(state._gradeModo==='apagar'){
-            if(combatenteId) delete grade.posicoes[combatenteId];
+            if(anchorId) delete grade.posicoes[anchorId];
             else if(bloco) delete grade.blocos[chave];
+          } else if(state._gradeModo==='area'){
+            state._gradeAreaHover = {x,y};
+          } else if(state._gradeModo==='medir'){
+            const pontos = state._gradeMedirPontos || [];
+            state._gradeMedirPontos = pontos.length>=2 ? [{x,y}] : [...pontos, {x,y}];
           }
           render();
         }
       });
       if(bloco) celula.appendChild(el('div',{style:'font-size:'+Math.round(tam*0.6)+'px;opacity:0.9;'}, BLOCO_TIPOS[bloco.tipo].emoji));
-      if(c){
-        const foto = fotoDoCombatente(c);
-        const token = el('div',{
-          class:'grade-token',
-          draggable:'true',
-          style:'width:88%;height:88%;border-radius:50%;background:'+corTokenPorTipo(c.tipo)+';display:flex;align-items:center;justify-content:center;font-weight:800;color:#1a0f0a;overflow:hidden;box-shadow:0 0 0 2px rgba(0,0,0,0.4);cursor:grab;font-size:'+Math.round(tam*0.34)+'px;',
-          ondragstart:(e)=>{ e.dataTransfer.setData('text/plain', c.id); e.dataTransfer.effectAllowed='move'; },
-        }, foto ? el('img',{src:foto, style:'width:100%;height:100%;object-fit:cover;border-radius:50%;'}) : c.nome.slice(0,2).toUpperCase());
-        // toque simples no token seleciona ele (útil antes de escolher outro quadrado)
-        token.addEventListener('click',(e)=>{ e.stopPropagation(); if(state._gradeModo==='mover'){ state._gradeSelecionado=c.id; render(); } });
-        celula.appendChild(token);
+      if(state._gradeModo==='medir' && (state._gradeMedirPontos||[]).some(p=>p.x===x&&p.y===y)){
+        celula.appendChild(el('div',{style:'position:absolute;inset:0;border:2px solid var(--gold);pointer-events:none;'}));
       }
-      // alvo de soltar (arrastar-e-soltar, funciona com mouse; em touch cai pro toque simples acima)
+      if(c){
+        const tamToken = tamanhoTokenCombatente(c);
+        const pxToken = tamToken*tam + (tamToken-1)*1;
+        const foto = fotoDoCombatente(c);
+        const condicao = condicaoIconeCombatente(c);
+        const pvPct = c.pvMax ? Math.max(0, Math.min(100, (c.pv||0)/c.pvMax*100)) : 100;
+        const tokenWrap = el('div',{
+          class:'grade-token', draggable:'true',
+          style:'position:absolute; top:0; left:0; width:'+pxToken+'px; height:'+pxToken+'px; z-index:5; cursor:grab;',
+          ondragstart:(e)=>{ e.dataTransfer.setData('text/plain', c.id); e.dataTransfer.effectAllowed='move'; },
+        });
+        tokenWrap.appendChild(el('div',{style:'width:100%;height:100%;border-radius:50%;background:'+corTokenPorTipo(c.tipo)+';display:flex;align-items:center;justify-content:center;font-weight:800;color:#1a0f0a;overflow:hidden;box-shadow:0 0 0 2px rgba(0,0,0,0.4);font-size:'+Math.round(pxToken*0.34)+'px;'},
+          foto ? el('img',{src:foto, style:'width:100%;height:100%;object-fit:cover;border-radius:50%;'}) : c.nome.slice(0,2).toUpperCase()
+        ));
+        tokenWrap.appendChild(el('div',{style:'position:absolute;bottom:-3px;left:8%;width:84%;height:3px;background:rgba(0,0,0,0.5);border-radius:2px;overflow:hidden;'},
+          el('div',{style:'width:'+pvPct+'%;height:100%;background:'+(pvPct>50?'#5ea85e':pvPct>25?'#c9a23a':'#c94a3a')+';'})
+        ));
+        if(condicao) tokenWrap.appendChild(el('div',{style:'position:absolute;top:-4px;right:-4px;background:var(--red-bright);color:#fff;border-radius:50%;width:14px;height:14px;font-size:9px;display:flex;align-items:center;justify-content:center;font-weight:800;', title:condicao.primeira}, condicao.qtd));
+        tokenWrap.addEventListener('click',(e)=>{ e.stopPropagation(); if(state._gradeModo==='mover'){ state._gradeSelecionado=c.id; render(); } });
+        celula.appendChild(tokenWrap);
+      }
       celula.addEventListener('dragover',(e)=>{ e.preventDefault(); });
       celula.addEventListener('drop',(e)=>{
         e.preventDefault();
@@ -1015,9 +1205,9 @@ function renderMestreGrade(){
   scrollWrap.appendChild(tabuleiro);
   wrap.appendChild(scrollWrap);
 
-  wrap.appendChild(el('div',{class:'meta', style:'margin-top:8px;font-size:0.72rem;'}, '🟫 Parede grossa e 🌳🪨 árvore/rocha bloqueiam tudo e não quebram. 🧱 Parede fina e 🪟 janela bloqueiam movimento mas quebram no modo "Quebrar". No computador dá pra arrastar o token direto; no celular, selecione o combatente e toque no quadrado.'));
+  wrap.appendChild(el('div',{class:'meta', style:'margin-top:8px;font-size:0.72rem;'}, '🟫 Parede grossa e 🌳🪨 árvore/rocha bloqueiam tudo e não quebram. 🧱 Parede fina e 🪟 janela bloqueiam movimento mas quebram no modo "Quebrar". 💧 Terreno difícil não bloqueia, só é lembrete de deslocamento dobrado. Criaturas Grandes+ já ocupam vários quadrados sozinhas. No computador dá pra arrastar o token direto; no celular, selecione o combatente e toque no quadrado.'));
   wrap.appendChild(el('button',{class:'btn ghost', style:'margin-top:10px;', onclick:()=>{
-    if(!confirm('Limpar o tabuleiro inteiro (posições e blocos)? Não mexe na iniciativa/PV de ninguém.')) return;
+    if(!confirm('Limpar o tabuleiro inteiro (posições e blocos)? Não mexe na iniciativa/PV de ninguém, nem nos mapas salvos.')) return;
     combate.grade = { blocos:{}, posicoes:{} };
     render();
   }}, 'Limpar Tabuleiro 🗑️'));

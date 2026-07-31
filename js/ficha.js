@@ -33,6 +33,9 @@ function renderMenuOverlay(){
   }},
     el('span',{class:'ico'}, '↩️'), el('span',{}, 'Desfazer Última Alteração')
   ));
+  sheet.appendChild(el('button',{class:'menu-item', onclick:()=>{ state._menuAberto=false; baixarBackupFicha(fichaAtual()); }},
+    el('span',{class:'ico'}, '💾'), el('span',{}, 'Baixar Cópia de Segurança')
+  ));
   sheet.appendChild(el('button',{class:'menu-item', onclick:()=>{ alternarNotificacaoSom(); render(); }},
     el('span',{class:'ico'}, notificacaoSomAtiva()?'🔔':'🔕'), el('span',{}, notificacaoSomAtiva()?'Aviso Sonoro/Vibração: Ligado':'Aviso Sonoro/Vibração: Desligado')
   ));
@@ -116,6 +119,47 @@ function renderPopupPendencias(f){
         flashMsg('✅ Habilidades de classe adicionadas!');
         render();
       }}, 'Resolver agora'));
+    }
+
+    if(p.tipo==='deformidade'){
+      if(!resolvendo){
+        card.appendChild(el('button',{class:'btn', onclick:()=>{ state._pendenciaResolvendo='deformidade'; state._pendDeformidade = (f.deformidadeEscolhas||[]).slice(); render(); }}, 'Resolver agora'));
+      } else {
+        if(!state._pendDeformidade) state._pendDeformidade = [];
+        card.appendChild(el('div',{class:'option-grid'},
+          ...PERICIAS.map(per=>{
+            const marcada = state._pendDeformidade.includes(per.nome);
+            return el('button',{class:'option-card'+(marcada?' selected':''), onclick:()=>{
+              if(marcada){ state._pendDeformidade = state._pendDeformidade.filter(n=>n!==per.nome); }
+              else if(state._pendDeformidade.length<2){ state._pendDeformidade = [...state._pendDeformidade, per.nome]; }
+              else { flashMsg('Já escolheu as 2 perícias.'); return; }
+              render();
+            }}, el('div',{class:'opt-nome'}, per.nome));
+          })
+        ));
+        card.appendChild(el('div',{class:'meta', style:'margin-top:6px;'}, state._pendDeformidade.length+' / 2 escolhidas'));
+        const podeSalvar = state._pendDeformidade.length===2;
+        card.appendChild(el('div',{class:'row', style:'margin-top:10px;'},
+          el('button',{class:'btn'+(podeSalvar?'':' ghost'), onclick:()=>{
+            if(!podeSalvar) return;
+            f.deformidadeEscolhas = state._pendDeformidade.slice();
+            salvarPerfis();
+            flashMsg('✅ Deformidade resolvida!');
+            state._pendenciaResolvendo=null;
+            render();
+          }}, 'Salvar'),
+          el('button',{class:'btn ghost', onclick:()=>{ state._pendenciaResolvendo=null; render(); }}, 'Cancelar')
+        ));
+      }
+    }
+
+    if(p.tipo==='vanguardista'){
+      card.appendChild(el('button',{class:'btn', onclick:()=>{
+        f.vanguardistaOficio = 'Ofício';
+        salvarPerfis();
+        flashMsg('✅ Bônus de Vanguardista aplicado em Ofício!');
+        render();
+      }}, 'Aplicar em Ofício'));
     }
 
     if(p.tipo==='arcanistaCaminho'){
@@ -641,6 +685,30 @@ function registrarLog(f, texto){
   if(f.log.length > 50) f.log.length = 50;
 }
 
+// Baixa a ficha inteira como um arquivo .json — uma cópia de segurança que não depende da
+// planilha do Mestre. Pode ser reaberta depois com "Importar Cópia de Segurança" na tela de
+// Perfis, ou só guardada como backup mesmo.
+function baixarBackupFicha(f){
+  const conteudo = JSON.stringify(f, null, 2);
+  const blob = new Blob([conteudo], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const nomeArquivo = 'backup_'+(f.nome||'personagem').replace(/[^a-zA-Z0-9À-ÿ_-]/g,'_')+'_'+new Date().toISOString().slice(0,10)+'.json';
+  const a = document.createElement('a');
+  a.href = url; a.download = nomeArquivo;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+  flashMsg('💾 Backup de "'+(f.nome||'personagem')+'" baixado!');
+}
+// Lê um arquivo .json de backup e devolve a ficha (ou null se não for um backup válido).
+async function lerArquivoBackup(arquivo){
+  try{
+    const texto = await arquivo.text();
+    const dados = JSON.parse(texto);
+    if(!dados || typeof dados!=='object' || !dados.nome) return null;
+    return dados;
+  }catch(e){ return null; }
+}
+
 // Restaura o personagem pro estado de ANTES do último salvamento (guardado automaticamente
 // dentro de salvarPerfis()). Funciona pra qualquer tipo de mudança — PV, level up, item, magia,
 // condição etc. — sem precisar de um botão específico "desfazer level up", "desfazer PV" etc.
@@ -971,10 +1039,38 @@ function renderPersonagemFicha(){
   ));
 
   wrap.appendChild(renderPainelCondicoes(f));
+  wrap.appendChild(renderPainelManobras(f));
   wrap.appendChild(renderItensEquipados());
   wrap.appendChild(renderPainelVestidos(f));
 
   return wrap;
+}
+
+// Manobras de combate (Agarrar, Derrubar, Desarmar, Empurrar, Quebrar) usam exatamente o teste
+// de Luta corpo a corpo do personagem, como um "teste de manobra" oposto ao alvo (pág. 234) —
+// não é uma conta separada, só reaproveita o valor de Luta já calculado. Esse painel só deixa
+// isso visível, com o valor pronto e um lembrete rápido do que cada manobra faz.
+const MANOBRAS_COMBATE = [
+  ['Agarrar', 'Alvo fica desprevenido e imóvel, –2 em ataques, só ataca com arma leve. Ele se solta com ação padrão vencendo o teste de novo.'],
+  ['Derrubar', 'Alvo cai no chão. Vencendo por 5+, também empurra 1 quadrado.'],
+  ['Desarmar', 'Item na mão do alvo cai no chão. Vencendo por 5+, também empurra o item 1 quadrado.'],
+  ['Empurrar', 'Empurra o alvo 1,5m; +1,5m a cada 5 pontos de diferença no teste.'],
+  ['Quebrar', 'Ataca um item que o alvo segura (ver estatísticas de objetos).'],
+];
+function renderPainelManobras(f){
+  const lutaInfo = PERICIAS.find(p=>p.nome==='Luta');
+  const valorManobra = lutaInfo ? periciaValor(f, lutaInfo) : 0;
+  const panel = el('div',{class:'panel faixa'}, el('h2',{},'Manobras de Combate'));
+  panel.appendChild(el('div',{class:'tip'}, el('b',{},'Seu teste de manobra: '+(valorManobra>=0?'+':'')+valorManobra), 'É o mesmo valor de Luta corpo a corpo — a manobra é um teste oposto contra o alvo (mesmo que ele lute à distância, ele usa a Luta dele pra resistir). Não dá pra fazer manobra com ataque à distância.'));
+  const grid = el('div',{class:'option-grid'});
+  MANOBRAS_COMBATE.forEach(([nome,desc])=>{
+    grid.appendChild(el('div',{class:'option-card', style:'cursor:default;'},
+      el('div',{class:'opt-nome'}, nome),
+      el('div',{class:'opt-sub'}, desc)
+    ));
+  });
+  panel.appendChild(grid);
+  return panel;
 }
 
 // Painel de condições ativas — toque pra ligar/desligar. Mostra só o nome nas escolhidas de
