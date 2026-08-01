@@ -1331,7 +1331,7 @@ async function iniciar(){
     state._verGradeCodigo = codigoVerGrade;
     aplicarTemaSalvo();
     await atualizarVisualizacaoGrade();
-    setInterval(atualizarVisualizacaoGrade, 5000);
+    setInterval(atualizarVisualizacaoGrade, 2000);
     return;
   }
   aplicarTemaSalvo();

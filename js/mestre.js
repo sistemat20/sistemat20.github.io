@@ -145,8 +145,22 @@ async function salvarDadosMestreNoServidor(){
 }
 // Empurra a atualização pro servidor sem travar a UI — chamada depois de qualquer mudança na
 // grade que o link compartilhado precise refletir (mover token, bloco, revelar fog...).
+// Empurra a atualização pro servidor sem travar a UI. Cuidado importante: se o Mestre mexe em
+// várias coisas rápido (mover token, colocar parede, mover outro...), cada mudança chamava isso
+// na hora, e como são requisições de rede, uma mais ANTIGA podia terminar DEPOIS de uma mais
+// nova (rede é imprevisível) — aí a versão velha "vencia" por último e apagava progresso novo
+// (foi exatamente o bug do mapa sumindo). Agora só deixa 1 salvamento de cada vez rodando; se
+// pedir de novo enquanto um já tá em andamento, só marca "pendente" e reenvia o estado mais
+// atual assim que o atual terminar — nunca dois ao mesmo tempo, nunca fora de ordem.
+let _gradeSincronizando = false;
+let _gradeSincronizarPendente = false;
 function sincronizarGradeCompartilhada(){
-  salvarDadosMestreNoServidor().catch(()=>{});
+  if(_gradeSincronizando){ _gradeSincronizarPendente = true; return; }
+  _gradeSincronizando = true;
+  salvarDadosMestreNoServidor().catch(()=>{}).then(()=>{
+    _gradeSincronizando = false;
+    if(_gradeSincronizarPendente){ _gradeSincronizarPendente = false; sincronizarGradeCompartilhada(); }
+  });
 }
 function salvarGruposLocal(){ salvarDadosMestreNoServidor(); }
 function personagensDoGrupoAtual(){
@@ -836,9 +850,9 @@ const TERRENOS_FUNDO = [
 ];
 const ALCANCES_QUADROS = {curto:6, medio:20, longo:60}; // 1 quadrado = 1,5m (regra pág. 148)
 const BLOCO_TIPOS = {
-  parede_grossa: {emoji:'🟫', label:'Parede Grossa', cor:'#141414', quebravel:false, bloqueiaMovimento:true, bloqueiaVisao:true, desc:'Bloqueia tudo — movimento, visão e ataque à distância. Não quebra.'},
-  parede_fina:   {emoji:'🚧', label:'Parede Fina',   cor:'#6b4423', quebravel:true,  bloqueiaMovimento:true, bloqueiaVisao:false, desc:'Bloqueia movimento. No modo "Quebrar", um toque abre passagem.'},
-  janela:        {emoji:'🪟', label:'Janela',        cor:'#3a6a7a', quebravel:true,  bloqueiaMovimento:true, bloqueiaVisao:false, desc:'Bloqueia movimento, mas dá pra ver/atirar através. Quebra igual à parede fina.'},
+  parede_grossa: {emoji:'🟫', label:'Parede Grossa', cor:'#4a3524', quebravel:false, bloqueiaMovimento:true, bloqueiaVisao:true, desc:'Bloqueia tudo — movimento, visão e ataque à distância. Não quebra.'},
+  porta:         {emoji:'🚪', label:'Porta',         cor:'#6b4423', quebravel:true,  bloqueiaMovimento:true, bloqueiaVisao:false, desc:'Bloqueia movimento enquanto fechada. No modo "Quebrar", um toque abre passagem (arromba/abre a porta).'},
+  janela:        {emoji:'🪟', label:'Janela',        cor:'#3a6a7a', quebravel:true,  bloqueiaMovimento:true, bloqueiaVisao:false, desc:'Bloqueia movimento, mas dá pra ver/atirar através. Quebra igual à porta.'},
   arvore:        {emoji:'🌳', label:'Árvore',        cor:'#2d5016', quebravel:false, bloqueiaMovimento:true, bloqueiaVisao:true, desc:'Bloqueia movimento e visão. Não quebra (mas dá pra Apagar se cortar ela).'},
   rocha:         {emoji:'🪨', label:'Rocha',         cor:'#5a5a5a', quebravel:false, bloqueiaMovimento:true, bloqueiaVisao:true, desc:'Bloqueia movimento e visão. Não quebra.'},
   dificil:       {emoji:'💧', label:'Terreno Difícil', cor:'#3a5a1a', quebravel:false, bloqueiaMovimento:false, bloqueiaVisao:false, desc:'Água rasa, lama, mato alto... NÃO bloqueia entrar, mas gasta o dobro de deslocamento pra atravessar (regra do livro) — só um aviso, o app não desconta nada sozinho.'},
@@ -885,12 +899,17 @@ function garantirGrade(combate){
     // migração de fichas com o formato antigo (só fina/grossa, sem paleta)
     combate.grade.blocos = {};
     Object.keys(combate.grade.paredes).forEach(chave=>{
-      combate.grade.blocos[chave] = {tipo: combate.grade.paredes[chave]==='grossa' ? 'parede_grossa' : 'parede_fina'};
+      combate.grade.blocos[chave] = {tipo: combate.grade.paredes[chave]==='grossa' ? 'parede_grossa' : 'porta'};
     });
     delete combate.grade.paredes;
   }
   if(!combate.grade.blocos) combate.grade.blocos = {};
   if(!combate.grade.posicoes) combate.grade.posicoes = {};
+  // Migração: "Parede Fina" virou "Porta" (mesmo comportamento, só nome/ícone diferentes) —
+  // tabuleiros salvos antes dessa mudança ainda podem ter blocos com o tipo antigo.
+  Object.keys(combate.grade.blocos).forEach(chave=>{
+    if(combate.grade.blocos[chave].tipo==='parede_fina') combate.grade.blocos[chave].tipo = 'porta';
+  });
   if(!combate.grade.largura) combate.grade.largura = GRADE_LARGURA_PADRAO;
   if(!combate.grade.altura) combate.grade.altura = GRADE_ALTURA_PADRAO;
   if(!combate.grade.fogRevelado) combate.grade.fogRevelado = {};
@@ -1077,7 +1096,8 @@ function renderVisualizacaoGrade(){
         }
       });
       if(!escondido){
-        if(bloco) celula.appendChild(el('div',{style:'font-size:'+Math.round(tam*0.6)+'px;opacity:0.9;'}, BLOCO_TIPOS[bloco.tipo].emoji));
+        const isolado = bordas.top && bordas.right && bordas.bottom && bordas.left;
+        if(bloco && isolado) celula.appendChild(el('div',{style:'font-size:'+Math.round(tam*0.6)+'px;opacity:0.9;'}, BLOCO_TIPOS[bloco.tipo].emoji));
         if(c){
           const tamToken = (c.tipo==='monstro' && c.dados && c.dados.tamanho) ? (TAMANHO_QUADRADOS[c.dados.tamanho]||1) : 1;
           const pxToken = tamToken*tam + (tamToken-1)*1;
@@ -1105,7 +1125,7 @@ function renderVisualizacaoGrade(){
     scrollWrap.appendChild(tabuleiro);
   }
   wrap.appendChild(scrollWrap);
-  wrap.appendChild(el('div',{class:'meta', style:'text-align:center;margin-top:10px;'}, 'Atualiza sozinho a cada 5 segundos — pode deixar essa aba aberta.'));
+  wrap.appendChild(el('div',{class:'meta', style:'text-align:center;margin-top:10px;'}, 'Atualiza sozinho a cada 2 segundos — pode deixar essa aba aberta.'));
   return wrap;
 }
 
@@ -1450,7 +1470,8 @@ function renderMestreGrade(){
           render();
         }
       });
-      if(bloco) celula.appendChild(el('div',{style:'font-size:'+Math.round(tam*0.6)+'px;opacity:0.9;'}, BLOCO_TIPOS[bloco.tipo].emoji));
+      const isolado = bordas.top && bordas.right && bordas.bottom && bordas.left;
+      if(bloco && isolado) celula.appendChild(el('div',{style:'font-size:'+Math.round(tam*0.6)+'px;opacity:0.9;'}, BLOCO_TIPOS[bloco.tipo].emoji));
       if(state._gradeModo==='medir' && (state._gradeMedirPontos||[]).some(p=>p.x===x&&p.y===y)){
         celula.appendChild(el('div',{style:'position:absolute;inset:0;border:2px solid var(--gold);pointer-events:none;'}));
       }
