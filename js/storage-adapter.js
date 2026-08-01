@@ -314,3 +314,26 @@ async function carregarMestreDadosPorCodigo(codigo){
   }
   return {grupos:[], encontrosSalvos:[]};
 }
+// Salva a grade a partir do link compartilhado (jogador mexendo, sem estar logado como Mestre).
+// Faz "ler, trocar só a grade, salvar de volta" pra não apagar grupos/encontros salvos do
+// Mestre — o jogador só tem permissão de mexer no tabuleiro, no resto ele nem tem acesso.
+async function salvarGradeComoJogador(codigo, combateCompartilhadoNovo){
+  const atual = await carregarMestreDadosPorCodigo(codigo);
+  atual.combateCompartilhado = combateCompartilhadoNovo;
+  if(usandoStorageDoClaude()){
+    try{ await window.storage.set('mestre_dados', JSON.stringify(atual), false); }catch(e){}
+    return true;
+  }
+  if(SHEETS_API_URL){
+    try{
+      const resp = await fetch(SHEETS_API_URL, {
+        method: 'POST',
+        headers: {'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify({ action:'salvarMestreDados', mestreCodigo: codigo, dadosJSON: atual })
+      });
+      const data = await resp.json();
+      return !!(data && data.ok);
+    }catch(e){ return false; }
+  }
+  return false;
+}
