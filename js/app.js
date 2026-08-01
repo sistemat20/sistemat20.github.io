@@ -1322,6 +1322,18 @@ function botaoTema(){
 }
 
 async function iniciar(){
+  // Link compartilhado da Grade de Combate — pula TODO o fluxo normal de login, é uma tela
+  // só-leitura própria. Detecta pela URL (?vergrade=CODIGO) antes de qualquer outra coisa.
+  const paramsUrl = new URLSearchParams(window.location.search);
+  const codigoVerGrade = paramsUrl.get('vergrade');
+  if(codigoVerGrade){
+    state.screen = 'vergrade';
+    state._verGradeCodigo = codigoVerGrade;
+    aplicarTemaSalvo();
+    await atualizarVisualizacaoGrade();
+    setInterval(atualizarVisualizacaoGrade, 5000);
+    return;
+  }
   aplicarTemaSalvo();
   if(precisaCodigoJogador() && !obterCodigoJogador()){
     render(); // mostra a tela de código sem tentar carregar nada ainda
@@ -1458,7 +1470,8 @@ function render(){
   const scrollSheet = sheetAberto ? sheetAberto.scrollTop : null;
 
   root.innerHTML = '';
-  if(precisaCodigoJogador() && !obterCodigoJogador()){
+  if(state.screen==='vergrade') root.appendChild(renderVisualizacaoGrade());
+  else if(precisaCodigoJogador() && !obterCodigoJogador()){
     root.appendChild(renderEntradaCodigoScreen());
   }
   else if(state.screen==='perfis') root.appendChild(renderPerfisScreen());

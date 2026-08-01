@@ -130,12 +130,23 @@ async function carregarDadosMestreDoServidor(){
   render();
 }
 // Salva Grupos + Encontros Salvos juntos no servidor — chamada sempre que qualquer um dos dois
-// muda. É "dispara e esquece": a UI já foi atualizada localmente antes de chamar isso.
+// muda. É "dispara e esquece": a UI já foi atualizada localmente antes de chamar isso. Também
+// manda o combate/grade atual (se tiver), pra alimentar a tela de "Ver Grade" compartilhada —
+// sem isso, quem abre o link não veria nada.
 async function salvarDadosMestreNoServidor(){
   await salvarMestreDadosArmazenamento({
     grupos: state._mestreGrupos||[],
     encontrosSalvos: state._mestreEncontrosSalvos||[],
+    combateCompartilhado: state._mestreIniciativa ? {
+      combatentes: (state._mestreIniciativa.combatentes||[]).map(c=>({id:c.id, nome:c.nome, tipo:c.tipo, foto:c.foto, origemId:c.origemId, pv:c.pv, pvMax:c.pvMax, dados: c.dados ? {tamanho:c.dados.tamanho} : null})),
+      grade: state._mestreIniciativa.grade || null,
+    } : null,
   });
+}
+// Empurra a atualização pro servidor sem travar a UI — chamada depois de qualquer mudança na
+// grade que o link compartilhado precise refletir (mover token, bloco, revelar fog...).
+function sincronizarGradeCompartilhada(){
+  salvarDadosMestreNoServidor().catch(()=>{});
 }
 function salvarGruposLocal(){ salvarDadosMestreNoServidor(); }
 function personagensDoGrupoAtual(){
@@ -806,15 +817,31 @@ function renderEncontrosSalvos(combate){
 // Um tabuleiro de apoio (não substitui um VTT de verdade) pra visualizar posição, desenhar
 // obstáculos e ver alcance. Guardado dentro do próprio combate (state._mestreIniciativa.grade),
 // reseta junto quando o combate termina.
-const GRADE_LARGURA = 18, GRADE_ALTURA = 12;
+const GRADE_LARGURA_PADRAO = 18, GRADE_ALTURA_PADRAO = 12;
+// Catálogo de terrenos de fundo — imagens ficam dentro do próprio projeto (img/terrenos/),
+// carregam junto com o resto do app sem depender de nenhum site externo.
+const TERRENOS_FUNDO = [
+  {id:'grama', nome:'🌱 Grama', url:'img/terrenos/grama.jpg'},
+  {id:'caverna', nome:'🪨 Caverna', url:'img/terrenos/caverna.jpg'},
+  {id:'masmorra', nome:'🧱 Masmorra', url:'img/terrenos/masmorra.jpg'},
+  {id:'agua', nome:'🌊 Água', url:'img/terrenos/agua.jpg'},
+  {id:'pantano', nome:'🐊 Pântano', url:'img/terrenos/pantano.jpg'},
+  {id:'deserto', nome:'🏜️ Deserto', url:'img/terrenos/deserto.jpg'},
+  {id:'neve', nome:'🏔️ Neve', url:'img/terrenos/neve.jpg'},
+  {id:'gelo', nome:'❄️ Gelo', url:'img/terrenos/gelo.jpg'},
+  {id:'terra', nome:'🟤 Terra', url:'img/terrenos/terra.jpg'},
+  {id:'madeira', nome:'🪵 Madeira', url:'img/terrenos/madeira.jpg'},
+  {id:'floresta', nome:'🌲 Floresta', url:'img/terrenos/floresta.jpg'},
+  {id:'taverna', nome:'🍺 Taverna/Interior', url:'img/terrenos/taverna.jpg'},
+];
 const ALCANCES_QUADROS = {curto:6, medio:20, longo:60}; // 1 quadrado = 1,5m (regra pág. 148)
 const BLOCO_TIPOS = {
-  parede_grossa: {emoji:'🟫', label:'Parede Grossa', cor:'#141414', quebravel:false, bloqueiaMovimento:true, desc:'Bloqueia tudo — movimento, visão e ataque à distância. Não quebra.'},
-  parede_fina:   {emoji:'🧱', label:'Parede Fina',   cor:'#6b4423', quebravel:true,  bloqueiaMovimento:true, desc:'Bloqueia movimento. No modo "Quebrar", um toque abre passagem.'},
-  janela:        {emoji:'🪟', label:'Janela',        cor:'#3a6a7a', quebravel:true,  bloqueiaMovimento:true, desc:'Bloqueia movimento, mas dá pra ver/atirar através. Quebra igual à parede fina.'},
-  arvore:        {emoji:'🌳', label:'Árvore',        cor:'#2d5016', quebravel:false, bloqueiaMovimento:true, desc:'Bloqueia movimento e visão. Não quebra (mas dá pra Apagar se cortar ela).'},
-  rocha:         {emoji:'🪨', label:'Rocha',         cor:'#5a5a5a', quebravel:false, bloqueiaMovimento:true, desc:'Bloqueia movimento e visão. Não quebra.'},
-  dificil:       {emoji:'💧', label:'Terreno Difícil', cor:'#3a5a1a', quebravel:false, bloqueiaMovimento:false, desc:'Água rasa, lama, mato alto... NÃO bloqueia entrar, mas gasta o dobro de deslocamento pra atravessar (regra do livro) — só um aviso, o app não desconta nada sozinho.'},
+  parede_grossa: {emoji:'🟫', label:'Parede Grossa', cor:'#141414', quebravel:false, bloqueiaMovimento:true, bloqueiaVisao:true, desc:'Bloqueia tudo — movimento, visão e ataque à distância. Não quebra.'},
+  parede_fina:   {emoji:'🧱', label:'Parede Fina',   cor:'#6b4423', quebravel:true,  bloqueiaMovimento:true, bloqueiaVisao:false, desc:'Bloqueia movimento. No modo "Quebrar", um toque abre passagem.'},
+  janela:        {emoji:'🪟', label:'Janela',        cor:'#3a6a7a', quebravel:true,  bloqueiaMovimento:true, bloqueiaVisao:false, desc:'Bloqueia movimento, mas dá pra ver/atirar através. Quebra igual à parede fina.'},
+  arvore:        {emoji:'🌳', label:'Árvore',        cor:'#2d5016', quebravel:false, bloqueiaMovimento:true, bloqueiaVisao:true, desc:'Bloqueia movimento e visão. Não quebra (mas dá pra Apagar se cortar ela).'},
+  rocha:         {emoji:'🪨', label:'Rocha',         cor:'#5a5a5a', quebravel:false, bloqueiaMovimento:true, bloqueiaVisao:true, desc:'Bloqueia movimento e visão. Não quebra.'},
+  dificil:       {emoji:'💧', label:'Terreno Difícil', cor:'#3a5a1a', quebravel:false, bloqueiaMovimento:false, bloqueiaVisao:false, desc:'Água rasa, lama, mato alto... NÃO bloqueia entrar, mas gasta o dobro de deslocamento pra atravessar (regra do livro) — só um aviso, o app não desconta nada sozinho.'},
 };
 // Tamanho da criatura em quadrados (regra padrão: Médio ou menor = 1, Grande = 2, Enorme = 3,
 // Colossal = 4 — cada lado do quadrado que o token ocupa).
@@ -864,6 +891,10 @@ function garantirGrade(combate){
   }
   if(!combate.grade.blocos) combate.grade.blocos = {};
   if(!combate.grade.posicoes) combate.grade.posicoes = {};
+  if(!combate.grade.largura) combate.grade.largura = GRADE_LARGURA_PADRAO;
+  if(!combate.grade.altura) combate.grade.altura = GRADE_ALTURA_PADRAO;
+  if(!combate.grade.fogRevelado) combate.grade.fogRevelado = {};
+  if(combate.grade.fogAtivo===undefined) combate.grade.fogAtivo = false;
   return combate.grade;
 }
 function corTokenPorTipo(tipo){
@@ -910,6 +941,122 @@ function calcularCelulasArea(forma, origemX, origemY, alvoX, alvoY, raioQuadros)
   return celulas;
 }
 
+// Linha de visão entre 2 pontos — percorre a linha entre eles (Bresenham) e checa se algum
+// bloco no meio do caminho (que não seja a origem/destino) bloqueia visão. Não avalia distância
+// nenhuma, só "tem parede no meio ou não" — combine com o alcance da arma/magia à parte.
+function temLinhaDeVisao(grade, x0, y0, x1, y1){
+  let dx = Math.abs(x1-x0), dy = Math.abs(y1-y0);
+  let sx = x0<x1 ? 1 : -1, sy = y0<y1 ? 1 : -1;
+  let err = dx-dy;
+  let x = x0, y = y0;
+  while(!(x===x1 && y===y1)){
+    if(!(x===x0 && y===y0)){
+      const bloco = grade.blocos[x+','+y];
+      if(bloco && BLOCO_TIPOS[bloco.tipo].bloqueiaVisao) return false;
+    }
+    const e2 = 2*err;
+    if(e2 > -dy){ err -= dy; x += sx; }
+    if(e2 < dx){ err += dx; y += sy; }
+  }
+  return true;
+}
+
+// Revela automaticamente todo quadrado que algum token de PJ enxerga (linha de visão livre,
+// dentro de um raio "normal" de visão de 12 quadrados/18m). Só soma ao que já tava revelado —
+// nunca esconde de novo algo que os jogadores já viram.
+function revelarPorVisaoDosPjs(combate, grade){
+  const RAIO_VISAO = 12;
+  const pjsNoTabuleiro = combate.combatentes.filter(c=>c.tipo==='pj' && grade.posicoes[c.id]);
+  if(pjsNoTabuleiro.length===0){ flashMsg('Nenhum PJ está posicionado no tabuleiro ainda.'); return; }
+  let novos = 0;
+  pjsNoTabuleiro.forEach(pj=>{
+    const origem = grade.posicoes[pj.id];
+    for(let y=Math.max(0,origem.y-RAIO_VISAO); y<=Math.min(grade.altura-1,origem.y+RAIO_VISAO); y++){
+      for(let x=Math.max(0,origem.x-RAIO_VISAO); x<=Math.min(grade.largura-1,origem.x+RAIO_VISAO); x++){
+        const chave = x+','+y;
+        if(grade.fogRevelado[chave]) continue;
+        if(Math.hypot(x-origem.x, y-origem.y) > RAIO_VISAO) continue;
+        if(temLinhaDeVisao(grade, origem.x, origem.y, x, y)){ grade.fogRevelado[chave] = true; novos++; }
+      }
+    }
+  });
+  flashMsg(novos>0 ? '🌫️ '+novos+' quadrado(s) revelado(s) pela visão dos PJs.' : 'Nada novo pra revelar (já estava tudo visível).');
+  sincronizarGradeCompartilhada();
+}
+
+// ---- Tela de visualização compartilhada (link ?vergrade=CODIGO, sem login) ----
+async function atualizarVisualizacaoGrade(){
+  const dados = await carregarMestreDadosPorCodigo(state._verGradeCodigo);
+  state._verGradeDados = dados.combateCompartilhado || null;
+  render();
+}
+function renderVisualizacaoGrade(){
+  const wrap = el('div',{style:'padding:14px;max-width:100vw;'});
+  wrap.appendChild(el('div',{style:'text-align:center;font-size:1.1rem;font-weight:800;color:var(--gold);margin-bottom:10px;'}, '🗺️ Tabuleiro da Mesa'));
+  const dados = state._verGradeDados;
+  if(!dados || !dados.grade || !dados.combatentes || dados.combatentes.length===0){
+    wrap.appendChild(el('div',{class:'tip', style:'text-align:center;'}, 'O Mestre ainda não compartilhou um tabuleiro, ou o combate ainda não começou. Essa tela atualiza sozinha — pode deixar aberta.'));
+    return wrap;
+  }
+  const grade = dados.grade;
+  const combatentes = dados.combatentes;
+  const tam = 30;
+  const letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+  const anchorPorCelula = {};
+  combatentes.forEach(c=>{
+    const pos = grade.posicoes[c.id];
+    if(!pos) return;
+    const tamToken = (c.tipo==='monstro' && c.dados && c.dados.tamanho) ? (TAMANHO_QUADRADOS[c.dados.tamanho]||1) : 1;
+    celulasOcupadasPorToken(pos.x,pos.y,tamToken).forEach(chave=>{ anchorPorCelula[chave]=c.id; });
+  });
+
+  const terrenoAtual = TERRENOS_FUNDO.find(t=>t.id===grade.terrenoFundo);
+  const temTerrenoImagem = terrenoAtual && terrenoAtual.url;
+  const scrollWrap = el('div',{style:'max-width:100%; overflow:auto; -webkit-overflow-scrolling:touch; border:2px solid var(--line); border-radius:6px;'});
+  const tabuleiro = el('div',{style:'display:grid; grid-template-columns:'+Math.round(tam*0.7)+'px repeat('+grade.largura+', '+tam+'px); gap:1px; background:var(--line); width:max-content;'
+    +(temTerrenoImagem ? ' background-image:url('+terrenoAtual.url+'); background-size:'+tam+'px '+tam+'px; background-repeat:repeat;' : '')});
+
+  tabuleiro.appendChild(el('div',{style:'width:'+Math.round(tam*0.7)+'px;height:'+Math.round(tam*0.6)+'px;'}));
+  for(let x=0;x<grade.largura;x++){
+    tabuleiro.appendChild(el('div',{style:'width:'+tam+'px;height:'+Math.round(tam*0.6)+'px;display:flex;align-items:center;justify-content:center;font-size:'+Math.round(tam*0.32)+'px;color:var(--ink-soft);'}, letras[x]||''));
+  }
+  for(let y=0;y<grade.altura;y++){
+    tabuleiro.appendChild(el('div',{style:'width:'+Math.round(tam*0.7)+'px;height:'+tam+'px;display:flex;align-items:center;justify-content:center;font-size:'+Math.round(tam*0.32)+'px;color:var(--ink-soft);'}, String(y+1)));
+    for(let x=0;x<grade.largura;x++){
+      const chave = x+','+y;
+      const escondido = grade.fogAtivo && !grade.fogRevelado[chave];
+      const bloco = grade.blocos[chave];
+      const anchorId = anchorPorCelula[chave];
+      const ehAncora = anchorId && grade.posicoes[anchorId].x===x && grade.posicoes[anchorId].y===y;
+      const c = ehAncora ? combatentes.find(cc=>cc.id===anchorId) : null;
+      const bgCelula = escondido ? '#0a0a0a' : (bloco ? BLOCO_TIPOS[bloco.tipo].cor : (temTerrenoImagem ? 'transparent' : 'var(--card)'));
+      const celula = el('div',{style:'width:'+tam+'px;height:'+tam+'px;background:'+bgCelula+';display:flex;align-items:center;justify-content:center;position:relative;'});
+      if(!escondido){
+        if(bloco) celula.appendChild(el('div',{style:'font-size:'+Math.round(tam*0.6)+'px;opacity:0.9;'}, BLOCO_TIPOS[bloco.tipo].emoji));
+        if(c){
+          const tamToken = (c.tipo==='monstro' && c.dados && c.dados.tamanho) ? (TAMANHO_QUADRADOS[c.dados.tamanho]||1) : 1;
+          const pxToken = tamToken*tam + (tamToken-1)*1;
+          const pvPct = c.pvMax ? Math.max(0, Math.min(100, (c.pv||0)/c.pvMax*100)) : 100;
+          const tokenWrap = el('div',{style:'position:absolute; top:0; left:0; width:'+pxToken+'px; height:'+pxToken+'px; z-index:5;'});
+          tokenWrap.appendChild(el('div',{style:'width:100%;height:100%;border-radius:50%;background:'+corTokenPorTipo(c.tipo)+';display:flex;align-items:center;justify-content:center;font-weight:800;color:#1a0f0a;overflow:hidden;box-shadow:0 0 0 2px rgba(0,0,0,0.4);font-size:'+Math.round(pxToken*0.34)+'px;'},
+            c.foto ? el('img',{src:c.foto, style:'width:100%;height:100%;object-fit:cover;border-radius:50%;'}) : c.nome.slice(0,2).toUpperCase()
+          ));
+          tokenWrap.appendChild(el('div',{style:'position:absolute;bottom:-3px;left:8%;width:84%;height:3px;background:rgba(0,0,0,0.5);border-radius:2px;overflow:hidden;'},
+            el('div',{style:'width:'+pvPct+'%;height:100%;background:'+(pvPct>50?'#5ea85e':pvPct>25?'#c9a23a':'#c94a3a')+';'})
+          ));
+          celula.appendChild(tokenWrap);
+        }
+      }
+      tabuleiro.appendChild(celula);
+    }
+  }
+  scrollWrap.appendChild(tabuleiro);
+  wrap.appendChild(scrollWrap);
+  wrap.appendChild(el('div',{class:'meta', style:'text-align:center;margin-top:10px;'}, 'Atualiza sozinho a cada 5 segundos — pode deixar essa aba aberta.'));
+  return wrap;
+}
+
 function renderMestreGrade(){
   const wrap = el('div',{});
   if(!state._mestreIniciativa) state._mestreIniciativa = {combatentes:[], turnoIdx:0, rodada:1};
@@ -925,10 +1072,10 @@ function renderMestreGrade(){
 
   if(!state._gradeModo) state._gradeModo = 'mover';
   if(!state._gradeZoom) state._gradeZoom = 30;
-  const modos = [['mover','🚶 Mover'],['blocos','🧊 Blocos'],['quebrar','🔨 Quebrar'],['apagar','🧹 Apagar'],['alcance','📏 Alcance'],['area','💥 Área'],['medir','📐 Medir']];
+  const modos = [['mover','🚶 Mover'],['blocos','🧊 Blocos'],['quebrar','🔨 Quebrar'],['apagar','🧹 Apagar'],['alcance','📏 Alcance'],['area','💥 Área'],['visao','👁️ Visão'],['medir','📐 Medir'],['fog','🌫️ Névoa']];
   const modoRow = el('div',{class:'tab-grid'});
   modos.forEach(([id,label])=>{
-    modoRow.appendChild(el('button',{class: state._gradeModo===id?'on':'', onclick:()=>{ state._gradeModo=id; state._gradeMedirPontos=null; render(); }}, label));
+    modoRow.appendChild(el('button',{class: state._gradeModo===id?'on':'', onclick:()=>{ state._gradeModo=id; state._gradeMedirPontos=null; state._gradeVisaoAlvo=null; render(); }}, label));
   });
   wrap.appendChild(modoRow);
 
@@ -938,6 +1085,32 @@ function renderMestreGrade(){
     el('div',{class:'meta', style:'flex:none;'}, 'Zoom'),
     el('button',{class:'btn ghost', style:'width:auto;padding:6px 14px;', onclick:()=>{ state._gradeZoom = Math.min(48, state._gradeZoom+4); render(); }}, '➕')
   ));
+
+  // ---- Tamanho do tabuleiro (quadrados) — pra mais ou pra menos que o padrão 18×12 ----
+  wrap.appendChild(el('div',{class:'row', style:'align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap;'},
+    el('div',{class:'meta', style:'flex:none;'}, 'Tamanho:'),
+    el('button',{class:'btn ghost', style:'width:auto;padding:4px 10px;', onclick:()=>{ grade.largura = Math.max(6, grade.largura-2); render(); }}, '➖'),
+    el('div',{style:'flex:none;font-weight:700;'}, grade.largura+' larg.'),
+    el('button',{class:'btn ghost', style:'width:auto;padding:4px 10px;', onclick:()=>{ grade.largura = Math.min(40, grade.largura+2); render(); }}, '➕'),
+    el('div',{class:'meta', style:'flex:none;margin-left:8px;'}, '×'),
+    el('button',{class:'btn ghost', style:'width:auto;padding:4px 10px;', onclick:()=>{ grade.altura = Math.max(6, grade.altura-2); render(); }}, '➖'),
+    el('div',{style:'flex:none;font-weight:700;'}, grade.altura+' alt.'),
+    el('button',{class:'btn ghost', style:'width:auto;padding:4px 10px;', onclick:()=>{ grade.altura = Math.min(30, grade.altura+2); render(); }}, '➕')
+  ));
+
+  // ---- Terreno de fundo ----
+  const terrenoAtual = TERRENOS_FUNDO.find(t=>t.id===grade.terrenoFundo);
+  const painelTerreno = el('div',{class:'panel', style:'margin-bottom:10px;'}, el('h2',{},'Terreno de Fundo'));
+  const gridTerreno = el('div',{class:'tab-grid'});
+  gridTerreno.appendChild(el('button',{class: !grade.terrenoFundo?'on':'', onclick:()=>{ grade.terrenoFundo=null; render(); }}, '🚫 Nenhum'));
+  TERRENOS_FUNDO.forEach(t=>{
+    gridTerreno.appendChild(el('button',{class: grade.terrenoFundo===t.id?'on':'', onclick:()=>{ grade.terrenoFundo=t.id; render(); }}, t.nome));
+  });
+  painelTerreno.appendChild(gridTerreno);
+  if(grade.terrenoFundo && terrenoAtual && !terrenoAtual.url){
+    painelTerreno.appendChild(el('div',{class:'meta', style:'margin-top:6px;'}, 'Esse terreno ainda não tem imagem cadastrada — só a cor de fundo padrão por enquanto.'));
+  }
+  wrap.appendChild(painelTerreno);
 
   // ---- Mapas salvos (só os blocos, não os tokens — ficam no aparelho, não na ficha) ----
   if(!state._gradeMapaNomeNovo) state._gradeMapaNomeNovo = '';
@@ -993,7 +1166,7 @@ function renderMestreGrade(){
   }
 
   // ---- Chips de combatentes (mover/alcance/área) ----
-  if(state._gradeModo==='mover' || state._gradeModo==='alcance' || state._gradeModo==='area'){
+  if(state._gradeModo==='mover' || state._gradeModo==='alcance' || state._gradeModo==='area' || state._gradeModo==='visao'){
     if(!state._gradeSelecionado || !combate.combatentes.some(c=>c.id===state._gradeSelecionado)){
       state._gradeSelecionado = combate.combatentes[0].id;
     }
@@ -1037,6 +1210,17 @@ function renderMestreGrade(){
     wrap.appendChild(el('div',{class:'meta', style:'margin-bottom:6px;'}, state._gradeAreaForma==='circulo' ? 'Toque num quadrado pra centralizar a área ali.' : 'Toque num quadrado pra apontar a direção, saindo de "'+combate.combatentes.find(c=>c.id===state._gradeSelecionado).nome+'".'));
   }
 
+  if(state._gradeModo==='visao'){
+    wrap.appendChild(el('div',{class:'tip', style:'margin-bottom:6px;'}, 'Toque num quadrado pra ver se "'+combate.combatentes.find(c=>c.id===state._gradeSelecionado).nome+'" enxerga aquele ponto dali de onde está (considerando parede grossa, árvore e rocha no caminho — parede fina e janela não atrapalham a visão).'));
+    const origemVisao = grade.posicoes[state._gradeSelecionado];
+    if(!origemVisao){
+      wrap.appendChild(el('div',{class:'meta'}, 'Esse combatente ainda não está no tabuleiro.'));
+    } else if(state._gradeVisaoAlvo){
+      const enxerga = temLinhaDeVisao(grade, origemVisao.x, origemVisao.y, state._gradeVisaoAlvo.x, state._gradeVisaoAlvo.y);
+      wrap.appendChild(el('div',{class:'tip', style:'border:1px solid '+(enxerga?'var(--pm-accent)':'var(--red-bright)')+';'}, enxerga ? '👁️ Enxerga esse ponto — sem obstrução no caminho.' : '🚫 NÃO enxerga esse ponto — tem alguma coisa bloqueando a visão no meio do caminho.'));
+    }
+  }
+
   if(state._gradeModo==='medir'){
     wrap.appendChild(el('div',{class:'tip', style:'margin-bottom:6px;'}, 'Toque em 2 quadrados quaisquer pra medir a distância entre eles.'));
     if(state._gradeMedirPontos && state._gradeMedirPontos.length===2){
@@ -1045,6 +1229,46 @@ function renderMestreGrade(){
       wrap.appendChild(el('div',{class:'tip', style:'border:1px solid var(--gold);'}, el('b',{},'Distância: '), dist+' quadrados ('+(dist*1.5)+'m)'));
     }
   }
+
+  if(state._gradeModo==='fog'){
+    const painelFog = el('div',{class:'panel', style:'margin-bottom:10px;'}, el('h2',{},'Névoa de Guerra (Fog of War)'));
+    painelFog.appendChild(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Controla o que aparece pros jogadores no link compartilhado — quadrado não revelado fica escondido por completo pra quem olha o link. Aqui no seu tabuleiro, um quadrado ainda não revelado só fica um pouco escurecido (você continua vendo tudo normal).'));
+    painelFog.appendChild(el('div',{class:'row', style:'margin-top:8px;'},
+      el('button',{class:'btn'+(grade.fogAtivo?'':' ghost'), onclick:()=>{ grade.fogAtivo = !grade.fogAtivo; sincronizarGradeCompartilhada(); render(); }}, grade.fogAtivo ? '🌫️ Névoa Ligada' : '☀️ Névoa Desligada'),
+    ));
+    if(grade.fogAtivo){
+      painelFog.appendChild(el('div',{class:'row', style:'margin-top:8px;'},
+        el('button',{class:'btn ghost', onclick:()=>revelarPorVisaoDosPjs(combate,grade)}, '👁️ Revelar Pela Visão dos PJs'),
+        el('button',{class:'btn ghost', onclick:()=>{
+          if(!confirm('Esconder TUDO de novo (voltar a névoa inteira)? Os jogadores vão perder o que já tinham visto.')) return;
+          grade.fogRevelado = {}; sincronizarGradeCompartilhada(); render();
+        }}, '🌑 Esconder Tudo de Novo')
+      ));
+      painelFog.appendChild(el('div',{class:'meta', style:'margin-top:6px;'}, 'Toque nos quadrados abaixo pra revelar/esconder manualmente também.'));
+    }
+    wrap.appendChild(painelFog);
+  }
+
+  // ---- Link compartilhável (tela só-leitura pros jogadores/tablet da mesa, com névoa aplicada) ----
+  const painelLink = el('div',{class:'panel', style:'margin-bottom:10px;'}, el('h2',{},'Compartilhar com a Mesa'));
+  painelLink.appendChild(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Gera um link só-leitura mostrando o tabuleiro (com a névoa aplicada, se estiver ligada) — abra num tablet/TV da mesa, ou manda pros jogadores. Atualiza sozinho a cada poucos segundos.'));
+  painelLink.appendChild(el('button',{class:'btn', style:'margin-top:8px;', onclick: async ()=>{
+    await salvarDadosMestreNoServidor();
+    const codigo = obterCodigoJogador();
+    const url = window.location.origin + window.location.pathname + '?vergrade=' + encodeURIComponent(codigo||'');
+    state._gradeLinkGerado = url;
+    render();
+  }}, '🔗 Gerar Link'));
+  if(state._gradeLinkGerado){
+    painelLink.appendChild(el('div',{class:'row', style:'margin-top:8px;align-items:center;'},
+      el('input',{type:'text', readonly:'readonly', value:state._gradeLinkGerado, onclick:(e)=>e.target.select()}),
+      el('button',{class:'btn ghost', style:'width:auto;flex:none;', onclick:()=>{
+        try{ navigator.clipboard.writeText(state._gradeLinkGerado); flashMsg('📋 Link copiado!'); }
+        catch(e){ flashMsg('Não consegui copiar sozinho — selecione e copie manual.'); }
+      }}, 'Copiar')
+    ));
+  }
+  wrap.appendChild(painelLink);
 
   // ---- O tabuleiro em si ----
   const origemAlcance = (state._gradeModo==='alcance') ? grade.posicoes[state._gradeSelecionado] : null;
@@ -1055,7 +1279,7 @@ function renderMestreGrade(){
   function tentarMoverPara(combatenteId, x, y){
     const alvo = combate.combatentes.find(cc=>cc.id===combatenteId);
     const tamToken = tamanhoTokenCombatente(alvo);
-    if(x+tamToken>GRADE_LARGURA || y+tamToken>GRADE_ALTURA){ flashMsg('Não cabe aqui — o token dele ocupa '+tamToken+'×'+tamToken+' quadrados.'); return false; }
+    if(x+tamToken>grade.largura || y+tamToken>grade.altura){ flashMsg('Não cabe aqui — o token dele ocupa '+tamToken+'×'+tamToken+' quadrados.'); return false; }
     const celulasAlvo = celulasOcupadasPorToken(x,y,tamToken);
     for(const chaveCel of celulasAlvo){
       const bloco = grade.blocos[chaveCel];
@@ -1070,16 +1294,19 @@ function renderMestreGrade(){
     });
     if(ocupante){ flashMsg('Já tem alguém nesse quadrado.'); return false; }
     grade.posicoes[combatenteId] = {x,y};
+    sincronizarGradeCompartilhada();
     return true;
   }
 
   const scrollWrap = el('div',{style:'max-width:100%; max-height:60vh; overflow:auto; -webkit-overflow-scrolling:touch; border:2px solid var(--line); border-radius:6px; cursor:grab;'});
   const letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  const tabuleiro = el('div',{style:'display:grid; grid-template-columns:'+Math.round(tam*0.7)+'px repeat('+GRADE_LARGURA+', '+tam+'px); gap:1px; background:var(--line); width:max-content;'});
+  const temTerrenoImagem = terrenoAtual && terrenoAtual.url;
+  const tabuleiro = el('div',{style:'display:grid; grid-template-columns:'+Math.round(tam*0.7)+'px repeat('+grade.largura+', '+tam+'px); gap:1px; background:var(--line); width:max-content;'
+    +(temTerrenoImagem ? ' background-image:url('+terrenoAtual.url+'); background-size:'+tam+'px '+tam+'px; background-repeat:repeat;' : '')});
 
   // canto vazio + letras das colunas
   tabuleiro.appendChild(el('div',{style:'width:'+Math.round(tam*0.7)+'px;height:'+Math.round(tam*0.6)+'px;'}));
-  for(let x=0;x<GRADE_LARGURA;x++){
+  for(let x=0;x<grade.largura;x++){
     tabuleiro.appendChild(el('div',{style:'width:'+tam+'px;height:'+Math.round(tam*0.6)+'px;display:flex;align-items:center;justify-content:center;font-size:'+Math.round(tam*0.32)+'px;color:var(--ink-soft);'}, letras[x]||''));
   }
 
@@ -1125,9 +1352,9 @@ function renderMestreGrade(){
         state._gradeAreaHover.x, state._gradeAreaHover.y, state._gradeAreaTamanho)
     : new Set();
 
-  for(let y=0;y<GRADE_ALTURA;y++){
+  for(let y=0;y<grade.altura;y++){
     tabuleiro.appendChild(el('div',{style:'width:'+Math.round(tam*0.7)+'px;height:'+tam+'px;display:flex;align-items:center;justify-content:center;font-size:'+Math.round(tam*0.32)+'px;color:var(--ink-soft);'}, String(y+1)));
-    for(let x=0;x<GRADE_LARGURA;x++){
+    for(let x=0;x<grade.largura;x++){
       const chave = x+','+y;
       const bloco = grade.blocos[chave];
       const anchorId = anchorPorCelula[chave];
@@ -1139,7 +1366,7 @@ function renderMestreGrade(){
         dentroDoAlcance = dist>0 && dist<=raioAlcance;
       }
       const dentroDaArea = areaDestacada.has(chave);
-      const bgCelula = bloco ? BLOCO_TIPOS[bloco.tipo].cor : dentroDaArea ? 'rgba(224,69,58,0.4)' : dentroDoAlcance ? 'rgba(224,69,58,0.28)' : 'var(--card)';
+      const bgCelula = bloco ? BLOCO_TIPOS[bloco.tipo].cor : dentroDaArea ? 'rgba(224,69,58,0.4)' : dentroDoAlcance ? 'rgba(224,69,58,0.28)' : (temTerrenoImagem ? 'transparent' : 'var(--card)');
       const celula = el('div',{
         'data-gx':x, 'data-gy':y,
         style:'width:'+tam+'px;height:'+tam+'px;background:'+bgCelula+';display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;',
@@ -1152,17 +1379,24 @@ function renderMestreGrade(){
           } else if(state._gradeModo==='blocos'){
             if(anchorId){ flashMsg('Tem um combatente aqui — mude ele de lugar antes de colocar bloco.'); return; }
             grade.blocos[chave] = {tipo: state._gradeBlocoSelecionado};
+            sincronizarGradeCompartilhada();
           } else if(state._gradeModo==='quebrar'){
-            if(bloco && BLOCO_TIPOS[bloco.tipo].quebravel) delete grade.blocos[chave];
+            if(bloco && BLOCO_TIPOS[bloco.tipo].quebravel){ delete grade.blocos[chave]; sincronizarGradeCompartilhada(); }
             else if(bloco) flashMsg(BLOCO_TIPOS[bloco.tipo].label+' não quebra — use o modo Apagar se quiser remover mesmo assim.');
           } else if(state._gradeModo==='apagar'){
-            if(anchorId) delete grade.posicoes[anchorId];
-            else if(bloco) delete grade.blocos[chave];
+            if(anchorId){ delete grade.posicoes[anchorId]; sincronizarGradeCompartilhada(); }
+            else if(bloco){ delete grade.blocos[chave]; sincronizarGradeCompartilhada(); }
           } else if(state._gradeModo==='area'){
             state._gradeAreaHover = {x,y};
+          } else if(state._gradeModo==='visao'){
+            state._gradeVisaoAlvo = {x,y};
           } else if(state._gradeModo==='medir'){
             const pontos = state._gradeMedirPontos || [];
             state._gradeMedirPontos = pontos.length>=2 ? [{x,y}] : [...pontos, {x,y}];
+          } else if(state._gradeModo==='fog'){
+            if(grade.fogRevelado[chave]) delete grade.fogRevelado[chave];
+            else grade.fogRevelado[chave] = true;
+            sincronizarGradeCompartilhada();
           }
           render();
         }
@@ -1170,6 +1404,14 @@ function renderMestreGrade(){
       if(bloco) celula.appendChild(el('div',{style:'font-size:'+Math.round(tam*0.6)+'px;opacity:0.9;'}, BLOCO_TIPOS[bloco.tipo].emoji));
       if(state._gradeModo==='medir' && (state._gradeMedirPontos||[]).some(p=>p.x===x&&p.y===y)){
         celula.appendChild(el('div',{style:'position:absolute;inset:0;border:2px solid var(--gold);pointer-events:none;'}));
+      }
+      if(state._gradeModo==='visao' && state._gradeVisaoAlvo && state._gradeVisaoAlvo.x===x && state._gradeVisaoAlvo.y===y){
+        const origemVisaoCel = grade.posicoes[state._gradeSelecionado];
+        const enxergaCel = origemVisaoCel && temLinhaDeVisao(grade, origemVisaoCel.x, origemVisaoCel.y, x, y);
+        celula.appendChild(el('div',{style:'position:absolute;inset:0;border:2px solid '+(enxergaCel?'var(--pm-accent)':'var(--red-bright)')+';pointer-events:none;'}));
+      }
+      if(grade.fogAtivo && !grade.fogRevelado[chave]){
+        celula.appendChild(el('div',{style:'position:absolute;inset:0;background:rgba(0,0,0,0.5);pointer-events:none;'}));
       }
       if(c){
         const tamToken = tamanhoTokenCombatente(c);

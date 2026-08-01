@@ -293,3 +293,24 @@ async function salvarMestreDadosArmazenamento(dados){
   }
   return false;
 }
+// Variante de leitura pra tela de "ver grade" compartilhada — quem abre esse link não está
+// logado (não tem código salvo no aparelho), o código vem direto na URL. Reusa a MESMA rota
+// pública já existente (?mestreDados=true), só que com o código passado explicitamente.
+async function carregarMestreDadosPorCodigo(codigo){
+  if(!codigo) return {grupos:[], encontrosSalvos:[]};
+  if(usandoStorageDoClaude()){
+    try{
+      const r = await window.storage.get('mestre_dados', false);
+      return (r && r.value) ? JSON.parse(r.value) : {grupos:[], encontrosSalvos:[]};
+    }catch(e){ return {grupos:[], encontrosSalvos:[]}; }
+  }
+  if(SHEETS_API_URL){
+    try{
+      const resp = await fetch(SHEETS_API_URL + '?mestreDados=true&mestreCodigo=' + encodeURIComponent(codigo));
+      const data = await resp.json();
+      if(data && data.ok) return data.dados || {grupos:[], encontrosSalvos:[]};
+      return {grupos:[], encontrosSalvos:[]};
+    }catch(e){ return {grupos:[], encontrosSalvos:[]}; }
+  }
+  return {grupos:[], encontrosSalvos:[]};
+}
