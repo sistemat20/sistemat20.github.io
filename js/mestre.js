@@ -28,6 +28,30 @@ function pararAtualizacaoAutomaticaMestre(){
   if(_intervalAtualizacaoMestre){ clearInterval(_intervalAtualizacaoMestre); _intervalAtualizacaoMestre = null; }
 }
 
+// Atualização automática só da Grade, mais rápida que o resto do Mestre (2s) — sem isso, quando
+// um jogador move o próprio token pelo link compartilhado, o Mestre só via a mudança se saísse
+// e voltasse na aba. Só troca posições/blocos/névoa (o que veio do servidor); PV/iniciativa dos
+// combatentes continuam vindo do lado do Mestre, que é quem manda nisso de verdade.
+let _intervalAtualizacaoGradeMestre = null;
+function iniciarAtualizacaoAutomaticaGradeMestre(){
+  if(_intervalAtualizacaoGradeMestre) return; // já tá rodando, não duplica
+  _intervalAtualizacaoGradeMestre = setInterval(async ()=>{
+    if(state.screen!=='mestre' || state.mestreTab!=='grade'){ pararAtualizacaoAutomaticaGradeMestre(); return; }
+    if(_gradeSincronizando) return; // não busca enquanto um salvamento nosso tá em andamento
+    const codigo = obterCodigoJogador();
+    if(!codigo || !state._mestreIniciativa) return;
+    const dados = await carregarMestreDadosPorCodigo(codigo);
+    if(dados && dados.combateCompartilhado && dados.combateCompartilhado.grade){
+      state._mestreIniciativa.grade = dados.combateCompartilhado.grade;
+      const digitando = document.activeElement && ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName);
+      if(!digitando) render();
+    }
+  }, 2000);
+}
+function pararAtualizacaoAutomaticaGradeMestre(){
+  if(_intervalAtualizacaoGradeMestre){ clearInterval(_intervalAtualizacaoGradeMestre); _intervalAtualizacaoGradeMestre = null; }
+}
+
 // As 9 telas do Mestre, agrupadas em 3 categorias — evita uma barra de abas gigante.
 const CATEGORIAS_MESTRE = {
   combate: {label:'Combate', abas:[['combate','Combate'],['grade','Grade de Combate'],['preparar','Preparar Encontro'],['grupo','Grupo']]},
@@ -134,12 +158,25 @@ async function carregarDadosMestreDoServidor(){
 // manda o combate/grade atual (se tiver), pra alimentar a tela de "Ver Grade" compartilhada —
 // sem isso, quem abre o link não veria nada.
 async function salvarDadosMestreNoServidor(){
+  const combate = state._mestreIniciativa;
   await salvarMestreDadosArmazenamento({
     grupos: state._mestreGrupos||[],
     encontrosSalvos: state._mestreEncontrosSalvos||[],
-    combateCompartilhado: state._mestreIniciativa ? {
-      combatentes: (state._mestreIniciativa.combatentes||[]).map(c=>({id:c.id, nome:c.nome, tipo:c.tipo, foto:c.foto, origemId:c.origemId, pv:c.pv, pvMax:c.pvMax, dados: c.dados ? {tamanho:c.dados.tamanho} : null})),
-      grade: state._mestreIniciativa.grade || null,
+    combateCompartilhado: combate ? {
+      combatentes: (combate.combatentes||[]).map(c=>({
+        id:c.id, nome:c.nome, tipo:c.tipo, foto:c.foto, origemId:c.origemId,
+        // PV de monstro NUNCA vai pro link compartilhado — nem escondido no código, nem por
+        // engano. PJ manda o valor AO VIVO da própria ficha (é o jogador quem controla a
+        // vida dele, o Mestre não precisa mexer nisso).
+        pv: c.tipo==='monstro' ? null : pvAtualCombatente(c),
+        pvMax: c.tipo==='monstro' ? null : pvMaxCombatente(c),
+        dados: c.dados ? {tamanho:c.dados.tamanho} : null,
+      })),
+      // "grade" é a versão COMPLETA — só o Mestre lê ela de volta (no polling da própria
+      // Grade), pra nunca perder de vista onde um monstro escondido está. "gradeParaJogadores"
+      // é a versão filtrada que o link compartilhado realmente usa pra desenhar o tabuleiro.
+      grade: combate.grade || null,
+      gradeParaJogadores: combate.grade ? computarGradeParaJogadores(combate.combatentes||[], combate.grade) : null,
     } : null,
   });
 }
@@ -925,6 +962,23 @@ function fotoDoCombatente(c){
   const p = (state.perfisTodos||[]).find(x=>x.id===c.origemId);
   return (p && p.foto) ? p.foto : null;
 }
+// PV de PJ vem AO VIVO da ficha dele (quem controla a vida é o próprio jogador — o Mestre não
+// precisa ficar digitando). Monstro/NPC/personalizado continuam usando o valor guardado no
+// próprio combatente, ajustado manualmente pelo Mestre na aba Combate.
+function pvAtualCombatente(c){
+  if(c.tipo==='pj' && c.origemId){
+    const p = (state.perfisTodos||[]).find(x=>x.id===c.origemId);
+    if(p) return parseInt(p.pvatual)||0;
+  }
+  return parseInt(c.pv)||0;
+}
+function pvMaxCombatente(c){
+  if(c.tipo==='pj' && c.origemId){
+    const p = (state.perfisTodos||[]).find(x=>x.id===c.origemId);
+    if(p) return pvMaxEfetivo(p);
+  }
+  return parseInt(c.pvMax)||0;
+}
 
 // Calcula quais quadrados uma área de efeito atinge. "Alvo" é só a direção (não precisa ser
 // exatamente onde o raio termina). Cone abre ~90° na direção do alvo, como a maioria das áreas
@@ -983,6 +1037,66 @@ function temLinhaDeVisao(grade, x0, y0, x1, y1){
 // Revela automaticamente todo quadrado que algum token de PJ enxerga (linha de visão livre,
 // dentro de um raio "normal" de visão de 12 quadrados/18m). Só soma ao que já tava revelado —
 // nunca esconde de novo algo que os jogadores já viram.
+// Calcula quais quadrados estão VISÍVEIS AGORA MESMO pelos PJs (não é memória permanente —
+// é recalculado toda vez, na hora). Diferente do fogRevelado (que só soma e nunca esquece,
+// pensado pra terreno/paredes já exploradas), isso aqui serve pra decidir se um MONSTRO deve
+// aparecer pro jogador: se ele andar por uma sala que os PJs já visitaram mas não estão mais
+// olhando pra lá, ele não devia continuar aparecendo lá — só quem tá na visão atual.
+function celulasVisiveisAgoraPorPjs(combatentes, grade){
+  const RAIO_VISAO = 12;
+  const visiveis = new Set();
+  combatentes.filter(c=>c.tipo==='pj' && grade.posicoes[c.id]).forEach(pj=>{
+    const origem = grade.posicoes[pj.id];
+    for(let y=Math.max(0,origem.y-RAIO_VISAO); y<=Math.min(grade.altura-1,origem.y+RAIO_VISAO); y++){
+      for(let x=Math.max(0,origem.x-RAIO_VISAO); x<=Math.min(grade.largura-1,origem.x+RAIO_VISAO); x++){
+        if(Math.hypot(x-origem.x, y-origem.y) > RAIO_VISAO) continue;
+        if(temLinhaDeVisao(grade, origem.x, origem.y, x, y)) visiveis.add(x+','+y);
+      }
+    }
+  });
+  return visiveis;
+}
+
+// Quais quadrados algum PJ enxerga NESSE EXATO MOMENTO (dinâmico, recalculado toda hora — não
+// confundir com fogRevelado, que é a memória permanente "já vi esse terreno uma vez"). Usado
+// pra decidir se o TOKEN de uma criatura aparece pros jogadores — terreno já visto continua
+// visível pra sempre, mas um monstro que passa por uma sala vazia (sem PJ olhando pra lá agora)
+// não deveria aparecer só porque a sala já foi explorada antes.
+function celulasVisiveisAgora(combatentes, grade){
+  const RAIO_VISAO = 12;
+  const visiveis = new Set();
+  combatentes.filter(c=>c.tipo==='pj').forEach(pj=>{
+    const origem = grade.posicoes[pj.id];
+    if(!origem) return;
+    for(let y=Math.max(0,origem.y-RAIO_VISAO); y<=Math.min(grade.altura-1,origem.y+RAIO_VISAO); y++){
+      for(let x=Math.max(0,origem.x-RAIO_VISAO); x<=Math.min(grade.largura-1,origem.x+RAIO_VISAO); x++){
+        if(Math.hypot(x-origem.x,y-origem.y)>RAIO_VISAO) continue;
+        if(temLinhaDeVisao(grade, origem.x, origem.y, x, y)) visiveis.add(x+','+y);
+      }
+    }
+  });
+  return visiveis;
+}
+// Monta a versão da grade que vai pro link dos jogadores: cópia da grade "de verdade", mas sem
+// a posição de nenhuma criatura que não seja PJ e não esteja na visão atual de ninguém. O
+// tabuleiro do Mestre continua com a grade completa — essa função nunca mexe nela, só devolve
+// uma cópia à parte.
+function computarGradeParaJogadores(combatentes, grade){
+  const copia = JSON.parse(JSON.stringify(grade));
+  if(!grade.fogAtivo) return copia; // sem névoa, todo mundo vê tudo igual
+  const visiveisAgora = celulasVisiveisAgora(combatentes, grade);
+  Object.keys(copia.posicoes).forEach(id=>{
+    const c = combatentes.find(cc=>cc.id===id);
+    if(!c || c.tipo==='pj') return; // PJ sempre aparece pra galera na mesma mesa
+    const pos = copia.posicoes[id];
+    const tamToken = tamanhoTokenCombatente(c);
+    const ocupadas = celulasOcupadasPorToken(pos.x, pos.y, tamToken);
+    const visivel = ocupadas.some(chave=>visiveisAgora.has(chave));
+    if(!visivel) delete copia.posicoes[id];
+  });
+  return copia;
+}
+
 function revelarPorVisaoDosPjs(combate, grade, silencioso){
   const RAIO_VISAO = 12;
   const pjsNoTabuleiro = combate.combatentes.filter(c=>c.tipo==='pj' && grade.posicoes[c.id]);
@@ -1007,7 +1121,14 @@ function revelarPorVisaoDosPjs(combate, grade, silencioso){
 async function atualizarVisualizacaoGrade(){
   if(state._verGradeSalvando) return; // não busca de novo enquanto um movimento tá sendo salvo, senão pisa em si mesmo
   const dados = await carregarMestreDadosPorCodigo(state._verGradeCodigo);
-  state._verGradeDados = dados.combateCompartilhado || null;
+  const combateCompartilhado = dados.combateCompartilhado || null;
+  if(combateCompartilhado){
+    // pro jogador, "grade" É a versão filtrada — ele nunca recebe posição de monstro escondido,
+    // nem trafegando na rede. O Mestre é quem usa a versão completa (gradeParaJogadores nem
+    // existe do lado dele).
+    combateCompartilhado.grade = combateCompartilhado.gradeParaJogadores || combateCompartilhado.grade;
+  }
+  state._verGradeDados = combateCompartilhado;
   render();
 }
 function renderVisualizacaoGrade(){
@@ -1025,7 +1146,7 @@ function renderVisualizacaoGrade(){
 
   wrap.appendChild(el('div',{class:'tip', style:'font-size:0.78rem;margin-bottom:8px;'}, 'Toque num personagem pra selecionar, depois toque num quadrado pra mover ele. Some as jogadas — atualiza sozinho pros outros verem.'));
 
-  async function tentarMoverComoJogador(combatenteId, x, y){
+  function tentarMoverComoJogador(combatenteId, x, y){
     const alvo = combatentes.find(cc=>cc.id===combatenteId);
     const tamToken = (alvo.tipo==='monstro' && alvo.dados && alvo.dados.tamanho) ? (TAMANHO_QUADRADOS[alvo.dados.tamanho]||1) : 1;
     if(x+tamToken>grade.largura || y+tamToken>grade.altura) return false;
@@ -1044,9 +1165,13 @@ function renderVisualizacaoGrade(){
     if(ocupado) return false;
     grade.posicoes[combatenteId] = {x,y};
     if(grade.fogAtivo && alvo.tipo==='pj') revelarPorVisaoDosPjs({combatentes}, grade, true);
+    // salva em segundo plano — o token já aparece no lugar novo na hora, sem esperar a
+    // planilha responder (antes o toque só "aparecia" depois do salvamento terminar, o que
+    // dava a sensação de travado/lento, principalmente quando a rede tava mais devagar). Manda
+    // só ESSA mudança de posição (não a grade inteira, que do lado do jogador é a versão
+    // filtrada, sem monstro escondido — mandar ela de volta apagaria isso pro Mestre também).
     state._verGradeSalvando = true;
-    await salvarGradeComoJogador(state._verGradeCodigo, {combatentes, grade});
-    state._verGradeSalvando = false;
+    salvarMovimentoTokenComoJogador(state._verGradeCodigo, combatenteId, {x,y}).catch(()=>{}).then(()=>{ state._verGradeSalvando = false; });
     return true;
   }
 
@@ -1092,7 +1217,7 @@ function renderVisualizacaoGrade(){
         onclick:()=>{
           if(escondido) return;
           if(anchorId){ state._verGradeSelecionado = anchorId; render(); return; }
-          if(state._verGradeSelecionado){ tentarMoverComoJogador(state._verGradeSelecionado, x, y).then(render); }
+          if(state._verGradeSelecionado){ tentarMoverComoJogador(state._verGradeSelecionado, x, y); render(); }
         }
       });
       if(!escondido){
@@ -1101,15 +1226,17 @@ function renderVisualizacaoGrade(){
         if(c){
           const tamToken = (c.tipo==='monstro' && c.dados && c.dados.tamanho) ? (TAMANHO_QUADRADOS[c.dados.tamanho]||1) : 1;
           const pxToken = tamToken*tam + (tamToken-1)*1;
-          const pvPct = c.pvMax ? Math.max(0, Math.min(100, (c.pv||0)/c.pvMax*100)) : 100;
           const selecionado = state._verGradeSelecionado===c.id;
           const tokenWrap = el('div',{style:'position:absolute; top:0; left:0; width:'+pxToken+'px; height:'+pxToken+'px; z-index:5;'});
           tokenWrap.appendChild(el('div',{style:'width:100%;height:100%;border-radius:50%;background:'+corTokenPorTipo(c.tipo)+';display:flex;align-items:center;justify-content:center;font-weight:800;color:#1a0f0a;overflow:hidden;box-shadow:0 0 0 '+(selecionado?'3px var(--gold)':'2px rgba(0,0,0,0.4)')+';font-size:'+Math.round(pxToken*0.34)+'px;'},
             c.foto ? el('img',{src:c.foto, style:'width:100%;height:100%;object-fit:cover;border-radius:50%;'}) : c.nome.slice(0,2).toUpperCase()
           ));
-          tokenWrap.appendChild(el('div',{style:'position:absolute;bottom:-3px;left:8%;width:84%;height:3px;background:rgba(0,0,0,0.5);border-radius:2px;overflow:hidden;'},
-            el('div',{style:'width:'+pvPct+'%;height:100%;background:'+(pvPct>50?'#5ea85e':pvPct>25?'#c9a23a':'#c94a3a')+';'})
-          ));
+          if(c.pvMax){
+            const pvPct = Math.max(0, Math.min(100, (c.pv||0)/c.pvMax*100));
+            tokenWrap.appendChild(el('div',{style:'position:absolute;bottom:-3px;left:8%;width:84%;height:3px;background:rgba(0,0,0,0.5);border-radius:2px;overflow:hidden;'},
+              el('div',{style:'width:'+pvPct+'%;height:100%;background:'+(pvPct>50?'#5ea85e':pvPct>25?'#c9a23a':'#c94a3a')+';'})
+            ));
+          }
           celula.appendChild(tokenWrap);
         }
       }
@@ -1140,7 +1267,26 @@ function bordasVisiveisBloco(grade, x, y, tipo){
 }
 
 const MODOS_GRADE = [['mover','🚶 Mover'],['blocos','🧊 Blocos'],['quebrar','🔨 Quebrar'],['apagar','🧹 Apagar'],['alcance','📏 Alcance'],['area','💥 Área'],['medir','📐 Medir'],['fog','🌫️ Névoa']];
+// Quando o jogador move um token pelo link, NÃO dá pra simplesmente mandar de volta a grade que
+// ele tem na tela — a dele é a versão FILTRADA (sem monstro escondido), e se isso fosse salvo
+// por cima da grade completa do Mestre, os monstros escondidos sumiriam pra sempre do controle
+// dele também. Em vez disso: busca a versão completa mais atual do servidor, aplica só essa UMA
+// mudança de posição nela, e recalcula a versão filtrada em cima do resultado completo.
+async function salvarMovimentoTokenComoJogador(codigo, combatenteId, novaPosicao){
+  const atual = await carregarMestreDadosPorCodigo(codigo);
+  if(!atual.combateCompartilhado || !atual.combateCompartilhado.grade) return false;
+  const combate = atual.combateCompartilhado;
+  combate.grade.posicoes[combatenteId] = novaPosicao;
+  const combatenteMovido = combate.combatentes.find(c=>c.id===combatenteId);
+  if(combate.grade.fogAtivo && combatenteMovido && combatenteMovido.tipo==='pj'){
+    revelarPorVisaoDosPjs({combatentes: combate.combatentes}, combate.grade, true);
+  }
+  combate.gradeParaJogadores = computarGradeParaJogadores(combate.combatentes, combate.grade);
+  return salvarMestreDadosArmazenamento(atual);
+}
+
 function renderMestreGrade(){
+  iniciarAtualizacaoAutomaticaGradeMestre();
   const wrap = el('div',{});
   if(!state._mestreIniciativa) state._mestreIniciativa = {combatentes:[], turnoIdx:0, rodada:1};
   const combate = state._mestreIniciativa;
@@ -1483,7 +1629,7 @@ function renderMestreGrade(){
         const pxToken = tamToken*tam + (tamToken-1)*1;
         const foto = fotoDoCombatente(c);
         const condicao = condicaoIconeCombatente(c);
-        const pvPct = c.pvMax ? Math.max(0, Math.min(100, (c.pv||0)/c.pvMax*100)) : 100;
+        const pvPct = pvMaxCombatente(c) ? Math.max(0, Math.min(100, pvAtualCombatente(c)/pvMaxCombatente(c)*100)) : 100;
         const tokenWrap = el('div',{
           class:'grade-token', draggable:'true',
           style:'position:absolute; top:0; left:0; width:'+pxToken+'px; height:'+pxToken+'px; z-index:5; cursor:grab;',
@@ -1620,8 +1766,10 @@ function renderMestreCombate(){
           el('div',{style:'font-weight:700;font-family:Cinzel,serif;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'}, c.nome),
           el('div',{style:'display:flex;align-items:center;gap:4px;font-size:0.75rem;color:var(--ink-soft);'},
             'PV ',
-            el('input',{id:'pv-num-'+c.id, type:'number', value:c.pv, style:'margin:0;padding:2px 4px;width:52px;font-size:0.78rem;', oninput:(e)=>{c.pv=parseInt(e.target.value)||0;}, onchange:render}),
-            ' / '+c.pvMax
+            (c.tipo==='pj' && c.origemId) ?
+              el('span',{style:'font-weight:700;color:var(--ink);'}, pvAtualCombatente(c)+' / '+pvMaxCombatente(c)+' 🔗') :
+              el('input',{id:'pv-num-'+c.id, type:'number', value:c.pv, style:'margin:0;padding:2px 4px;width:52px;font-size:0.78rem;', onclick:(e)=>e.stopPropagation(), oninput:(e)=>{c.pv=parseInt(e.target.value)||0;}, onchange:render}),
+            (c.tipo==='pj' && c.origemId) ? null : ' / '+c.pvMax
           )
         ),
         el('button',{class:'remove-x', onclick:()=>{
