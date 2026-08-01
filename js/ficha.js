@@ -123,28 +123,84 @@ function renderPopupPendencias(f){
 
     if(p.tipo==='deformidade'){
       if(!resolvendo){
-        card.appendChild(el('button',{class:'btn', onclick:()=>{ state._pendenciaResolvendo='deformidade'; state._pendDeformidade = (f.deformidadeEscolhas||[]).slice(); render(); }}, 'Resolver agora'));
+        card.appendChild(el('button',{class:'btn', onclick:()=>{
+          state._pendenciaResolvendo='deformidade';
+          // migra o formato antigo (array de nomes de perícia) pro novo (array de {tipo,valor}),
+          // assim quem já tinha escolhido antes vê a própria escolha antiga pré-preenchida em vez
+          // de começar do zero — só precisa confirmar, ou trocar por um Poder da Tormenta se quiser.
+          const antigo = f.deformidadeEscolhas || [];
+          state._pendDeformidade = antigo.map(esc => (esc && typeof esc==='object' && esc.tipo) ? esc : {tipo:'pericia', valor:esc});
+          render();
+        }}, 'Resolver agora'));
       } else {
         if(!state._pendDeformidade) state._pendDeformidade = [];
-        card.appendChild(el('div',{class:'option-grid'},
-          ...PERICIAS.map(per=>{
-            const marcada = state._pendDeformidade.includes(per.nome);
-            return el('button',{class:'option-card'+(marcada?' selected':''), onclick:()=>{
-              if(marcada){ state._pendDeformidade = state._pendDeformidade.filter(n=>n!==per.nome); }
-              else if(state._pendDeformidade.length<2){ state._pendDeformidade = [...state._pendDeformidade, per.nome]; }
-              else { flashMsg('Já escolheu as 2 perícias.'); return; }
-              render();
-            }}, el('div',{class:'opt-nome'}, per.nome));
-          })
-        ));
-        card.appendChild(el('div',{class:'meta', style:'margin-top:6px;'}, state._pendDeformidade.length+' / 2 escolhidas'));
-        const podeSalvar = state._pendDeformidade.length===2;
+        card.appendChild(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Escolha 2: cada um pode ser +2 numa perícia, OU um Poder da Tormenta (isso te custa Carisma — veja o aviso na aba Personagem).'));
+        for(let slot=0; slot<2; slot++){
+          const atual = state._pendDeformidade[slot];
+          card.appendChild(el('div',{class:'panel', style:'margin-top:8px;'},
+            el('div',{class:'meta'}, 'Escolha '+(slot+1)+':'),
+            el('div',{class:'row', style:'margin-top:4px;'},
+              el('button',{class:'btn'+(atual && atual.tipo==='pericia'?'':' ghost'), onclick:()=>{ state._pendDeformidade[slot] = {tipo:'pericia', valor:PERICIAS[0].nome}; render(); }}, 'Perícia'),
+              el('button',{class:'btn'+(atual && atual.tipo==='tormenta'?'':' ghost'), onclick:()=>{ state._pendDeformidade[slot] = {tipo:'tormenta', valor:PODERES_GERAIS.find(pw=>pw.grupo==='Tormenta').nome}; render(); }}, 'Poder da Tormenta')
+            ),
+            atual && atual.tipo==='pericia' ? (()=>{
+              const sel = el('select',{onchange:(e)=>{ state._pendDeformidade[slot].valor = e.target.value; render(); }});
+              PERICIAS.forEach(per=> sel.appendChild(el('option',{value:per.nome, ...(atual.valor===per.nome?{selected:'selected'}:{})}, per.nome)));
+              return sel;
+            })() : null,
+            atual && atual.tipo==='tormenta' ? (()=>{
+              const sel = el('select',{onchange:(e)=>{ state._pendDeformidade[slot].valor = e.target.value; render(); }});
+              PODERES_GERAIS.filter(pw=>pw.grupo==='Tormenta').forEach(pw=> sel.appendChild(el('option',{value:pw.nome, ...(atual.valor===pw.nome?{selected:'selected'}:{})}, pw.nome)));
+              return sel;
+            })() : null,
+            atual && atual.tipo==='tormenta' ? el('div',{class:'meta', style:'margin-top:4px;'}, PODERES_GERAIS.find(pw=>pw.nome===atual.valor).desc) : null
+          ));
+        }
+        const podeSalvar = state._pendDeformidade.length===2 && state._pendDeformidade[0] && state._pendDeformidade[1];
         card.appendChild(el('div',{class:'row', style:'margin-top:10px;'},
           el('button',{class:'btn'+(podeSalvar?'':' ghost'), onclick:()=>{
             if(!podeSalvar) return;
             f.deformidadeEscolhas = state._pendDeformidade.slice();
             salvarPerfis();
             flashMsg('✅ Deformidade resolvida!');
+            state._pendenciaResolvendo=null;
+            render();
+          }}, 'Salvar'),
+          el('button',{class:'btn ghost', onclick:()=>{ state._pendenciaResolvendo=null; render(); }}, 'Cancelar')
+        ));
+      }
+    }
+
+    if(p.tipo==='periciaExtraInt'){
+      const qtd = f.periciasExtraIntPendentes||0;
+      if(!resolvendo){
+        card.appendChild(el('button',{class:'btn', onclick:()=>{ state._pendenciaResolvendo='periciaExtraInt'; state._pendPericiaExtraInt = []; render(); }}, 'Resolver agora'));
+      } else {
+        if(!state._pendPericiaExtraInt) state._pendPericiaExtraInt = [];
+        const jaTreinadas = new Set(f.periciasTreinadas||[]);
+        card.appendChild(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Escolha '+qtd+' perícia(s) nova(s) — pode ser qualquer uma, não precisa ser da sua classe.'));
+        card.appendChild(el('div',{class:'option-grid'},
+          ...PERICIAS.filter(per=>!jaTreinadas.has(per.nome)).map(per=>{
+            const marcada = state._pendPericiaExtraInt.includes(per.nome);
+            return el('button',{class:'option-card'+(marcada?' selected':''), onclick:()=>{
+              if(marcada){ state._pendPericiaExtraInt = state._pendPericiaExtraInt.filter(n=>n!==per.nome); }
+              else if(state._pendPericiaExtraInt.length<qtd){ state._pendPericiaExtraInt = [...state._pendPericiaExtraInt, per.nome]; }
+              else { flashMsg('Já escolheu as '+qtd+' perícia(s).'); return; }
+              render();
+            }}, el('div',{class:'opt-nome'}, per.nome));
+          })
+        ));
+        card.appendChild(el('div',{class:'meta', style:'margin-top:6px;'}, state._pendPericiaExtraInt.length+' / '+qtd+' escolhida(s)'));
+        const podeSalvar = state._pendPericiaExtraInt.length===qtd;
+        card.appendChild(el('div',{class:'row', style:'margin-top:10px;'},
+          el('button',{class:'btn'+(podeSalvar?'':' ghost'), onclick:()=>{
+            if(!podeSalvar) return;
+            if(!f.periciasTreinadas) f.periciasTreinadas = [];
+            state._pendPericiaExtraInt.forEach(nome=>{ if(!f.periciasTreinadas.includes(nome)) f.periciasTreinadas.push(nome); });
+            f.periciasExtraIntPendentes = 0;
+            registrarLog(f, 'Nova(s) perícia(s) treinada(s) por Inteligência: '+state._pendPericiaExtraInt.join(', '));
+            salvarPerfis();
+            flashMsg('✅ Perícia(s) nova(s) adicionada(s)!');
             state._pendenciaResolvendo=null;
             render();
           }}, 'Salvar'),
@@ -988,7 +1044,10 @@ function renderPersonagemFicha(){
       ...['for','des','con','int','sab','car'].map(a=>
         el('div',{class:'attr-box'}, el('div',{class:'lbl'}, a.toUpperCase()), bindInput(f,a,'number'))
       )
-    )
+    ),
+    penalidadeCarismaTormenta(f)>0 ? el('div',{class:'tip', style:'margin-top:8px;border:1px solid var(--red-bright);'},
+      '☣️ Carisma efetivo: '+atributoEfetivo(f,'car')+' (o '+f.car+' digitado acima −'+penalidadeCarismaTormenta(f)+' pelos '+qtdPoderesTormenta(f)+' Poder(es) da Tormenta que você tem — já aplicado nas perícias baseadas em Carisma).'
+    ) : null
   ));
 
   const pvMax = pvMaxEfetivo(f), pvAtual = parseInt(f.pvatual)||0;

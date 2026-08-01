@@ -309,6 +309,21 @@ async function aplicarLevelUp(f){
     if(poderRegistrado) f.poderesClasse.push(poderRegistrado);
   }
 
+  // "Aumento de Atributo" precisa de um efeito de verdade, não só ficar como texto — soma +1 no
+  // atributo escolhido. Se for Inteligência, o personagem passa a ter direito a mais 1 perícia
+  // treinada (mesma regra da criação); isso vira uma pendência pra ele escolher qual.
+  if(lv.poderModo==='classe' && lv.poderClasseEscolhido==='Aumento de Atributo' && lv.poderClasseSubEscolha){
+    const mapaAtributo = {'Força':'for','Destreza':'des','Constituição':'con','Inteligência':'int','Sabedoria':'sab','Carisma':'car'};
+    const chave = mapaAtributo[lv.poderClasseSubEscolha];
+    if(chave){
+      f[chave] = (parseInt(f[chave])||0) + 1;
+      registrarLog(f, 'Aumento de Atributo: +1 em '+lv.poderClasseSubEscolha+' (agora '+f[chave]+')');
+      if(chave==='int'){
+        f.periciasExtraIntPendentes = (f.periciasExtraIntPendentes||0) + 1;
+      }
+    }
+  }
+
   // PV/PM automáticos: todo nível além do 1º da ficha soma "ganho por nível" da classe escolhida
   // + Constituição nos PV (mínimo 1), e o PM por nível é fixo (regra do livro, "Subindo de Nível", pág. 40).
   const racaObjLevelUp = getRacaObj(f);

@@ -193,7 +193,7 @@ function bonusPericiaDeRaca(f, periciaNome){
   if(regras) regras.forEach(([alvo,valor])=>{ if(alvo===periciaNome) total += valor; });
   // Deformidade (Lefou) e Vanguardista (Kliren): +2 em perícia(s) À ESCOLHA do jogador, não fixa
   // pela raça — por isso ficam separadas da tabela acima, guardadas na própria ficha.
-  if(racaObj.nome==='Lefou' && (f.deformidadeEscolhas||[]).includes(periciaNome)) total += 2;
+  if(racaObj.nome==='Lefou' && (f.deformidadeEscolhas||[]).some(esc=> (typeof esc==='string') ? esc===periciaNome : (esc.tipo==='pericia' && esc.valor===periciaNome))) total += 2;
   if(racaObj.nome==='Kliren' && f.vanguardistaOficio===periciaNome) total += 2;
   return total;
 }
@@ -254,16 +254,57 @@ function bonusFurtividadeTamanho(f){
   return MODIFICADOR_FURTIVIDADE_TAMANHO[f.tamanho] || 0;
 }
 
+// ---- Poderes da Tormenta: perde Carisma conforme acumula poderes desse grupo (pág. 136) ----
+// 1º poder da Tormenta: -1 Carisma. A cada 2 outros poderes da Tormenta: mais -1 Carisma.
+const NOMES_PODERES_TORMENTA = new Set(PODERES_GERAIS.filter(p=>p.grupo==='Tormenta').map(p=>p.nome));
+function qtdPoderesTormenta(f){
+  return poderesAtivos(f).filter(nome => NOMES_PODERES_TORMENTA.has(nome)).length;
+}
+function penalidadeCarismaTormenta(f){
+  const qtd = qtdPoderesTormenta(f);
+  return qtd>=1 ? 1+Math.floor((qtd-1)/2) : 0;
+}
+// Valor de um atributo já considerando penalidades automáticas (hoje só existe a de Carisma
+// pelos Poderes da Tormenta, mas a função fica genérica caso apareça outra parecida no futuro).
+function atributoEfetivo(f, chave){
+  const base = parseInt(f[chave])||0;
+  if(chave==='car') return base - penalidadeCarismaTormenta(f);
+  return base;
+}
+// Bônus de perícia/Defesa dos Poderes da Tormenta que dão um número fixo escalando "+1 a cada 2
+// outros poderes da Tormenta" — os outros (ativados com PM, situacionais) ficam só informativos,
+// igual vários poderes de classe já são no app.
+const TORMENTA_BONUS_PERICIA = {
+  'Antenas': ['Iniciativa','Percepção','Vontade'],
+  'Articulações Flexíveis': ['Acrobacia','Furtividade','Reflexos'],
+  'Mãos Membranosas': ['Atletismo','Fortitude'],
+  'Olhos Vermelhos': ['Intimidação'],
+};
+function bonusPericiaDeTormenta(f, periciaNome){
+  const nomes = poderesAtivos(f);
+  const escala = 1 + Math.floor((qtdPoderesTormenta(f)-1)/2);
+  let total = 0;
+  Object.keys(TORMENTA_BONUS_PERICIA).forEach(nomePoder=>{
+    if(nomes.includes(nomePoder) && TORMENTA_BONUS_PERICIA[nomePoder].includes(periciaNome)) total += escala;
+  });
+  return total;
+}
+function bonusDefesaTormenta(f){
+  if(!poderesAtivos(f).includes('Carapaça')) return 0;
+  return 1 + Math.floor((qtdPoderesTormenta(f)-1)/2);
+}
+
 function periciaValor(f, p){
   const nivel = nivelTotal(f);
   const metade = Math.floor(nivel/2);
   const racaObjPericia = getRacaObj(f);
   const usaDesEmAtletismo = p.nome==='Atletismo' && racaObjPericia && racaObjPericia.atletismoUsaDestreza;
   const attrKey = usaDesEmAtletismo ? 'des' : (p.attr||'').toLowerCase().slice(0,3); // 'For'->'for','Des'->'des', etc.
-  const attrVal = parseInt(f[attrKey])||0;
+  const attrVal = atributoEfetivo(f, attrKey);
   const treinada = periciasTreinadasComDivindade(f).has(p.nome);
   const treino = treinada ? bonusTreinoPericia(nivel) : 0;
   const poderes = bonusPericiaDePoderes(f, p.nome);
+  const tormentaBonus = bonusPericiaDeTormenta(f, p.nome);
   const itensVestidos = bonusPericiaDeItensVestidos(f, p.nome);
   const racaBonus = bonusPericiaDeRaca(f, p.nome);
   const divindadeBonus = bonusPericiaDeDivindade(f, p.nome);
@@ -273,7 +314,7 @@ function periciaValor(f, p){
   // Sem proficiência com a armadura/escudo equipado: a penalidade vale para TODA perícia de Força/Destreza
   // (não só as 3 marcadas com ‡), mesmo que a perícia normalmente não sofresse penalidade de armadura.
   const penalidadeExtra = (!p.armadura && (p.attr==='For' || p.attr==='Des')) ? penalidadeNaoProficienciaArmadura(f) : 0;
-  return metade + attrVal + treino + poderes + itensVestidos + racaBonus + divindadeBonus + condicoesBonus + tamanhoBonus + penalidade + penalidadeExtra;
+  return metade + attrVal + treino + poderes + tormentaBonus + itensVestidos + racaBonus + divindadeBonus + condicoesBonus + tamanhoBonus + penalidade + penalidadeExtra;
 }
 
 function bonusDefesaPoderes(f){
@@ -538,7 +579,7 @@ function defesaTotal(f){
   // Armadura pesada: você NÃO aplica Destreza na Defesa (regra do livro, pág. 157)
   const des = usaArmaduraPesada(f) ? 0 : (parseInt(f.des)||0);
   const outros = parseInt(f.defOutros)||0;
-  return 10 + des + armadura + escudo + outros + bonusDefesaPoderes(f) + bonusDefesaRaca(f) + bonusCondicoesDefesa(f);
+  return 10 + des + armadura + escudo + outros + bonusDefesaPoderes(f) + bonusDefesaRaca(f) + bonusCondicoesDefesa(f) + bonusDefesaTormenta(f);
 }
 // Deslocamento reduzido em 3m ao usar armadura pesada
 // Sobrecarga: ultrapassar o limite de carga dá -5 de penalidade de armadura e -3m de deslocamento
@@ -643,10 +684,16 @@ function pmMaxEfetivo(f){
 // Pra adicionar uma pendência nova no futuro, é só acrescentar um objeto nesta lista.
 const PENDENCIAS_DEFINICOES = [
   {
+    tipo: 'periciaExtraInt',
+    titulo: 'Nova Perícia por Inteligência',
+    detecta: (f)=> (f.periciasExtraIntPendentes||0) > 0,
+    resumo: 'A Inteligência desse personagem aumentou (Aumento de Atributo) — isso dá direito a mais perícia(s) treinada(s), igual acontece na criação. Falta escolher qual.',
+  },
+  {
     tipo: 'deformidade',
     titulo: 'Deformidade (Lefou)',
-    detecta: (f)=> f.raca==='Lefou' && (!f.deformidadeEscolhas || f.deformidadeEscolhas.length<2),
-    resumo: 'Lefou recebe +2 em duas perícias à sua escolha — esse personagem ainda não escolheu quais.',
+    detecta: (f)=> f.raca==='Lefou' && !(Array.isArray(f.deformidadeEscolhas) && f.deformidadeEscolhas.length===2 && f.deformidadeEscolhas.every(esc=>esc && typeof esc==='object' && esc.tipo)),
+    resumo: 'Lefou recebe +2 em duas perícias à sua escolha (ou pode trocar por um Poder da Tormenta) — esse personagem ainda não escolheu, ou escolheu antes dessa opção de poder existir e vale conferir de novo.',
   },
   {
     tipo: 'vanguardista',
@@ -1164,6 +1211,7 @@ function nomesPoderesConhecidos(f){
   if(f.poderRaca) nomes.push(f.poderRaca.sub || f.poderRaca.nome);
   if(f.origemPoder) nomes.push(f.origemPoder.nome); // poder único da origem — não é poder geral, mas conta como conhecido
   (f.poderesClasse||[]).forEach(p=>{ if(p.nome) nomes.push(p.sub || p.nome); });
+  (f.deformidadeEscolhas||[]).forEach(esc=>{ if(esc.tipo==='tormenta') nomes.push(esc.valor); });
   return nomes.filter(Boolean);
 }
 
@@ -1176,6 +1224,7 @@ function poderesAtivos(f){
   if(f.poderRaca) nomes.push(f.poderRaca.sub || f.poderRaca.nome);
   (f.poderesClasse||[]).forEach(p=>{ if(!p.trocaPorGeral) return; nomes.push(p.sub || p.nome); });
   (f.poderesClasse||[]).forEach(p=>{ if(p.trocaPorGeral) return; if(p.nome) nomes.push(p.nome); });
+  (f.deformidadeEscolhas||[]).forEach(esc=>{ if(esc.tipo==='tormenta') nomes.push(esc.valor); });
   return nomes.filter(Boolean);
 }
 

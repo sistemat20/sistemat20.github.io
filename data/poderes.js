@@ -79,4 +79,31 @@ const PODERES_GERAIS = [
   P("Magia Ilimitada","Magia","Lançar magias",[["conjurador"]], "Soma seu atributo-chave no limite de PM que pode gastar numa única magia."),
   P("Preparar Poção","Magia","Habilidade Magias, treinado em Ofício (alquimista)",[["conjurador"],["treinado","Ofício"]], "Fabrica poções com magias de 1º/2º círculo que conhece."),
   P("Escrever Pergaminho","Magia","Habilidade Magias, treinado em Ofício (escriba)",[["conjurador"],["treinado","Ofício"]], "Fabrica pergaminhos com magias que conhece."),
+
+  // ---- Poderes da Tormenta (pág. 136-137) — ligados à tempestade rubra. Regra geral: ao
+  // escolher o 1º poder da Tormenta, perde 1 de Carisma; a cada 2 outros poderes da Tormenta
+  // que tiver, perde mais 1 de Carisma (o app já desconta isso sozinho do Carisma). Um
+  // personagem reduzido a menos que Carisma –5 vira NPC do Mestre.
+  P("Anatomia Insana","Tormenta","—",[["skip"]], "25% de chance (1d4=1) de ignorar o dano extra de crítico/ataque furtivo. +25% a cada 2 outros poderes da Tormenta que tiver."),
+  P("Antenas","Tormenta","—",[["skip"]], "+1 em Iniciativa, Percepção e Vontade. +1 a cada 2 outros poderes da Tormenta que tiver."),
+  P("Armamento Aberrante","Tormenta","Outro poder da Tormenta",[["skip"]], "Ação de movimento + 1 PM: cria uma arma orgânica corpo a corpo ou de arremesso (com a qual seja proficiente) que brota do corpo. Dano +1 passo a cada 2 outros poderes da Tormenta. Dura a cena."),
+  P("Articulações Flexíveis","Tormenta","—",[["skip"]], "+1 em Acrobacia, Furtividade e Reflexos. +1 a cada 2 outros poderes da Tormenta que tiver."),
+  P("Asas Insetoides","Tormenta","Quatro outros poderes da Tormenta",[["skip"]], "1 PM: voo 9m até o fim do turno. +1,5m a cada outro poder da Tormenta que tiver."),
+  P("Carapaça","Tormenta","—",[["skip"]], "+1 na Defesa. +1 a cada 2 outros poderes da Tormenta que tiver."),
+  P("Corpo Aberrante","Tormenta","Outro poder da Tormenta",[["skip"]], "Dano desarmado aumenta 1 passo, +1 passo a cada 4 outros poderes da Tormenta que tiver."),
+  P("Cuspir Enxame","Tormenta","—",[["skip"]], "Ação completa + 2 PM: cria um enxame Médio de insetos em alcance curto (sustentada), causa 2d6 de ácido no fim do seu turno em quem estiver no espaço dele; move 9m/rodada com ação de movimento. +1PM: +1d6 de dano, a cada 2 outros poderes da Tormenta."),
+  P("Dentes Afiados","Tormenta","—",[["skip"]], "Ganha mordida (1d4, x2, corte). 1x/rodada, ao usar agredir com outra arma, pode gastar 1 PM pra um ataque extra de mordida."),
+  P("Desprezar a Realidade","Tormenta","Quatro outros poderes da Tormenta",[["skip"]], "2 PM: até o início do seu próximo turno, ignora terreno difícil e tem 20% de chance de falha em qualquer efeito usado contra você. +5% a cada 2 outros poderes da Tormenta (máx. 50%)."),
+  P("Empunhadura Rubra","Tormenta","—",[["skip"]], "1 PM: +1 em Luta até o fim da cena. +1 a cada 2 outros poderes da Tormenta que tiver."),
+  P("Fome de Mana","Tormenta","—",[["skip"]], "Ao passar num teste de resistência contra habilidade mágica inimiga, ganha 1 PM temporário cumulativo (máximo por cena = quantos poderes da Tormenta você tem)."),
+  P("Larva Explosiva","Tormenta","Dentes Afiados",[["poder","Dentes Afiados"]], "Criatura mordida por você nessa cena que morrer explode (4d4 de ácido em quem estiver adjacente; +2d4 a cada 2 outros poderes da Tormenta). Você é imune a esse dano."),
+  P("Legião Aberrante","Tormenta","Anatomia Insana, três outros poderes da Tormenta",[["poder","Anatomia Insana"]], "Atravessa qualquer espaço que passe uma moeda (conta como terreno difícil). +1 em testes contra manobras e resistência a efeitos que te tenham como alvo (não efeitos de área). +1 a cada 2 outros poderes da Tormenta."),
+  P("Mãos Membranosas","Tormenta","—",[["skip"]], "+1 em Atletismo, Fortitude e testes de agarrar. +1 a cada 2 outros poderes da Tormenta que tiver."),
+  P("Membros Estendidos","Tormenta","—",[["skip"]], "+1,5m de alcance natural corpo a corpo. +1,5m a cada 4 outros poderes da Tormenta que tiver."),
+  P("Membros Extras","Tormenta","Quatro outros poderes da Tormenta",[["skip"]], "Ganha 2 armas naturais de pata (1d4, x2, corte). 1x/rodada, ao usar agredir com outra arma, pode gastar 2 PM pra um ataque extra com cada pata."),
+  P("Mente Aberrante","Tormenta","—",[["skip"]], "Resistência a efeitos mentais +1. Quando testa Vontade contra uma habilidade, quem usou a habilidade sofre 1d6 de dano psíquico. +1 na resistência e +1d6 no dano a cada 2 outros poderes da Tormenta."),
+  P("Olhos Vermelhos","Tormenta","—",[["skip"]], "Visão no escuro. +1 em Intimidação. +1 a cada 2 outros poderes da Tormenta que tiver."),
+  P("Pele Corrompida","Tormenta","—",[["skip"]], "Redução de dano de ácido, eletricidade, fogo, frio, luz e trevas 2. +2 a cada 2 outros poderes da Tormenta que tiver."),
+  P("Sangue Ácido","Tormenta","—",[["skip"]], "Quando sofre dano corpo a corpo, quem te atacou sofre 1 de dano de ácido por poder da Tormenta que você tem."),
+  P("Visco Rubro","Tormenta","—",[["skip"]], "1 PM: +1 nas rolagens de dano corpo a corpo até o fim da cena. +1 a cada 2 outros poderes da Tormenta que tiver."),
 ];
