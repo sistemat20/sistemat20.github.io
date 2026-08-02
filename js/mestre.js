@@ -61,6 +61,17 @@ const CATEGORIAS_MESTRE = {
 
 function renderMestreScreen(){
   const wrap = el('div',{});
+  // Modo tela cheia da Grade: pula cabeçalho e abas, deixa só o tabuleiro ocupando a tela
+  // inteira — pensado pra jogar num tablet/TV na mesa sem a interface do app atrapalhando.
+  if(state._gradeTelaCheia && state.mestreTab==='grade'){
+    wrap.appendChild(el('button',{class:'btn ghost', style:'position:fixed;top:10px;right:10px;z-index:50;width:auto;padding:6px 14px;', onclick:()=>{
+      state._gradeTelaCheia = false;
+      if(document.fullscreenElement) document.exitFullscreen().catch(()=>{});
+      render();
+    }}, '✕ Sair da Tela Cheia'));
+    wrap.appendChild(renderMestreGrade());
+    return wrap;
+  }
   wrap.appendChild(el('header',{class:'top'},
     el('div',{style:'display:flex;justify-content:space-between;align-items:center;gap:10px;'},
       el('button',{class:'btn ghost', style:'width:auto;flex-shrink:0;padding:6px 12px;background:transparent;border-color:#f4efe2;color:#f4efe2;', onclick:()=>{ pararAtualizacaoAutomaticaMestre(); precisaCodigoJogador() ? sairDoCodigoJogador() : (state.screen='perfis', render()); }}, '← Perfis'),
@@ -177,6 +188,7 @@ async function salvarDadosMestreNoServidor(){
       // é a versão filtrada que o link compartilhado realmente usa pra desenhar o tabuleiro.
       grade: combate.grade || null,
       gradeParaJogadores: combate.grade ? computarGradeParaJogadores(combate.combatentes||[], combate.grade) : null,
+      turnoIdx: combate.turnoIdx||0,
     } : null,
   });
 }
@@ -950,6 +962,12 @@ function garantirGrade(combate){
   if(!combate.grade.largura) combate.grade.largura = GRADE_LARGURA_PADRAO;
   if(!combate.grade.altura) combate.grade.altura = GRADE_ALTURA_PADRAO;
   if(!combate.grade.fogRevelado) combate.grade.fogRevelado = {};
+  if(!combate.grade.marcadores) combate.grade.marcadores = {};
+  if(!combate.grade.corAneis) combate.grade.corAneis = {};
+  if(!combate.grade.mapaCustomizado) combate.grade.mapaCustomizado = null; // {url, offsetX, offsetY, escalaPx}
+  if(combate.grade.snapLivre===undefined) combate.grade.snapLivre = false;
+  if(!combate.grade.nudges) combate.grade.nudges = {}; // {combatenteId: {x,y}} — deslocamento visual dentro do quadrado, só usado quando snapLivre está ligado
+  if(!combate.grade.rotacoes) combate.grade.rotacoes = {}; // {combatenteId: graus} — pra onde o token está de frente
   if(combate.grade.fogAtivo===undefined) combate.grade.fogAtivo = false;
   return combate.grade;
 }
@@ -1131,9 +1149,36 @@ async function atualizarVisualizacaoGrade(){
   state._verGradeDados = combateCompartilhado;
   render();
 }
+// Ping do jogador — mesma ideia, mas ele só tem a grade FILTRADA na tela (sem monstro
+// escondido), então não pode salvar sobrescrevendo tudo. Faz o mesmo "buscar fresco, aplicar só
+// essa mudança, salvar" que o movimento do jogador já faz.
+async function dispararPingComoJogador(codigo, x, y){
+  const atual = await carregarMestreDadosPorCodigo(codigo);
+  if(!atual.combateCompartilhado || !atual.combateCompartilhado.grade) return;
+  const criadoEm = Date.now();
+  atual.combateCompartilhado.grade.ping = {x, y, criadoEm};
+  atual.combateCompartilhado.gradeParaJogadores = computarGradeParaJogadores(atual.combateCompartilhado.combatentes, atual.combateCompartilhado.grade);
+  await salvarMestreDadosArmazenamento(atual);
+  setTimeout(async ()=>{
+    const atual2 = await carregarMestreDadosPorCodigo(codigo);
+    const g2 = atual2.combateCompartilhado && atual2.combateCompartilhado.grade;
+    if(g2 && g2.ping && g2.ping.criadoEm===criadoEm){
+      delete g2.ping;
+      atual2.combateCompartilhado.gradeParaJogadores = computarGradeParaJogadores(atual2.combateCompartilhado.combatentes, g2);
+      await salvarMestreDadosArmazenamento(atual2);
+    }
+  }, 2200);
+}
+
 function renderVisualizacaoGrade(){
   const wrap = el('div',{style:'padding:14px;max-width:100vw;'});
-  wrap.appendChild(el('div',{style:'text-align:center;font-size:1.1rem;font-weight:800;color:var(--gold);margin-bottom:10px;'}, '🗺️ Tabuleiro da Mesa'));
+  wrap.appendChild(el('div',{style:'display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:10px;position:relative;'},
+    el('div',{style:'font-size:1.1rem;font-weight:800;color:var(--gold);'}, '🗺️ Tabuleiro da Mesa'),
+    el('button',{class:'btn ghost', style:'position:absolute;right:0;width:auto;padding:5px 10px;font-size:0.75rem;', onclick:()=>{
+      if(document.fullscreenElement) document.exitFullscreen().catch(()=>{});
+      else if(document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(()=>{});
+    }}, '⛶ Tela Cheia')
+  ));
   const dados = state._verGradeDados;
   if(!dados || !dados.grade || !dados.combatentes || dados.combatentes.length===0){
     wrap.appendChild(el('div',{class:'tip', style:'text-align:center;'}, 'O Mestre ainda não compartilhou um tabuleiro, ou o combate ainda não começou. Essa tela atualiza sozinha — pode deixar aberta.'));
@@ -1146,9 +1191,23 @@ function renderVisualizacaoGrade(){
 
   wrap.appendChild(el('div',{class:'tip', style:'font-size:0.78rem;margin-bottom:8px;'}, 'Toque num personagem pra selecionar, depois toque num quadrado pra mover ele. Some as jogadas — atualiza sozinho pros outros verem.'));
 
-  function tentarMoverComoJogador(combatenteId, x, y){
+  const turnoIdx = dados.turnoIdx||0;
+  const faixaIniciativa = el('div',{style:'display:flex;gap:5px;overflow-x:auto;padding:2px 2px 10px;'});
+  combatentes.forEach((c,idx)=>{
+    const noTurno = idx===turnoIdx;
+    faixaIniciativa.appendChild(el('div',{
+      style:'flex-shrink:0;width:34px;height:34px;border-radius:50%;border:'+(noTurno?'2px solid var(--gold)':'2px solid transparent')+';background:'+corTokenPorTipo(c.tipo)+';overflow:hidden;box-shadow:'+(noTurno?'0 0 8px var(--gold)':'none')+';',
+      title:c.nome,
+    }, c.foto ? el('img',{src:c.foto, style:'width:100%;height:100%;object-fit:cover;'}) : el('div',{style:'width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:0.62rem;font-weight:800;color:#1a0f0a;'}, c.nome.slice(0,2).toUpperCase())));
+  });
+  wrap.appendChild(faixaIniciativa);
+
+  function tentarMoverComoJogador(combatenteId, xClicado, yClicado){
     const alvo = combatentes.find(cc=>cc.id===combatenteId);
     const tamToken = (alvo.tipo==='monstro' && alvo.dados && alvo.dados.tamanho) ? (TAMANHO_QUADRADOS[alvo.dados.tamanho]||1) : 1;
+    const deslocamento = Math.floor((tamToken-1)/2);
+    const x = Math.max(0, Math.min(grade.largura-tamToken, xClicado-deslocamento));
+    const y = Math.max(0, Math.min(grade.altura-tamToken, yClicado-deslocamento));
     if(x+tamToken>grade.largura || y+tamToken>grade.altura) return false;
     const celulasAlvo = celulasOcupadasPorToken(x,y,tamToken);
     for(const chaveCel of celulasAlvo){
@@ -1184,13 +1243,16 @@ function renderVisualizacaoGrade(){
   });
 
   const terrenoAtual = TERRENOS_FUNDO.find(t=>t.id===grade.terrenoFundo);
-  const temTerrenoImagem = terrenoAtual && terrenoAtual.url;
+  const mapaCustom = grade.mapaCustomizado;
+  const temMapaCustom = mapaCustom && mapaCustom.url;
+  const temTerrenoImagem = !temMapaCustom && terrenoAtual && terrenoAtual.url;
   const terrenoRepete = temTerrenoImagem && terrenoAtual.tileable!==false;
   const terrenoCena = temTerrenoImagem && terrenoAtual.tileable===false;
   const larguraPx = grade.largura*tam, alturaPx = grade.altura*tam;
   const scrollWrap = el('div',{style:'max-width:100%; overflow:auto; -webkit-overflow-scrolling:touch; border:2px solid var(--line); border-radius:6px;'});
   const tabuleiro = el('div',{style:'display:grid; grid-template-columns:'+Math.round(tam*0.7)+'px repeat('+grade.largura+', '+tam+'px); gap:0; background:var(--line); width:max-content;'
-    +(terrenoRepete ? ' background-image:url('+terrenoAtual.url+'); background-size:'+tam+'px '+tam+'px; background-repeat:repeat;' : '')});
+    +(temMapaCustom ? ' background-image:url('+mapaCustom.url+'); background-size:'+mapaCustom.escalaPx+'px '+mapaCustom.escalaPx+'px; background-position:'+mapaCustom.offsetX+'px '+mapaCustom.offsetY+'px; background-repeat:repeat;'
+      : terrenoRepete ? ' background-image:url('+terrenoAtual.url+'); background-size:'+tam+'px '+tam+'px; background-repeat:repeat;' : '')});
   const areaJogavel = terrenoCena ? el('div',{style:'position:absolute; left:'+Math.round(tam*0.7)+'px; top:'+Math.round(tam*0.6)+'px; width:'+larguraPx+'px; height:'+alturaPx+'px; background-image:url('+terrenoAtual.url+'); background-size:cover; background-position:center; pointer-events:none;'}) : null;
 
   tabuleiro.appendChild(el('div',{style:'width:'+Math.round(tam*0.7)+'px;height:'+Math.round(tam*0.6)+'px;'}));
@@ -1206,20 +1268,39 @@ function renderVisualizacaoGrade(){
       const anchorId = anchorPorCelula[chave];
       const ehAncora = anchorId && grade.posicoes[anchorId].x===x && grade.posicoes[anchorId].y===y;
       const c = ehAncora ? combatentes.find(cc=>cc.id===anchorId) : null;
-      const bgCelula = escondido ? '#0a0a0a' : (bloco ? BLOCO_TIPOS[bloco.tipo].cor : ((terrenoRepete||terrenoCena) ? 'transparent' : 'var(--card)'));
+      const bgCelula = escondido ? '#0a0a0a' : (bloco ? BLOCO_TIPOS[bloco.tipo].cor : ((terrenoRepete||terrenoCena||temMapaCustom) ? 'transparent' : 'var(--card)'));
       const bordas = (bloco && !escondido) ? bordasVisiveisBloco(grade, x, y, bloco.tipo) : {top:true,right:true,bottom:true,left:true};
-      const estiloBordas = 'border-top:'+(bordas.top?'1px solid var(--line)':'none')+
-        ';border-right:'+(bordas.right?'1px solid var(--line)':'none')+
-        ';border-bottom:'+(bordas.bottom?'1px solid var(--line)':'none')+
-        ';border-left:'+(bordas.left?'1px solid var(--line)':'none')+';';
+      const estiloBordas = 'border-top:'+(bordas.top?'1px solid '+COR_GRADE_LINHA:'none')+
+        ';border-right:'+(bordas.right?'1px solid '+COR_GRADE_LINHA:'none')+
+        ';border-bottom:'+(bordas.bottom?'1px solid '+COR_GRADE_LINHA:'none')+
+        ';border-left:'+(bordas.left?'1px solid '+COR_GRADE_LINHA:'none')+';';
       const celula = el('div',{
         style:'width:'+tam+'px;height:'+tam+'px;background:'+bgCelula+';display:flex;align-items:center;justify-content:center;position:relative;cursor:pointer;'+estiloBordas,
         onclick:()=>{
           if(escondido) return;
           if(anchorId){ state._verGradeSelecionado = anchorId; render(); return; }
-          if(state._verGradeSelecionado){ tentarMoverComoJogador(state._verGradeSelecionado, x, y); render(); }
+          if(state._verGradeSelecionado){ capturarParaAnimacaoMovimento(state._verGradeSelecionado); tentarMoverComoJogador(state._verGradeSelecionado, x, y); render(); }
         }
       });
+      if(!escondido){
+        let temporizadorPing = null;
+        const cancelarPing = ()=>{ if(temporizadorPing){ clearTimeout(temporizadorPing); temporizadorPing=null; } };
+        celula.addEventListener('pointerdown',()=>{
+          cancelarPing();
+          temporizadorPing = setTimeout(()=>{
+            temporizadorPing = null;
+            grade.ping = {x, y, criadoEm: Date.now()}; // otimista — já pisca na hora, sem esperar rede
+            render();
+            dispararPingComoJogador(state._verGradeCodigo, x, y);
+          }, 500);
+        });
+        celula.addEventListener('pointerup', cancelarPing);
+        celula.addEventListener('pointerleave', cancelarPing);
+        celula.addEventListener('pointercancel', cancelarPing);
+      }
+      if(grade.ping && grade.ping.x===x && grade.ping.y===y && (Date.now()-grade.ping.criadoEm)<2200){
+        celula.appendChild(el('div',{style:'position:absolute;inset:-6px;border-radius:50%;border:3px solid var(--gold);pointer-events:none;animation:ping-grade 1.1s ease-out infinite;'}));
+      }
       if(!escondido){
         const isolado = bordas.top && bordas.right && bordas.bottom && bordas.left;
         if(bloco && isolado) celula.appendChild(el('div',{style:'font-size:'+Math.round(tam*0.6)+'px;opacity:0.9;'}, BLOCO_TIPOS[bloco.tipo].emoji));
@@ -1227,8 +1308,13 @@ function renderVisualizacaoGrade(){
           const tamToken = (c.tipo==='monstro' && c.dados && c.dados.tamanho) ? (TAMANHO_QUADRADOS[c.dados.tamanho]||1) : 1;
           const pxToken = tamToken*tam + (tamToken-1)*1;
           const selecionado = state._verGradeSelecionado===c.id;
-          const tokenWrap = el('div',{style:'position:absolute; top:0; left:0; width:'+pxToken+'px; height:'+pxToken+'px; z-index:5;'});
-          tokenWrap.appendChild(el('div',{style:'width:100%;height:100%;border-radius:50%;background:'+corTokenPorTipo(c.tipo)+';display:flex;align-items:center;justify-content:center;font-weight:800;color:#1a0f0a;overflow:hidden;box-shadow:0 0 0 '+(selecionado?'3px var(--gold)':'2px rgba(0,0,0,0.4)')+';font-size:'+Math.round(pxToken*0.34)+'px;'},
+          const noTurnoToken = combatentes.indexOf(c)===turnoIdx;
+          const anelCustom = grade.corAneis && grade.corAneis[c.id];
+          const anelEstiloViewer = selecionado?'0 0 0 3px var(--gold)':noTurnoToken?'0 0 0 3px #5ea8e0, 0 0 8px #5ea8e0':anelCustom?'0 0 0 3px '+anelCustom:'0 0 0 2px rgba(0,0,0,0.4)';
+          const nudgeViewer = grade.nudges && grade.nudges[c.id];
+          const nudgePxViewer = nudgeViewer ? {x:Math.round(nudgeViewer.x*pxToken), y:Math.round(nudgeViewer.y*pxToken)} : {x:0,y:0};
+          const tokenWrap = el('div',{'data-token-id':c.id, style:'position:absolute; top:'+nudgePxViewer.y+'px; left:'+nudgePxViewer.x+'px; width:'+pxToken+'px; height:'+pxToken+'px; z-index:5; filter:drop-shadow(0 3px 3px rgba(0,0,0,0.5));'});
+          tokenWrap.appendChild(el('div',{style:'width:100%;height:100%;border-radius:50%;background:'+corTokenPorTipo(c.tipo)+';display:flex;align-items:center;justify-content:center;font-weight:800;color:#1a0f0a;overflow:hidden;box-shadow:'+anelEstiloViewer+';font-size:'+Math.round(pxToken*0.34)+'px;'},
             c.foto ? el('img',{src:c.foto, style:'width:100%;height:100%;object-fit:cover;border-radius:50%;'}) : c.nome.slice(0,2).toUpperCase()
           ));
           if(c.pvMax){
@@ -1236,6 +1322,10 @@ function renderVisualizacaoGrade(){
             tokenWrap.appendChild(el('div',{style:'position:absolute;bottom:-3px;left:8%;width:84%;height:3px;background:rgba(0,0,0,0.5);border-radius:2px;overflow:hidden;'},
               el('div',{style:'width:'+pvPct+'%;height:100%;background:'+(pvPct>50?'#5ea85e':pvPct>25?'#c9a23a':'#c94a3a')+';'})
             ));
+          }
+          const rotacaoViewer = grade.rotacoes && grade.rotacoes[c.id];
+          if(rotacaoViewer){
+            tokenWrap.appendChild(el('div',{style:'position:absolute; top:50%; left:50%; width:0; height:0; border-left:5px solid transparent; border-right:5px solid transparent; border-bottom:10px solid var(--gold); transform:translate(-50%,-50%) rotate('+rotacaoViewer+'deg) translateY(-'+Math.round(pxToken*0.55)+'px); pointer-events:none;'}));
           }
           celula.appendChild(tokenWrap);
         }
@@ -1266,7 +1356,19 @@ function bordasVisiveisBloco(grade, x, y, tipo){
   };
 }
 
-const MODOS_GRADE = [['mover','🚶 Mover'],['blocos','🧊 Blocos'],['quebrar','🔨 Quebrar'],['apagar','🧹 Apagar'],['alcance','📏 Alcance'],['area','💥 Área'],['medir','📐 Medir'],['fog','🌫️ Névoa']];
+const MODOS_GRADE = [['mover','🚶 Mover'],['blocos','🧊 Blocos'],['quebrar','🔨 Quebrar'],['marcador','🎨 Marcador'],['apagar','🧹 Apagar'],['alcance','📏 Alcance'],['area','💥 Área'],['medir','📐 Medir'],['fog','🌫️ Névoa']];
+// Marcador colorido: sinaliza algo temporário (área de gás, fogo, zona de efeito...) sem virar
+// bloco sólido — não impede ninguém de entrar ali, é só um aviso visual.
+// Linha de grade bem discreta (quase invisível até você precisar prestar atenção) — VTTs de
+// verdade fazem assim, em vez da linha grossa e forte que a gente tinha antes.
+const COR_GRADE_LINHA = 'rgba(255,255,255,0.09)';
+const CORES_MARCADOR = [
+  {id:'vermelho', cor:'rgba(224,69,58,0.45)', label:'🔴 Vermelho'},
+  {id:'azul', cor:'rgba(90,150,224,0.45)', label:'🔵 Azul'},
+  {id:'verde', cor:'rgba(90,200,110,0.45)', label:'🟢 Verde'},
+  {id:'amarelo', cor:'rgba(224,200,60,0.45)', label:'🟡 Amarelo'},
+  {id:'roxo', cor:'rgba(170,90,224,0.45)', label:'🟣 Roxo'},
+];
 // Quando o jogador move um token pelo link, NÃO dá pra simplesmente mandar de volta a grade que
 // ele tem na tela — a dele é a versão FILTRADA (sem monstro escondido), e se isso fosse salvo
 // por cima da grade completa do Mestre, os monstros escondidos sumiriam pra sempre do controle
@@ -1285,12 +1387,78 @@ async function salvarMovimentoTokenComoJogador(codigo, combatenteId, novaPosicao
   return salvarMestreDadosArmazenamento(atual);
 }
 
+// Movimento suave (técnica FLIP): captura onde o token está ANTES de mudar de posição; depois
+// que o resto do código mexe nos dados e re-renderiza (de forma síncrona), no próximo frame já
+// dá pra medir a posição NOVA, aplicar um deslocamento igual à diferença e animar até zero —
+// fica parecendo que ele deslizou, em vez de simplesmente "teleportar".
+function capturarParaAnimacaoMovimento(combatenteId){
+  const elAntes = document.querySelector('[data-token-id="'+combatenteId+'"]');
+  if(!elAntes || typeof elAntes.getBoundingClientRect!=='function') return;
+  const rectAntes = elAntes.getBoundingClientRect();
+  requestAnimationFrame(()=>{
+    const elDepois = document.querySelector('[data-token-id="'+combatenteId+'"]');
+    if(!elDepois) return;
+    const rectDepois = elDepois.getBoundingClientRect();
+    const dx = rectAntes.left - rectDepois.left, dy = rectAntes.top - rectDepois.top;
+    if(Math.abs(dx)<1 && Math.abs(dy)<1) return;
+    elDepois.style.transition = 'none';
+    elDepois.style.transform = 'translate('+dx+'px,'+dy+'px)';
+    requestAnimationFrame(()=>{
+      elDepois.style.transition = 'transform 0.25s ease-out';
+      elDepois.style.transform = 'translate(0,0)';
+    });
+  });
+}
+
+// Ping — toque e segure um ponto do mapa pra ele piscar por alguns segundos pra todo mundo ver
+// (Mestre e jogadores), tipo "óó, ali!" sem precisar descrever o quadrado. Passa sozinho.
+function dispararPing(grade, x, y){
+  grade.ping = {x, y, criadoEm: Date.now()};
+  sincronizarGradeCompartilhada();
+  render();
+  setTimeout(()=>{
+    if(grade.ping && grade.ping.x===x && grade.ping.y===y && grade.ping.criadoEm){
+      delete grade.ping;
+      sincronizarGradeCompartilhada();
+      render();
+    }
+  }, 2200);
+}
+// Liga o toque-e-segure numa célula pra disparar o ping — funciona em QUALQUER modo, é uma
+// ferramenta de comunicação, não de editar o mapa. 500ms segurando sem soltar/mover = ping.
+function ligarTogueLongoPing(elemento, grade, x, y){
+  let temporizador = null;
+  const cancelar = ()=>{ if(temporizador){ clearTimeout(temporizador); temporizador=null; } };
+  elemento.addEventListener('pointerdown',(e)=>{
+    cancelar();
+    temporizador = setTimeout(()=>{ temporizador=null; dispararPing(grade,x,y); }, 500);
+  });
+  elemento.addEventListener('pointerup', cancelar);
+  elemento.addEventListener('pointerleave', cancelar);
+  elemento.addEventListener('pointercancel', cancelar);
+}
+
 function renderMestreGrade(){
   iniciarAtualizacaoAutomaticaGradeMestre();
   const wrap = el('div',{});
   if(!state._mestreIniciativa) state._mestreIniciativa = {combatentes:[], turnoIdx:0, rodada:1};
   const combate = state._mestreIniciativa;
   const grade = garantirGrade(combate);
+
+  // Desfazer específico da Grade — guarda uma cópia de como a grade estava ANTES da última
+  // ação (mover, colocar bloco, marcador, névoa), só 1 passo pra trás. Chamado sempre ANTES de
+  // qualquer mutação (não depois), pra sempre ter "o estado de antes" pronto.
+  function salvarEstadoParaDesfazer(){
+    state._gradeDesfazer = JSON.parse(JSON.stringify(grade));
+  }
+  function desfazerUltimaAcaoGrade(){
+    if(!state._gradeDesfazer){ flashMsg('Nada recente pra desfazer na Grade.'); return; }
+    combate.grade = state._gradeDesfazer;
+    state._gradeDesfazer = null;
+    sincronizarGradeCompartilhada();
+    flashMsg('↩️ Última ação da Grade desfeita.');
+    render();
+  }
 
   if(combate.combatentes.length===0){
     wrap.appendChild(el('div',{class:'tip'}, el('b',{},'Nada em combate ainda'), 'Monte o encontro em "Preparar Encontro" e mande pro combate — os tokens aparecem aqui automaticamente.'));
@@ -1301,13 +1469,18 @@ function renderMestreGrade(){
   if(!state._gradeZoom) state._gradeZoom = 30;
   const terrenoAtual = TERRENOS_FUNDO.find(t=>t.id===grade.terrenoFundo);
 
-  // ---- Barra de topo: 4 botões que abrem popup, pra não poluir a tela toda vez ----
+  // ---- Barra de topo: botões que abrem popup, pra não poluir a tela toda vez ----
   const modoAtualLabel = (MODOS_GRADE.find(([id])=>id===state._gradeModo)||['','?'])[1];
   wrap.appendChild(el('div',{class:'tab-grid'},
     el('button',{onclick:()=>{ state._gradePopup='acoes'; render(); }}, '🎬 '+modoAtualLabel),
     el('button',{onclick:()=>{ state._gradePopup='terreno'; render(); }}, terrenoAtual ? '🖼️ '+terrenoAtual.nome : '🖼️ Terreno'),
     el('button',{onclick:()=>{ state._gradePopup='mapas'; render(); }}, '🗺️ Mapas'),
-    el('button',{onclick:()=>{ state._gradePopup='link'; render(); }}, '🔗 Compartilhar')
+    el('button',{onclick:()=>{ state._gradePopup='link'; render(); }}, '🔗 Compartilhar'),
+    el('button',{onclick:()=>{
+      state._gradeTelaCheia = true;
+      render();
+      if(document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(()=>{});
+    }}, '⛶ Tela Cheia')
   ));
 
   // ---- Popups ----
@@ -1330,6 +1503,47 @@ function renderMestreGrade(){
       grid.appendChild(el('button',{class:'option-card'+(grade.terrenoFundo===t.id?' selected':''), onclick:()=>{ grade.terrenoFundo=t.id; state._gradePopup=null; render(); }}, el('div',{class:'opt-nome'}, t.nome)));
     });
     conteudo.appendChild(grid);
+
+    // Mapa próprio: mesma ideia dos terrenos prontos, mas com um mapa de verdade (desenhado à
+    // mão, comprado, gerado por IA). Precisa ser um LINK de imagem (não dá pra guardar a imagem
+    // em si, porque a grade sincroniza a cada jogada — um arquivo grande estouraria a planilha).
+    conteudo.appendChild(el('h2',{style:'margin-top:14px;'}, '🗺️ Mapa Próprio'));
+    conteudo.appendChild(el('div',{class:'tip', style:'font-size:0.75rem;'}, 'Cola o link de uma imagem sua (hospedada no Google Drive, Imgur etc., compartilhada como "qualquer pessoa com o link"). Depois ajusta o encaixe da grade em cima dela com os controles abaixo.'));
+    if(!state._gradeMapaUrlTemp) state._gradeMapaUrlTemp = (grade.mapaCustomizado && grade.mapaCustomizado.url) || '';
+    conteudo.appendChild(el('div',{class:'row', style:'margin-top:6px;'},
+      el('input',{type:'text', placeholder:'https://...', value:state._gradeMapaUrlTemp, oninput:(e)=>{ state._gradeMapaUrlTemp=e.target.value; }}),
+      el('button',{class:'btn ghost', style:'width:auto;flex:none;', onclick:()=>{
+        const url = state._gradeMapaUrlTemp.trim();
+        if(!url){ grade.mapaCustomizado = null; sincronizarGradeCompartilhada(); render(); return; }
+        grade.mapaCustomizado = { url, offsetX:0, offsetY:0, escalaPx: state._gradeZoom||30 };
+        grade.terrenoFundo = null; // mapa próprio e terreno pronto não fazem sentido juntos
+        sincronizarGradeCompartilhada();
+        render();
+      }}, 'Usar')
+    ));
+    if(grade.mapaCustomizado && grade.mapaCustomizado.url){
+      const mc = grade.mapaCustomizado;
+      conteudo.appendChild(el('div',{class:'meta', style:'margin-top:10px;'}, 'Ajuste fino (encaixar a grade nas linhas do seu mapa):'));
+      conteudo.appendChild(el('div',{class:'row', style:'align-items:center;margin-top:4px;'},
+        el('div',{class:'meta', style:'flex:none;width:70px;'}, 'Tamanho'),
+        el('button',{class:'btn ghost', style:'width:auto;padding:4px 10px;', onclick:()=>{ mc.escalaPx=Math.max(10,mc.escalaPx-2); sincronizarGradeCompartilhada(); render(); }}, '➖'),
+        el('div',{style:'flex:none;font-weight:700;'}, mc.escalaPx+'px'),
+        el('button',{class:'btn ghost', style:'width:auto;padding:4px 10px;', onclick:()=>{ mc.escalaPx=mc.escalaPx+2; sincronizarGradeCompartilhada(); render(); }}, '➕')
+      ));
+      conteudo.appendChild(el('div',{class:'row', style:'align-items:center;margin-top:4px;'},
+        el('div',{class:'meta', style:'flex:none;width:70px;'}, 'Direita/Esq.'),
+        el('button',{class:'btn ghost', style:'width:auto;padding:4px 10px;', onclick:()=>{ mc.offsetX-=5; sincronizarGradeCompartilhada(); render(); }}, '⬅️'),
+        el('button',{class:'btn ghost', style:'width:auto;padding:4px 10px;', onclick:()=>{ mc.offsetX+=5; sincronizarGradeCompartilhada(); render(); }}, '➡️')
+      ));
+      conteudo.appendChild(el('div',{class:'row', style:'align-items:center;margin-top:4px;'},
+        el('div',{class:'meta', style:'flex:none;width:70px;'}, 'Cima/Baixo'),
+        el('button',{class:'btn ghost', style:'width:auto;padding:4px 10px;', onclick:()=>{ mc.offsetY-=5; sincronizarGradeCompartilhada(); render(); }}, '⬆️'),
+        el('button',{class:'btn ghost', style:'width:auto;padding:4px 10px;', onclick:()=>{ mc.offsetY+=5; sincronizarGradeCompartilhada(); render(); }}, '⬇️')
+      ));
+      conteudo.appendChild(el('button',{class:'btn ghost', style:'margin-top:8px;', onclick:()=>{
+        grade.mapaCustomizado = null; state._gradeMapaUrlTemp=''; sincronizarGradeCompartilhada(); render();
+      }}, 'Remover Mapa Próprio 🗑️'));
+    }
     wrap.appendChild(renderGradePopup('Terreno de Fundo', conteudo, ()=>{ state._gradePopup=null; render(); }));
   }
   if(state._gradePopup==='mapas'){
@@ -1408,6 +1622,18 @@ function renderMestreGrade(){
     wrap.appendChild(paleta);
   }
 
+  if(state._gradeModo==='marcador'){
+    if(!state._gradeCorMarcador) state._gradeCorMarcador = CORES_MARCADOR[0].cor;
+    wrap.appendChild(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Pinta um aviso visual — não bloqueia nada, é só pra sinalizar (área de gás, fogo, zona de efeito...). Arraste pra pintar vários quadrados de uma vez.'));
+    const paleta = el('div',{class:'option-grid'});
+    CORES_MARCADOR.forEach(cm=>{
+      paleta.appendChild(el('button',{class:'option-card'+(state._gradeCorMarcador===cm.cor?' selected':''), onclick:()=>{ state._gradeCorMarcador=cm.cor; render(); }},
+        el('div',{class:'opt-nome'}, cm.label)
+      ));
+    });
+    wrap.appendChild(paleta);
+  }
+
   if(state._gradeModo==='mover' || state._gradeModo==='alcance' || state._gradeModo==='area'){
     if(!state._gradeSelecionado || !combate.combatentes.some(c=>c.id===state._gradeSelecionado)){
       state._gradeSelecionado = combate.combatentes[0].id;
@@ -1423,7 +1649,42 @@ function renderMestreGrade(){
       ));
     });
     wrap.appendChild(chipsRow);
-    if(state._gradeModo==='mover') wrap.appendChild(el('div',{class:'meta', style:'margin-bottom:6px;'}, 'Toque num quadrado pra colocar o "'+combate.combatentes.find(c=>c.id===state._gradeSelecionado).nome+'" lá (toque num token pra selecionar ele), ou arraste o token direto no tabuleiro.'));
+    if(state._gradeModo==='mover'){
+      wrap.appendChild(el('div',{class:'meta', style:'margin-bottom:6px;'}, 'Toque num quadrado pra colocar o "'+combate.combatentes.find(c=>c.id===state._gradeSelecionado).nome+'" lá (toque num token pra selecionar ele), ou arraste o token direto no tabuleiro.'));
+      // Anel de cor customizável — pra marcar "esses são de um grupo" sem mudar o tipo do
+      // combatente (PJ/monstro/NPC continuam com a cor de fundo de sempre).
+      wrap.appendChild(el('div',{style:'display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap;'},
+        el('div',{class:'meta', style:'flex:none;'}, 'Anel deste:'),
+        el('button',{class:'btn ghost', style:'width:auto;padding:3px 8px;font-size:0.7rem;', onclick:()=>{ delete grade.corAneis[state._gradeSelecionado]; sincronizarGradeCompartilhada(); render(); }}, '🚫 Nenhum'),
+        ...CORES_MARCADOR.map(cm=> el('button',{
+          style:'width:22px;height:22px;border-radius:50%;padding:0;border:'+(grade.corAneis[state._gradeSelecionado]===cm.cor?'2px solid #fff':'2px solid transparent')+';background:'+cm.cor.replace('0.45','0.9')+';',
+          onclick:()=>{ grade.corAneis[state._gradeSelecionado]=cm.cor.replace('0.45','0.9'); sincronizarGradeCompartilhada(); render(); }
+        }))
+      ));
+      wrap.appendChild(el('button',{class:'btn ghost', style:'width:auto;padding:4px 10px;font-size:0.75rem;margin-bottom:8px;', onclick:()=>{ grade.snapLivre=!grade.snapLivre; sincronizarGradeCompartilhada(); render(); }},
+        grade.snapLivre ? '🔓 Snap Livre (toque em qualquer ponto do quadrado)' : '🔒 Preso à Grade'
+      ));
+      // Rotação/direção — pra onde o token está de frente. Gira só uma setinha ao redor dele
+      // (girar a foto/círculo em si ficaria estranho).
+      wrap.appendChild(el('div',{style:'display:flex;align-items:center;gap:6px;margin-bottom:8px;'},
+        el('div',{class:'meta', style:'flex:none;'}, 'Direção:'),
+        el('button',{class:'btn ghost', style:'width:auto;padding:3px 10px;', onclick:()=>{ grade.rotacoes[state._gradeSelecionado] = ((grade.rotacoes[state._gradeSelecionado]||0)-45+360)%360; sincronizarGradeCompartilhada(); render(); }}, '↺'),
+        el('button',{class:'btn ghost', style:'width:auto;padding:3px 10px;', onclick:()=>{ grade.rotacoes[state._gradeSelecionado] = ((grade.rotacoes[state._gradeSelecionado]||0)+45)%360; sincronizarGradeCompartilhada(); render(); }}, '↻'),
+        grade.rotacoes[state._gradeSelecionado] ? el('button',{class:'btn ghost', style:'width:auto;padding:3px 8px;font-size:0.7rem;', onclick:()=>{ delete grade.rotacoes[state._gradeSelecionado]; sincronizarGradeCompartilhada(); render(); }}, 'Zerar') : null
+      ));
+      // Multi-seleção — pra mover um grupo de tokens de uma vez (tipo 3 goblins juntos), mantendo
+      // a formação entre eles (todos se deslocam pela mesma quantidade de quadrados).
+      if(!state._gradeMultiSelecao) state._gradeMultiSelecao = [];
+      wrap.appendChild(el('div',{style:'display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap;'},
+        el('button',{class:'btn ghost'+(state._gradeMultiModoAtivo?'':''), style:'width:auto;padding:4px 10px;font-size:0.75rem;'+(state._gradeMultiModoAtivo?'border-color:var(--gold);':''), onclick:()=>{
+          state._gradeMultiModoAtivo = !state._gradeMultiModoAtivo;
+          if(!state._gradeMultiModoAtivo) state._gradeMultiSelecao = [];
+          render();
+        }}, state._gradeMultiModoAtivo ? '☑️ Selecionando Vários ('+state._gradeMultiSelecao.length+')' : '🔲 Selecionar Vários'),
+        state._gradeMultiModoAtivo && state._gradeMultiSelecao.length>0 ? el('button',{class:'btn ghost', style:'width:auto;padding:4px 10px;font-size:0.75rem;', onclick:()=>{ state._gradeMultiSelecao=[]; render(); }}, 'Limpar seleção') : null
+      ));
+      if(state._gradeMultiModoAtivo) wrap.appendChild(el('div',{class:'meta', style:'margin-bottom:8px;'}, state._gradeMultiSelecao.length<2 ? 'Toque nos tokens que quer mover junto.' : 'Toque num quadrado — o grupo inteiro se move mantendo a formação entre eles.'));
+    }
   }
 
   if(state._gradeModo==='alcance'){
@@ -1482,9 +1743,14 @@ function renderMestreGrade(){
   const origemArea = (state._gradeModo==='area' && state._gradeAreaForma!=='circulo') ? grade.posicoes[state._gradeSelecionado] : null;
   const tam = state._gradeZoom;
 
-  function tentarMoverPara(combatenteId, x, y){
+  function tentarMoverPara(combatenteId, xClicado, yClicado){
     const alvo = combate.combatentes.find(cc=>cc.id===combatenteId);
     const tamToken = tamanhoTokenCombatente(alvo);
+    // Criatura Grande+ (2x2, 3x3...) centraliza no quadrado tocado, em vez de "nascer" com o
+    // canto superior esquerdo ali — fica bem mais natural de posicionar.
+    const deslocamento = Math.floor((tamToken-1)/2);
+    const x = Math.max(0, Math.min(grade.largura-tamToken, xClicado-deslocamento));
+    const y = Math.max(0, Math.min(grade.altura-tamToken, yClicado-deslocamento));
     if(x+tamToken>grade.largura || y+tamToken>grade.altura){ flashMsg('Não cabe aqui — o token dele ocupa '+tamToken+'×'+tamToken+' quadrados.'); return false; }
     const celulasAlvo = celulasOcupadasPorToken(x,y,tamToken);
     for(const chaveCel of celulasAlvo){
@@ -1506,14 +1772,38 @@ function renderMestreGrade(){
     return true;
   }
 
-  const scrollWrap = el('div',{style:'max-width:100%; max-height:60vh; overflow:auto; -webkit-overflow-scrolling:touch; border:2px solid var(--line); border-radius:6px; cursor:grab;'});
+  // Faixa de iniciativa em cima do tabuleiro — os mesmos retratos/ordem da aba Combate, sem
+  // precisar trocar de aba pra saber de quem é a vez. Tocar num retrato pula pra vez dele
+  // (igual já funciona na aba Combate).
+  const faixaIniciativa = el('div',{style:'display:flex;gap:5px;overflow-x:auto;padding:4px 2px 8px;'});
+  combate.combatentes.forEach((c,idx)=>{
+    const foto = fotoDoCombatente(c);
+    const noTurno = idx===combate.turnoIdx;
+    faixaIniciativa.appendChild(el('button',{
+      style:'flex-shrink:0;width:34px;height:34px;border-radius:50%;padding:0;border:'+(noTurno?'2px solid var(--gold)':'2px solid transparent')+';background:'+corTokenPorTipo(c.tipo)+';overflow:hidden;box-shadow:'+(noTurno?'0 0 8px var(--gold)':'none')+';',
+      title:c.nome,
+      onclick:()=>{ combate.turnoIdx=idx; render(); }
+    }, foto ? el('img',{src:foto, style:'width:100%;height:100%;object-fit:cover;'}) : el('div',{style:'width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:0.62rem;font-weight:800;color:#1a0f0a;'}, c.nome.slice(0,2).toUpperCase())));
+  });
+  wrap.appendChild(faixaIniciativa);
+
+  // Régua ao vivo — enquanto arrasta um token, mostra a distância do ponto de partida até onde
+  // o dedo/mouse está agora. Atualiza direto no elemento (sem re-renderizar tudo, senão ficaria
+  // engasgado arrastando).
+  const indicadorDistancia = el('div',{id:'grade-distancia-arraste', style:'display:none;text-align:center;font-weight:800;color:var(--gold);margin-bottom:4px;font-size:0.85rem;'});
+  wrap.appendChild(indicadorDistancia);
+
+  const scrollWrap = el('div',{id:'grade-scroll-wrap', style:'max-width:100%; max-height:60vh; overflow:auto; -webkit-overflow-scrolling:touch; border:2px solid var(--line); border-radius:6px; cursor:grab;'});
   const letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  const temTerrenoImagem = terrenoAtual && terrenoAtual.url;
+  const mapaCustom = grade.mapaCustomizado;
+  const temMapaCustom = mapaCustom && mapaCustom.url;
+  const temTerrenoImagem = !temMapaCustom && terrenoAtual && terrenoAtual.url;
   const terrenoRepete = temTerrenoImagem && terrenoAtual.tileable!==false;
   const terrenoCena = temTerrenoImagem && terrenoAtual.tileable===false;
   const larguraPx = grade.largura*tam, alturaPx = grade.altura*tam;
   const tabuleiro = el('div',{style:'display:grid; grid-template-columns:'+Math.round(tam*0.7)+'px repeat('+grade.largura+', '+tam+'px); gap:0; background:var(--line); width:max-content;'
-    +(terrenoRepete ? ' background-image:url('+terrenoAtual.url+'); background-size:'+tam+'px '+tam+'px; background-repeat:repeat;' : '')});
+    +(temMapaCustom ? ' background-image:url('+mapaCustom.url+'); background-size:'+mapaCustom.escalaPx+'px '+mapaCustom.escalaPx+'px; background-position:'+mapaCustom.offsetX+'px '+mapaCustom.offsetY+'px; background-repeat:repeat;'
+      : terrenoRepete ? ' background-image:url('+terrenoAtual.url+'); background-size:'+tam+'px '+tam+'px; background-repeat:repeat;' : '')});
   // "cena completa" (tipo a taverna) não repete — estica UMA vez cobrindo só a área jogável,
   // deslocada pra não cobrir a coluna/linha de letras e números do canto.
   const areaJogavel = terrenoCena ? el('div',{style:'position:absolute; left:'+Math.round(tam*0.7)+'px; top:'+Math.round(tam*0.6)+'px; width:'+larguraPx+'px; height:'+alturaPx+'px; background-image:url('+terrenoAtual.url+'); background-size:cover; background-position:center; pointer-events:none;'}) : null;
@@ -1548,6 +1838,44 @@ function renderMestreGrade(){
     panEstado = null;
   });
 
+  // Pinça de 2 dedos pra dar zoom no tablet/celular, mantendo o ponto entre os dedos fixo na
+  // tela (não sai "pulando" o mapa quando belisca).
+  let pinca = null, pincaRaf = null;
+  scrollWrap.addEventListener('touchstart',(e)=>{
+    if(e.touches.length===2){
+      const [t1,t2] = e.touches;
+      pinca = {
+        distIni: Math.hypot(t2.clientX-t1.clientX, t2.clientY-t1.clientY),
+        zoomIni: state._gradeZoom,
+        midX: (t1.clientX+t2.clientX)/2, midY: (t1.clientY+t2.clientY)/2,
+      };
+    }
+  }, {passive:true});
+  scrollWrap.addEventListener('touchmove',(e)=>{
+    if(!pinca || e.touches.length!==2) return;
+    e.preventDefault();
+    const [t1,t2] = e.touches;
+    const distAtual = Math.hypot(t2.clientX-t1.clientX, t2.clientY-t1.clientY);
+    const novoZoom = Math.max(18, Math.min(48, Math.round(pinca.zoomIni * (distAtual/pinca.distIni))));
+    if(novoZoom===state._gradeZoom) return;
+    if(pincaRaf) return; // já tem um render agendado, não empilha
+    pincaRaf = requestAnimationFrame(()=>{
+      pincaRaf = null;
+      const swRect = scrollWrap.getBoundingClientRect();
+      const fracaoX = (scrollWrap.scrollLeft + (pinca.midX-swRect.left)) / scrollWrap.scrollWidth;
+      const fracaoY = (scrollWrap.scrollTop + (pinca.midY-swRect.top)) / scrollWrap.scrollHeight;
+      state._gradeZoom = novoZoom;
+      render();
+      setTimeout(()=>{
+        const sw2 = document.getElementById('grade-scroll-wrap');
+        if(!sw2) return;
+        sw2.scrollLeft = fracaoX*sw2.scrollWidth - (pinca.midX-swRect.left);
+        sw2.scrollTop = fracaoY*sw2.scrollHeight - (pinca.midY-swRect.top);
+      }, 0);
+    });
+  }, {passive:false});
+  scrollWrap.addEventListener('touchend',()=>{ pinca = null; });
+
   const anchorPorCelula = {};
   Object.keys(grade.posicoes).forEach(id=>{
     const c = combate.combatentes.find(cc=>cc.id===id);
@@ -1564,6 +1892,85 @@ function renderMestreGrade(){
         state._gradeAreaHover.x, state._gradeAreaHover.y, state._gradeAreaTamanho)
     : new Set();
 
+  // Tudo que uma célula faz quando "ativada" — clique único, ou passando por cima dela
+  // arrastando (nos modos que fazem sentido pintar em sequência: blocos, quebrar, marcador,
+  // névoa). Recalcula tudo na hora pra funcionar tanto num clique quanto durante o arraste.
+  function aplicarAcaoNaCelula(x,y,evento){
+    const chave = x+','+y;
+    const bloco = grade.blocos[chave];
+    const anchorId = anchorPorCelula[chave];
+    if(state._gradeModo==='mover' && state._gradeMultiModoAtivo){
+      if(anchorId){
+        // toca num token: entra ou sai da seleção do grupo
+        const idx = state._gradeMultiSelecao.indexOf(anchorId);
+        if(idx>=0) state._gradeMultiSelecao.splice(idx,1);
+        else state._gradeMultiSelecao.push(anchorId);
+        render();
+        return;
+      }
+      if(state._gradeMultiSelecao.length<2){ flashMsg('Selecione pelo menos 2 tokens antes de tocar num quadrado vazio.'); return; }
+      // move o grupo inteiro pela mesma quantidade de quadrados, mantendo a formação — usa o
+      // primeiro token selecionado como referência pra calcular o deslocamento.
+      const referenciaId = state._gradeMultiSelecao[0];
+      const posRef = grade.posicoes[referenciaId];
+      if(!posRef){ flashMsg('O token de referência não está no tabuleiro.'); return; }
+      const dx = x-posRef.x, dy = y-posRef.y;
+      salvarEstadoParaDesfazer();
+      state._gradeMultiSelecao.forEach(id=>{
+        const pos = grade.posicoes[id];
+        if(!pos) return;
+        capturarParaAnimacaoMovimento(id);
+        tentarMoverPara(id, pos.x+dx, pos.y+dy);
+      });
+      render();
+      return;
+    }
+    if(state._gradeModo==='mover'){
+      if(anchorId){ state._gradeSelecionado = anchorId; render(); return; }
+      salvarEstadoParaDesfazer();
+      capturarParaAnimacaoMovimento(state._gradeSelecionado);
+      tentarMoverPara(state._gradeSelecionado, x, y);
+      // Snap Livre: guarda um empurrãozinho visual dentro do quadrado, baseado em onde
+      // exatamente você tocou — a posição "de verdade" (pra colisão/névoa/distância) continua
+      // sendo o quadrado inteiro, só a aparência do token que fica menos "grudada na grade".
+      if(grade.snapLivre && evento && typeof evento.offsetX==='number'){
+        grade.nudges[state._gradeSelecionado] = { x:(evento.offsetX/tam-0.5)*0.7, y:(evento.offsetY/tam-0.5)*0.7 };
+      } else if(grade.nudges[state._gradeSelecionado]){
+        delete grade.nudges[state._gradeSelecionado];
+      }
+    } else if(state._gradeModo==='blocos'){
+      if(anchorId){ flashMsg('Tem um combatente aqui — mude ele de lugar antes de colocar bloco.'); return; }
+      salvarEstadoParaDesfazer();
+      grade.blocos[chave] = {tipo: state._gradeBlocoSelecionado};
+      sincronizarGradeCompartilhada();
+    } else if(state._gradeModo==='quebrar'){
+      if(bloco && BLOCO_TIPOS[bloco.tipo].quebravel){ salvarEstadoParaDesfazer(); delete grade.blocos[chave]; sincronizarGradeCompartilhada(); }
+      else if(bloco) flashMsg(BLOCO_TIPOS[bloco.tipo].label+' não quebra — use o modo Apagar se quiser remover mesmo assim.');
+    } else if(state._gradeModo==='marcador'){
+      salvarEstadoParaDesfazer();
+      if(grade.marcadores[chave]===state._gradeCorMarcador) delete grade.marcadores[chave];
+      else grade.marcadores[chave] = state._gradeCorMarcador;
+      sincronizarGradeCompartilhada();
+    } else if(state._gradeModo==='apagar'){
+      salvarEstadoParaDesfazer();
+      if(anchorId){ delete grade.posicoes[anchorId]; sincronizarGradeCompartilhada(); }
+      else if(bloco){ delete grade.blocos[chave]; sincronizarGradeCompartilhada(); }
+      else if(grade.marcadores[chave]){ delete grade.marcadores[chave]; sincronizarGradeCompartilhada(); }
+    } else if(state._gradeModo==='area'){
+      state._gradeAreaHover = {x,y};
+    } else if(state._gradeModo==='medir'){
+      const pontos = state._gradeMedirPontos || [];
+      state._gradeMedirPontos = pontos.length>=2 ? [{x,y}] : [...pontos, {x,y}];
+    } else if(state._gradeModo==='fog'){
+      salvarEstadoParaDesfazer();
+      if(grade.fogRevelado[chave]) delete grade.fogRevelado[chave];
+      else grade.fogRevelado[chave] = true;
+      sincronizarGradeCompartilhada();
+    }
+    render();
+  }
+  window.addEventListener('mouseup',()=>{ state._gradeArrastandoPintura = false; });
+
   for(let y=0;y<grade.altura;y++){
     tabuleiro.appendChild(el('div',{style:'width:'+Math.round(tam*0.7)+'px;height:'+tam+'px;display:flex;align-items:center;justify-content:center;font-size:'+Math.round(tam*0.32)+'px;color:var(--ink-soft);'}, String(y+1)));
     for(let x=0;x<grade.largura;x++){
@@ -1578,46 +1985,43 @@ function renderMestreGrade(){
         dentroDoAlcance = dist>0 && dist<=raioAlcance;
       }
       const dentroDaArea = areaDestacada.has(chave);
-      const bgCelula = bloco ? BLOCO_TIPOS[bloco.tipo].cor : dentroDaArea ? 'rgba(224,69,58,0.4)' : dentroDoAlcance ? 'rgba(224,69,58,0.28)' : ((terrenoRepete||terrenoCena) ? 'transparent' : 'var(--card)');
+      const bgCelula = bloco ? BLOCO_TIPOS[bloco.tipo].cor : dentroDaArea ? 'rgba(224,69,58,0.4)' : dentroDoAlcance ? 'rgba(224,69,58,0.28)' : ((terrenoRepete||terrenoCena||temMapaCustom) ? 'transparent' : 'var(--card)');
       const bordas = bloco ? bordasVisiveisBloco(grade, x, y, bloco.tipo) : {top:true,right:true,bottom:true,left:true};
-      const estiloBordas = 'border-top:'+(bordas.top?'1px solid var(--line)':'none')+
-        ';border-right:'+(bordas.right?'1px solid var(--line)':'none')+
-        ';border-bottom:'+(bordas.bottom?'1px solid var(--line)':'none')+
-        ';border-left:'+(bordas.left?'1px solid var(--line)':'none')+';';
+      const estiloBordas = 'border-top:'+(bordas.top?'1px solid '+COR_GRADE_LINHA:'none')+
+        ';border-right:'+(bordas.right?'1px solid '+COR_GRADE_LINHA:'none')+
+        ';border-bottom:'+(bordas.bottom?'1px solid '+COR_GRADE_LINHA:'none')+
+        ';border-left:'+(bordas.left?'1px solid '+COR_GRADE_LINHA:'none')+';';
       const celula = el('div',{
         'data-gx':x, 'data-gy':y,
         style:'width:'+tam+'px;height:'+tam+'px;background:'+bgCelula+';display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;'+estiloBordas,
         onmouseenter: (state._gradeModo==='area') ? (()=>{ state._gradeAreaHover={x,y}; render(); }) : null,
-        onclick:()=>{
-          if(state._gradeSuprimirProximoClique){ state._gradeSuprimirProximoClique = false; return; }
-          if(state._gradeModo==='mover'){
-            if(anchorId){ state._gradeSelecionado = anchorId; render(); return; }
-            tentarMoverPara(state._gradeSelecionado, x, y);
-          } else if(state._gradeModo==='blocos'){
-            if(anchorId){ flashMsg('Tem um combatente aqui — mude ele de lugar antes de colocar bloco.'); return; }
-            grade.blocos[chave] = {tipo: state._gradeBlocoSelecionado};
-            sincronizarGradeCompartilhada();
-          } else if(state._gradeModo==='quebrar'){
-            if(bloco && BLOCO_TIPOS[bloco.tipo].quebravel){ delete grade.blocos[chave]; sincronizarGradeCompartilhada(); }
-            else if(bloco) flashMsg(BLOCO_TIPOS[bloco.tipo].label+' não quebra — use o modo Apagar se quiser remover mesmo assim.');
-          } else if(state._gradeModo==='apagar'){
-            if(anchorId){ delete grade.posicoes[anchorId]; sincronizarGradeCompartilhada(); }
-            else if(bloco){ delete grade.blocos[chave]; sincronizarGradeCompartilhada(); }
-          } else if(state._gradeModo==='area'){
-            state._gradeAreaHover = {x,y};
-          } else if(state._gradeModo==='medir'){
-            const pontos = state._gradeMedirPontos || [];
-            state._gradeMedirPontos = pontos.length>=2 ? [{x,y}] : [...pontos, {x,y}];
-          } else if(state._gradeModo==='fog'){
-            if(grade.fogRevelado[chave]) delete grade.fogRevelado[chave];
-            else grade.fogRevelado[chave] = true;
-            sincronizarGradeCompartilhada();
+        onmousedown:(e)=>{
+          if(['blocos','quebrar','marcador','fog'].includes(state._gradeModo)){
+            e.stopPropagation(); // não deixa o pan do mapa começar junto
+            state._gradeArrastandoPintura = true;
+            aplicarAcaoNaCelula(x,y);
           }
-          render();
+        },
+        onmouseenter2: null,
+        onclick:(e)=>{
+          if(state._gradeSuprimirProximoClique){ state._gradeSuprimirProximoClique = false; return; }
+          if(['blocos','quebrar','marcador','fog'].includes(state._gradeModo)) return; // já foi tratado no mousedown/arrastar
+          aplicarAcaoNaCelula(x,y,e);
         }
       });
+      celula.addEventListener('mouseenter',()=>{
+        if(state._gradeArrastandoPintura) aplicarAcaoNaCelula(x,y);
+        if(state._gradeModo==='area'){ state._gradeAreaHover={x,y}; render(); }
+      });
+      ligarTogueLongoPing(celula, grade, x, y);
       const isolado = bordas.top && bordas.right && bordas.bottom && bordas.left;
       if(bloco && isolado) celula.appendChild(el('div',{style:'font-size:'+Math.round(tam*0.6)+'px;opacity:0.9;'}, BLOCO_TIPOS[bloco.tipo].emoji));
+      if(grade.marcadores[chave]){
+        celula.appendChild(el('div',{style:'position:absolute;inset:0;background:'+grade.marcadores[chave]+';pointer-events:none;'}));
+      }
+      if(grade.ping && grade.ping.x===x && grade.ping.y===y && (Date.now()-grade.ping.criadoEm)<2200){
+        celula.appendChild(el('div',{style:'position:absolute;inset:-6px;border-radius:50%;border:3px solid var(--gold);pointer-events:none;animation:ping-grade 1.1s ease-out infinite;'}));
+      }
       if(state._gradeModo==='medir' && (state._gradeMedirPontos||[]).some(p=>p.x===x&&p.y===y)){
         celula.appendChild(el('div',{style:'position:absolute;inset:0;border:2px solid var(--gold);pointer-events:none;'}));
       }
@@ -1630,26 +2034,69 @@ function renderMestreGrade(){
         const foto = fotoDoCombatente(c);
         const condicao = condicaoIconeCombatente(c);
         const pvPct = pvMaxCombatente(c) ? Math.max(0, Math.min(100, pvAtualCombatente(c)/pvMaxCombatente(c)*100)) : 100;
+        const anelCustom = grade.corAneis && grade.corAneis[c.id];
+        const noTurnoToken = combate.combatentes.indexOf(c)===combate.turnoIdx;
+        const anelEstilo = noTurnoToken ? '0 0 0 3px var(--gold), 0 0 10px var(--gold)' : anelCustom ? '0 0 0 3px '+anelCustom : '0 0 0 2px rgba(0,0,0,0.4)';
+        const nudge = grade.nudges && grade.nudges[c.id];
+        const nudgePx = nudge ? {x:Math.round(nudge.x*pxToken), y:Math.round(nudge.y*pxToken)} : {x:0,y:0};
         const tokenWrap = el('div',{
-          class:'grade-token', draggable:'true',
-          style:'position:absolute; top:0; left:0; width:'+pxToken+'px; height:'+pxToken+'px; z-index:5; cursor:grab;',
-          ondragstart:(e)=>{ e.dataTransfer.setData('text/plain', c.id); e.dataTransfer.effectAllowed='move'; },
+          class:'grade-token', draggable:'true', 'data-token-id':c.id,
+          // sombra sutil "flutuando" sobre o mapa, em vez de parecer colado nele. O nudge (só
+          // quando Snap Livre está ligado) desloca um pouco pra dentro do quadrado, sem mexer
+          // no "top:0;left:0" que a animação de movimento usa como referência.
+          style:'position:absolute; top:'+nudgePx.y+'px; left:'+nudgePx.x+'px; width:'+pxToken+'px; height:'+pxToken+'px; z-index:5; cursor:grab; filter:drop-shadow(0 3px 3px rgba(0,0,0,0.5));',
+          ondragstart:(e)=>{
+            e.dataTransfer.setData('text/plain', c.id);
+            e.dataTransfer.effectAllowed='move';
+            const posOrigem = grade.posicoes[c.id];
+            state._gradeOrigemArraste = posOrigem ? {x:posOrigem.x, y:posOrigem.y} : null;
+          },
+          ondragend:()=>{
+            state._gradeOrigemArraste = null;
+            const ind = document.getElementById('grade-distancia-arraste');
+            if(ind) ind.style.display='none';
+          },
         });
-        tokenWrap.appendChild(el('div',{style:'width:100%;height:100%;border-radius:50%;background:'+corTokenPorTipo(c.tipo)+';display:flex;align-items:center;justify-content:center;font-weight:800;color:#1a0f0a;overflow:hidden;box-shadow:0 0 0 2px rgba(0,0,0,0.4);font-size:'+Math.round(pxToken*0.34)+'px;'},
+        tokenWrap.appendChild(el('div',{style:'width:100%;height:100%;border-radius:50%;background:'+corTokenPorTipo(c.tipo)+';display:flex;align-items:center;justify-content:center;font-weight:800;color:#1a0f0a;overflow:hidden;box-shadow:'+anelEstilo+';font-size:'+Math.round(pxToken*0.34)+'px;'},
           foto ? el('img',{src:foto, style:'width:100%;height:100%;object-fit:cover;border-radius:50%;'}) : c.nome.slice(0,2).toUpperCase()
         ));
         tokenWrap.appendChild(el('div',{style:'position:absolute;bottom:-3px;left:8%;width:84%;height:3px;background:rgba(0,0,0,0.5);border-radius:2px;overflow:hidden;'},
           el('div',{style:'width:'+pvPct+'%;height:100%;background:'+(pvPct>50?'#5ea85e':pvPct>25?'#c9a23a':'#c94a3a')+';'})
         ));
         if(condicao) tokenWrap.appendChild(el('div',{style:'position:absolute;top:-4px;right:-4px;background:var(--red-bright);color:#fff;border-radius:50%;width:14px;height:14px;font-size:9px;display:flex;align-items:center;justify-content:center;font-weight:800;', title:condicao.primeira}, condicao.qtd));
-        tokenWrap.addEventListener('click',(e)=>{ e.stopPropagation(); if(state._gradeModo==='mover'){ state._gradeSelecionado=c.id; render(); } });
+        if(state._gradeMultiModoAtivo && state._gradeMultiSelecao.includes(c.id)){
+          tokenWrap.appendChild(el('div',{style:'position:absolute;top:-4px;left:-4px;background:#5ea85e;color:#fff;border-radius:50%;width:16px;height:16px;font-size:11px;display:flex;align-items:center;justify-content:center;font-weight:800;box-shadow:0 0 0 2px rgba(0,0,0,0.4);'}, '✓'));
+        }
+        const rotacaoToken = grade.rotacoes && grade.rotacoes[c.id];
+        if(rotacaoToken){
+          tokenWrap.appendChild(el('div',{style:'position:absolute; top:50%; left:50%; width:0; height:0; border-left:5px solid transparent; border-right:5px solid transparent; border-bottom:10px solid var(--gold); transform:translate(-50%,-50%) rotate('+rotacaoToken+'deg) translateY(-'+Math.round(pxToken*0.55)+'px); pointer-events:none;'}));
+        }
+        tokenWrap.addEventListener('click',(e)=>{
+          e.stopPropagation();
+          if(state._gradeModo!=='mover') return;
+          if(state._gradeMultiModoAtivo){
+            const idx = state._gradeMultiSelecao.indexOf(c.id);
+            if(idx>=0) state._gradeMultiSelecao.splice(idx,1);
+            else state._gradeMultiSelecao.push(c.id);
+          } else {
+            state._gradeSelecionado = c.id;
+          }
+          render();
+        });
         celula.appendChild(tokenWrap);
       }
-      celula.addEventListener('dragover',(e)=>{ e.preventDefault(); });
+      celula.addEventListener('dragover',(e)=>{
+        e.preventDefault();
+        if(!state._gradeOrigemArraste) return;
+        const dist = Math.max(Math.abs(x-state._gradeOrigemArraste.x), Math.abs(y-state._gradeOrigemArraste.y));
+        const ind = document.getElementById('grade-distancia-arraste');
+        if(ind){ ind.style.display='block'; ind.textContent = '📏 '+dist+' quadrados ('+(dist*1.5)+'m)'; }
+      });
       celula.addEventListener('drop',(e)=>{
         e.preventDefault();
         const idArrastado = e.dataTransfer.getData('text/plain');
-        if(idArrastado) tentarMoverPara(idArrastado, x, y);
+        if(idArrastado){ salvarEstadoParaDesfazer(); capturarParaAnimacaoMovimento(idArrastado); tentarMoverPara(idArrastado, x, y); }
+        state._gradeOrigemArraste = null;
         render();
       });
       tabuleiro.appendChild(celula);
@@ -1666,10 +2113,27 @@ function renderMestreGrade(){
   wrap.appendChild(scrollWrap);
 
   // ---- Zoom e tamanho do tabuleiro, embaixo do mapa (não atrapalha enquanto joga) ----
+  function ajustarZoomCentralizado(novoZoomBruto){
+    const novoZoom = Math.max(18, Math.min(48, novoZoomBruto));
+    const sw = document.getElementById('grade-scroll-wrap');
+    let fracaoX = 0.5, fracaoY = 0.5;
+    if(sw){
+      fracaoX = (sw.scrollLeft + sw.clientWidth/2) / sw.scrollWidth;
+      fracaoY = (sw.scrollTop + sw.clientHeight/2) / sw.scrollHeight;
+    }
+    state._gradeZoom = novoZoom;
+    render();
+    setTimeout(()=>{
+      const sw2 = document.getElementById('grade-scroll-wrap');
+      if(!sw2) return;
+      sw2.scrollLeft = fracaoX*sw2.scrollWidth - sw2.clientWidth/2;
+      sw2.scrollTop = fracaoY*sw2.scrollHeight - sw2.clientHeight/2;
+    }, 0);
+  }
   wrap.appendChild(el('div',{class:'row', style:'align-items:center;gap:8px;margin:10px 0 6px;'},
-    el('button',{class:'btn ghost', style:'width:auto;padding:6px 14px;', onclick:()=>{ state._gradeZoom = Math.max(18, state._gradeZoom-4); render(); }}, '➖'),
+    el('button',{class:'btn ghost', style:'width:auto;padding:6px 14px;', onclick:()=>{ ajustarZoomCentralizado(state._gradeZoom-4); }}, '➖'),
     el('div',{class:'meta', style:'flex:none;'}, 'Zoom'),
-    el('button',{class:'btn ghost', style:'width:auto;padding:6px 14px;', onclick:()=>{ state._gradeZoom = Math.min(48, state._gradeZoom+4); render(); }}, '➕')
+    el('button',{class:'btn ghost', style:'width:auto;padding:6px 14px;', onclick:()=>{ ajustarZoomCentralizado(state._gradeZoom+4); }}, '➕')
   ));
   wrap.appendChild(el('div',{class:'row', style:'align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap;'},
     el('div',{class:'meta', style:'flex:none;'}, 'Tamanho:'),
@@ -1682,11 +2146,14 @@ function renderMestreGrade(){
     el('button',{class:'btn ghost', style:'width:auto;padding:4px 10px;', onclick:()=>{ grade.altura = Math.min(30, grade.altura+2); render(); }}, '➕')
   ));
 
-  wrap.appendChild(el('button',{class:'btn ghost', style:'margin-top:4px;', onclick:()=>{
-    if(!confirm('Limpar o tabuleiro inteiro (posições e blocos)? Não mexe na iniciativa/PV de ninguém, nem nos mapas salvos.')) return;
-    combate.grade = { blocos:{}, posicoes:{} };
-    render();
-  }}, 'Limpar Tabuleiro 🗑️'));
+  wrap.appendChild(el('div',{class:'row', style:'margin-top:4px;'},
+    el('button',{class:'btn ghost'+(state._gradeDesfazer?'':' '), style: state._gradeDesfazer?'':'opacity:0.5;', onclick:desfazerUltimaAcaoGrade}, '↩️ Desfazer'),
+    el('button',{class:'btn ghost', onclick:()=>{
+      if(!confirm('Limpar o tabuleiro inteiro (posições e blocos)? Não mexe na iniciativa/PV de ninguém, nem nos mapas salvos.')) return;
+      combate.grade = { blocos:{}, posicoes:{} };
+      render();
+    }}, 'Limpar Tabuleiro 🗑️')
+  ));
 
   return wrap;
 }

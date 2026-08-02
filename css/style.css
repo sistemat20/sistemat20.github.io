@@ -353,6 +353,7 @@
 .gerenciando .perfil-delete-x{ display:flex; }
 .gerenciando .perfil-avatar{ animation:shake 0.25s infinite alternate; }
 @keyframes shake{ from{transform:rotate(-1deg);} to{transform:rotate(1deg);} }
+@keyframes ping-grade{ 0%{ transform:scale(0.3); opacity:1; } 70%{ transform:scale(1.8); opacity:0.5; } 100%{ transform:scale(2.4); opacity:0; } }
 
 /* ===== Wizard de criação ===== */
 .wizard-wrap{ max-width:720px; margin:0 auto; padding:0 14px 40px; }
