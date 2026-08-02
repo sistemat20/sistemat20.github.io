@@ -1162,13 +1162,17 @@ async function atualizarVisualizacaoGrade(){
   const versaoAntesDaBusca = _verGradeVersaoLocal;
   const dados = await carregarMestreDadosPorCodigo(state._verGradeCodigo);
   if(state._verGradeSalvando || _verGradeVersaoLocal!==versaoAntesDaBusca) return; // mudou algo no meio do caminho, descarta o dado velho
-  const combateCompartilhado = dados.combateCompartilhado || null;
-  if(combateCompartilhado){
-    // pro jogador, "grade" É a versão filtrada — ele nunca recebe posição de monstro escondido,
-    // nem trafegando na rede. O Mestre é quem usa a versão completa (gradeParaJogadores nem
-    // existe do lado dele).
-    combateCompartilhado.grade = combateCompartilhado.gradeParaJogadores || combateCompartilhado.grade;
-  }
+  // Se a busca falhar (rede instável, Apps Script "dormindo" e demorando pra acordar, etc.),
+  // carregarMestreDadosPorCodigo devolve um formato vazio de fallback — sem essa checagem, ISSO
+  // sozinho já apagava o tabuleiro inteiro da tela do jogador (o mapa "sumia" por causa de uma
+  // falha de rede passageira, mesmo com o dado real intacto no servidor). Agora só substitui o
+  // que já está na tela se a busca realmente trouxe algo válido; senão, mantém o último bom.
+  if(!dados.combateCompartilhado || !dados.combateCompartilhado.grade) return;
+  const combateCompartilhado = dados.combateCompartilhado;
+  // pro jogador, "grade" É a versão filtrada — ele nunca recebe posição de monstro escondido,
+  // nem trafegando na rede. O Mestre é quem usa a versão completa (gradeParaJogadores nem
+  // existe do lado dele).
+  combateCompartilhado.grade = combateCompartilhado.gradeParaJogadores || combateCompartilhado.grade;
   state._verGradeDados = combateCompartilhado;
   render();
 }
@@ -1301,7 +1305,7 @@ function renderVisualizacaoGrade(){
   const terrenoRepete = temTerrenoImagem && terrenoAtual.tileable!==false;
   const terrenoCena = temTerrenoImagem && terrenoAtual.tileable===false;
   const larguraPx = grade.largura*tam, alturaPx = grade.altura*tam;
-  const scrollWrap = el('div',{id:'viewer-scroll-wrap', style:'max-width:100%; overflow:auto; -webkit-overflow-scrolling:touch; border:2px solid var(--line); border-radius:6px;'});
+  const scrollWrap = el('div',{id:'viewer-scroll-wrap', 'data-preservar-scroll':'viewer-tabuleiro', style:'max-width:100%; overflow:auto; -webkit-overflow-scrolling:touch; border:2px solid var(--line); border-radius:6px;'});
   const tabuleiro = el('div',{style:'display:grid; grid-template-columns:'+Math.round(tam*0.7)+'px repeat('+grade.largura+', '+tam+'px); gap:0; background:var(--line); width:max-content;'
     +(temMapaCustom ? ' background-image:url('+mapaCustom.url+'); background-size:'+mapaCustom.escalaPx+'px '+mapaCustom.escalaPx+'px; background-position:'+mapaCustom.offsetX+'px '+mapaCustom.offsetY+'px; background-repeat:repeat;'
       : terrenoRepete ? ' background-image:url('+terrenoAtual.url+'); background-size:'+tam+'px '+tam+'px; background-repeat:repeat;' : '')});
@@ -1846,7 +1850,7 @@ function renderMestreGrade(){
   const indicadorDistancia = el('div',{id:'grade-distancia-arraste', style:'display:none;text-align:center;font-weight:800;color:var(--gold);margin-bottom:4px;font-size:0.85rem;'});
   wrap.appendChild(indicadorDistancia);
 
-  const scrollWrap = el('div',{id:'grade-scroll-wrap', style:'max-width:100%; max-height:60vh; overflow:auto; -webkit-overflow-scrolling:touch; border:2px solid var(--line); border-radius:6px; cursor:grab;'});
+  const scrollWrap = el('div',{id:'grade-scroll-wrap', 'data-preservar-scroll':'grade-tabuleiro', style:'max-width:100%; max-height:60vh; overflow:auto; -webkit-overflow-scrolling:touch; border:2px solid var(--line); border-radius:6px; cursor:grab;'});
   const letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   const mapaCustom = grade.mapaCustomizado;
   const temMapaCustom = mapaCustom && mapaCustom.url;
