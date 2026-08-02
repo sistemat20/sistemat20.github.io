@@ -270,13 +270,18 @@ async function carregarMestreDadosArmazenamento(){
   }
   return {grupos:[], encontrosSalvos:[]};
 }
-async function salvarMestreDadosArmazenamento(dados){
+// "codigoExplicito" é usado por quem NÃO está logado (o jogador acessando pelo link — é assim
+// que o link funciona, sem precisar de conta) e por isso não tem código nenhum salvo no próprio
+// aparelho. Sem isso, obterCodigoJogador() voltava null pro jogador, o salvamento falhava
+// silenciosamente, e a jogada dele "sumia" no próximo polling — parecia bug de peça voltando
+// sozinha, mas na real nunca tinha sido salvo de verdade.
+async function salvarMestreDadosArmazenamento(dados, codigoExplicito){
   if(usandoStorageDoClaude()){
     try{ await window.storage.set('mestre_dados', JSON.stringify(dados), false); }catch(e){}
     return true;
   }
   if(SHEETS_API_URL){
-    const codigo = obterCodigoJogador();
+    const codigo = codigoExplicito || obterCodigoJogador();
     if(!codigo) return false;
     try{
       const resp = await fetch(SHEETS_API_URL, {

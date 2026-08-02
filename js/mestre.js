@@ -40,7 +40,12 @@ function iniciarAtualizacaoAutomaticaGradeMestre(){
     if(_gradeSincronizando) return; // não busca enquanto um salvamento nosso tá em andamento
     const codigo = obterCodigoJogador();
     if(!codigo || !state._mestreIniciativa) return;
+    const versaoAntesDaBusca = _gradeVersaoLocal;
     const dados = await carregarMestreDadosPorCodigo(codigo);
+    // Se alguma coisa mudou localmente (ou um salvamento começou) ENQUANTO a busca estava
+    // rodando, o dado que acabamos de buscar já está desatualizado — descarta em vez de
+    // sobrescrever a mudança mais nova por cima.
+    if(_gradeSincronizando || _gradeVersaoLocal!==versaoAntesDaBusca) return;
     if(dados && dados.combateCompartilhado && dados.combateCompartilhado.grade){
       state._mestreIniciativa.grade = dados.combateCompartilhado.grade;
       const digitando = document.activeElement && ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName);
@@ -203,7 +208,13 @@ async function salvarDadosMestreNoServidor(){
 // atual assim que o atual terminar — nunca dois ao mesmo tempo, nunca fora de ordem.
 let _gradeSincronizando = false;
 let _gradeSincronizarPendente = false;
+// Toda vez que algo muda LOCALMENTE na grade, esse número sobe — serve pra o polling saber "eu
+// comecei a buscar quando a versão era X; se ela já não é mais X quando eu terminei de buscar, é
+// porque mudou alguma coisa NO MEIO DO CAMINHO, e não posso simplesmente sobrescrever por cima
+// (isso era exatamente o bug de "fundo/peça voltando" — buscar dado velho vencendo por último).
+let _gradeVersaoLocal = 0;
 function sincronizarGradeCompartilhada(){
+  _gradeVersaoLocal++;
   if(_gradeSincronizando){ _gradeSincronizarPendente = true; return; }
   _gradeSincronizando = true;
   salvarDadosMestreNoServidor().catch(()=>{}).then(()=>{
@@ -910,6 +921,7 @@ const BLOCO_TIPOS = {
 // Colossal = 4 — cada lado do quadrado que o token ocupa).
 const TAMANHO_QUADRADOS = {'Minúsculo':1,'Diminuto':1,'Pequeno':1,'Médio':1,'Grande':2,'Enorme':3,'Colossal':4};
 function tamanhoTokenCombatente(c){
+  if(!c) return 1;
   if(c.tipo==='monstro' && c.dados && c.dados.tamanho) return TAMANHO_QUADRADOS[c.dados.tamanho]||1;
   if(c.tipo==='pj' && c.origemId){
     const p = (state.perfisTodos||[]).find(x=>x.id===c.origemId);
@@ -1158,14 +1170,14 @@ async function dispararPingComoJogador(codigo, x, y){
   const criadoEm = Date.now();
   atual.combateCompartilhado.grade.ping = {x, y, criadoEm};
   atual.combateCompartilhado.gradeParaJogadores = computarGradeParaJogadores(atual.combateCompartilhado.combatentes, atual.combateCompartilhado.grade);
-  await salvarMestreDadosArmazenamento(atual);
+  await salvarMestreDadosArmazenamento(atual, codigo);
   setTimeout(async ()=>{
     const atual2 = await carregarMestreDadosPorCodigo(codigo);
     const g2 = atual2.combateCompartilhado && atual2.combateCompartilhado.grade;
     if(g2 && g2.ping && g2.ping.criadoEm===criadoEm){
       delete g2.ping;
       atual2.combateCompartilhado.gradeParaJogadores = computarGradeParaJogadores(atual2.combateCompartilhado.combatentes, g2);
-      await salvarMestreDadosArmazenamento(atual2);
+      await salvarMestreDadosArmazenamento(atual2, codigo);
     }
   }, 2200);
 }
@@ -1175,8 +1187,9 @@ function renderVisualizacaoGrade(){
   wrap.appendChild(el('div',{style:'display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:10px;position:relative;'},
     el('div',{style:'font-size:1.1rem;font-weight:800;color:var(--gold);'}, '🗺️ Tabuleiro da Mesa'),
     el('button',{class:'btn ghost', style:'position:absolute;right:0;width:auto;padding:5px 10px;font-size:0.75rem;', onclick:()=>{
-      if(document.fullscreenElement) document.exitFullscreen().catch(()=>{});
-      else if(document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(()=>{});
+      if(document.fullscreenElement){ document.exitFullscreen().catch(()=>{}); return; }
+      const alvo = document.getElementById('viewer-scroll-wrap');
+      if(alvo && alvo.requestFullscreen) alvo.requestFullscreen().catch(()=>{});
     }}, '⛶ Tela Cheia')
   ));
   const dados = state._verGradeDados;
@@ -1204,6 +1217,7 @@ function renderVisualizacaoGrade(){
 
   function tentarMoverComoJogador(combatenteId, xClicado, yClicado){
     const alvo = combatentes.find(cc=>cc.id===combatenteId);
+    if(!alvo){ state._verGradeSelecionado = null; return false; }
     const tamToken = (alvo.tipo==='monstro' && alvo.dados && alvo.dados.tamanho) ? (TAMANHO_QUADRADOS[alvo.dados.tamanho]||1) : 1;
     const deslocamento = Math.floor((tamToken-1)/2);
     const x = Math.max(0, Math.min(grade.largura-tamToken, xClicado-deslocamento));
@@ -1249,7 +1263,7 @@ function renderVisualizacaoGrade(){
   const terrenoRepete = temTerrenoImagem && terrenoAtual.tileable!==false;
   const terrenoCena = temTerrenoImagem && terrenoAtual.tileable===false;
   const larguraPx = grade.largura*tam, alturaPx = grade.altura*tam;
-  const scrollWrap = el('div',{style:'max-width:100%; overflow:auto; -webkit-overflow-scrolling:touch; border:2px solid var(--line); border-radius:6px;'});
+  const scrollWrap = el('div',{id:'viewer-scroll-wrap', style:'max-width:100%; overflow:auto; -webkit-overflow-scrolling:touch; border:2px solid var(--line); border-radius:6px;'});
   const tabuleiro = el('div',{style:'display:grid; grid-template-columns:'+Math.round(tam*0.7)+'px repeat('+grade.largura+', '+tam+'px); gap:0; background:var(--line); width:max-content;'
     +(temMapaCustom ? ' background-image:url('+mapaCustom.url+'); background-size:'+mapaCustom.escalaPx+'px '+mapaCustom.escalaPx+'px; background-position:'+mapaCustom.offsetX+'px '+mapaCustom.offsetY+'px; background-repeat:repeat;'
       : terrenoRepete ? ' background-image:url('+terrenoAtual.url+'); background-size:'+tam+'px '+tam+'px; background-repeat:repeat;' : '')});
@@ -1384,7 +1398,7 @@ async function salvarMovimentoTokenComoJogador(codigo, combatenteId, novaPosicao
     revelarPorVisaoDosPjs({combatentes: combate.combatentes}, combate.grade, true);
   }
   combate.gradeParaJogadores = computarGradeParaJogadores(combate.combatentes, combate.grade);
-  return salvarMestreDadosArmazenamento(atual);
+  return salvarMestreDadosArmazenamento(atual, codigo);
 }
 
 // Movimento suave (técnica FLIP): captura onde o token está ANTES de mudar de posição; depois
@@ -1745,6 +1759,7 @@ function renderMestreGrade(){
 
   function tentarMoverPara(combatenteId, xClicado, yClicado){
     const alvo = combate.combatentes.find(cc=>cc.id===combatenteId);
+    if(!alvo){ flashMsg('Esse combatente não está mais na lista — selecione outro.'); state._gradeSelecionado = combate.combatentes[0] ? combate.combatentes[0].id : null; return false; }
     const tamToken = tamanhoTokenCombatente(alvo);
     // Criatura Grande+ (2x2, 3x3...) centraliza no quadrado tocado, em vez de "nascer" com o
     // canto superior esquerdo ali — fica bem mais natural de posicionar.

@@ -1519,14 +1519,29 @@ function render(){
   const scrollSheet = sheetAberto ? sheetAberto.scrollTop : null;
 
   root.innerHTML = '';
-  if(state.screen==='vergrade') root.appendChild(renderVisualizacaoGrade());
-  else if(precisaCodigoJogador() && !obterCodigoJogador()){
-    root.appendChild(renderEntradaCodigoScreen());
+  try{
+    if(state.screen==='vergrade') root.appendChild(renderVisualizacaoGrade());
+    else if(precisaCodigoJogador() && !obterCodigoJogador()){
+      root.appendChild(renderEntradaCodigoScreen());
+    }
+    else if(state.screen==='perfis') root.appendChild(renderPerfisScreen());
+    else if(state.screen==='wizard') root.appendChild(renderWizardScreen());
+    else if(state.screen==='ficha') root.appendChild(renderFichaScreen());
+    else if(state.screen==='mestre') root.appendChild(renderMestreScreen());
+  }catch(erro){
+    // Nunca deixa a tela em branco silenciosamente — sem isso, qualquer erro no meio da
+    // montagem (ex: um dado incompleto chegando de uma sincronização) apagava a tela inteira
+    // sem explicação nenhuma, e a única saída era recarregar a página sem saber por quê.
+    console.error('Erro ao montar a tela:', erro);
+    root.innerHTML = '';
+    root.appendChild(el('div',{style:'padding:24px;text-align:center;'},
+      el('div',{style:'font-size:2rem;'}, '⚠️'),
+      el('h2',{style:'margin-top:10px;'}, 'Deu um erro ao montar essa tela'),
+      el('div',{class:'meta', style:'margin:10px 0;'}, String(erro && erro.message || erro)),
+      el('button',{class:'btn', onclick:()=>{ window.location.reload(); }}, 'Recarregar a página'),
+      el('button',{class:'btn ghost', style:'margin-top:8px;', onclick:()=>{ state.screen='perfis'; state.mestreTab=null; render(); }}, 'Voltar pros Perfis')
+    ));
   }
-  else if(state.screen==='perfis') root.appendChild(renderPerfisScreen());
-  else if(state.screen==='wizard') root.appendChild(renderWizardScreen());
-  else if(state.screen==='ficha') root.appendChild(renderFichaScreen());
-  else if(state.screen==='mestre') root.appendChild(renderMestreScreen());
   if(focoId){
     const restaurado = document.getElementById(focoId);
     if(restaurado){
