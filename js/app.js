@@ -1517,6 +1517,15 @@ function render(){
   const scrollJanela = window.scrollY;
   const sheetAberto = document.querySelector('.menu-sheet');
   const scrollSheet = sheetAberto ? sheetAberto.scrollTop : null;
+  // Mesma ideia, só que genérica: qualquer elemento marcado com data-preservar-scroll (listas
+  // com rolagem própria, tipo a fileira de combatentes na Grade ou a timeline de iniciativa)
+  // tem a posição guardada aqui, pra não "pular" de volta pro início toda vez que a tela
+  // atualiza sozinha (o polling da Grade a cada 2s, por exemplo).
+  const scrollsMarcados = {};
+  document.querySelectorAll('[data-preservar-scroll]').forEach(el=>{
+    const chave = el.getAttribute('data-preservar-scroll');
+    scrollsMarcados[chave] = {left: el.scrollLeft, top: el.scrollTop};
+  });
 
   root.innerHTML = '';
   try{
@@ -1556,6 +1565,14 @@ function render(){
     const sheetNovo = document.querySelector('.menu-sheet');
     if(sheetNovo) sheetNovo.scrollTop = scrollSheet;
   }
+  function restaurarScrollsMarcados(){
+    document.querySelectorAll('[data-preservar-scroll]').forEach(el=>{
+      const chave = el.getAttribute('data-preservar-scroll');
+      const guardado = scrollsMarcados[chave];
+      if(guardado){ el.scrollLeft = guardado.left; el.scrollTop = guardado.top; }
+    });
+  }
+  restaurarScrollsMarcados();
   // O navegador às vezes ajusta a rolagem sozinho de forma assíncrona (ex: ao focar um elemento
   // ou reposicionar depois de um clique), o que pode desfazer a restauração acima. Reaplicamos
   // em dois "próximos quadros" seguidos, garantindo que a nossa restauração vença por último,
@@ -1564,6 +1581,7 @@ function render(){
     window.scrollTo(0, scrollJanela);
     const sheetNovo2 = document.querySelector('.menu-sheet');
     if(sheetNovo2 && scrollSheet!=null) sheetNovo2.scrollTop = scrollSheet;
+    restaurarScrollsMarcados();
   };
   const proximoQuadro = (typeof requestAnimationFrame === 'function') ? requestAnimationFrame : (cb)=>setTimeout(cb, 16);
   proximoQuadro(()=>{ reaplicar(); proximoQuadro(reaplicar); });

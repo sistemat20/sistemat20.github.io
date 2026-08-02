@@ -19,6 +19,11 @@ function iniciarAtualizacaoAutomaticaMestre(){
   pararAtualizacaoAutomaticaMestre(); // garante que não fica duplicando o timer
   _intervalAtualizacaoMestre = setInterval(async ()=>{
     if(state.screen !== 'mestre') { pararAtualizacaoAutomaticaMestre(); return; }
+    // Só vale a pena buscar/re-renderizar em abas que realmente mostram dado de personagem ao
+    // vivo (PV, condições...). Nas outras (Bestiário, Loja, NPC, Preparar Encontro...) isso só
+    // reconstruía a tela à toa a cada 5s, fazendo listas com rolagem própria "pularem" de volta
+    // pro topo sem motivo nenhum — bem incômodo enquanto você tá lendo/procurando algo.
+    if(state.mestreTab!=='combate' && state.mestreTab!=='grade') return;
     await carregarPerfisTodosParaMestre();
     const digitando = document.activeElement && ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName);
     if(!digitando) render();
@@ -1148,9 +1153,15 @@ function revelarPorVisaoDosPjs(combate, grade, silencioso){
 }
 
 // ---- Tela de visualização compartilhada (link ?vergrade=CODIGO, sem login) ----
+// Toda vez que o jogador move algo localmente, esse número sobe — o polling usa isso pra saber
+// se alguma coisa mudou ENQUANTO ele estava buscando, e se mudou, descarta o que buscou em vez
+// de sobrescrever a mudança mais nova (mesma técnica usada do lado do Mestre).
+let _verGradeVersaoLocal = 0;
 async function atualizarVisualizacaoGrade(){
   if(state._verGradeSalvando) return; // não busca de novo enquanto um movimento tá sendo salvo, senão pisa em si mesmo
+  const versaoAntesDaBusca = _verGradeVersaoLocal;
   const dados = await carregarMestreDadosPorCodigo(state._verGradeCodigo);
+  if(state._verGradeSalvando || _verGradeVersaoLocal!==versaoAntesDaBusca) return; // mudou algo no meio do caminho, descarta o dado velho
   const combateCompartilhado = dados.combateCompartilhado || null;
   if(combateCompartilhado){
     // pro jogador, "grade" É a versão filtrada — ele nunca recebe posição de monstro escondido,
@@ -1182,6 +1193,35 @@ async function dispararPingComoJogador(codigo, x, y){
   }, 2200);
 }
 
+// Fila de salvamento do jogador — se ele mover 2 vezes rápido (sem esperar a primeira jogada
+// terminar de salvar), ANTES cada movimento disparava seu próprio salvamento em paralelo, e
+// como são requisições de rede, o mais lento podia terminar DEPOIS do mais rápido e apagar a
+// jogada mais nova (o mesmo tipo de corrida que já resolvemos do lado do Mestre, só que nunca
+// tinha sido replicada aqui). Agora só roda 1 salvamento de cada vez; se pedir de novo enquanto
+// um já tá rodando, só atualiza qual é a posição mais recente a enviar. Precisa ficar em escopo
+// de módulo (fora da função de render) — se ficasse dentro, toda vez que a tela redesenhasse
+// (o que acontece a cada 2s pelo polling) a fila seria reiniciada do zero, perdendo o controle
+// de qualquer salvamento que ainda estivesse em andamento.
+let _jogadorSalvando = false;
+let _jogadorFila = [];
+function enfileirarMovimentoJogador(codigo, combatenteId, x, y){
+  _verGradeVersaoLocal++;
+  const idx = _jogadorFila.findIndex(m=>m.combatenteId===combatenteId);
+  if(idx>=0) _jogadorFila[idx] = {codigo, combatenteId, x, y};
+  else _jogadorFila.push({codigo, combatenteId, x, y});
+  processarFilaJogador();
+}
+async function processarFilaJogador(){
+  if(_jogadorSalvando || _jogadorFila.length===0) return;
+  _jogadorSalvando = true;
+  state._verGradeSalvando = true;
+  const proximo = _jogadorFila.shift();
+  await salvarMovimentoTokenComoJogador(proximo.codigo, proximo.combatenteId, {x:proximo.x, y:proximo.y}).catch(()=>{});
+  _jogadorSalvando = false;
+  state._verGradeSalvando = _jogadorFila.length>0; // só libera de vez se não tiver mais nada na fila
+  if(_jogadorFila.length>0) processarFilaJogador();
+}
+
 function renderVisualizacaoGrade(){
   const wrap = el('div',{style:'padding:14px;max-width:100vw;'});
   wrap.appendChild(el('div',{style:'display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:10px;position:relative;'},
@@ -1205,7 +1245,7 @@ function renderVisualizacaoGrade(){
   wrap.appendChild(el('div',{class:'tip', style:'font-size:0.78rem;margin-bottom:8px;'}, 'Toque num personagem pra selecionar, depois toque num quadrado pra mover ele. Some as jogadas — atualiza sozinho pros outros verem.'));
 
   const turnoIdx = dados.turnoIdx||0;
-  const faixaIniciativa = el('div',{style:'display:flex;gap:5px;overflow-x:auto;padding:2px 2px 10px;'});
+  const faixaIniciativa = el('div',{'data-preservar-scroll':'viewer-iniciativa', style:'display:flex;gap:5px;overflow-x:auto;padding:2px 2px 10px;'});
   combatentes.forEach((c,idx)=>{
     const noTurno = idx===turnoIdx;
     faixaIniciativa.appendChild(el('div',{
@@ -1238,13 +1278,11 @@ function renderVisualizacaoGrade(){
     if(ocupado) return false;
     grade.posicoes[combatenteId] = {x,y};
     if(grade.fogAtivo && alvo.tipo==='pj') revelarPorVisaoDosPjs({combatentes}, grade, true);
-    // salva em segundo plano — o token já aparece no lugar novo na hora, sem esperar a
-    // planilha responder (antes o toque só "aparecia" depois do salvamento terminar, o que
-    // dava a sensação de travado/lento, principalmente quando a rede tava mais devagar). Manda
-    // só ESSA mudança de posição (não a grade inteira, que do lado do jogador é a versão
-    // filtrada, sem monstro escondido — mandar ela de volta apagaria isso pro Mestre também).
-    state._verGradeSalvando = true;
-    salvarMovimentoTokenComoJogador(state._verGradeCodigo, combatenteId, {x,y}).catch(()=>{}).then(()=>{ state._verGradeSalvando = false; });
+    // salva em segundo plano (enfileirado) — o token já aparece no lugar novo na hora, sem
+    // esperar a planilha responder. Manda só ESSA mudança de posição (não a grade inteira, que
+    // do lado do jogador é a versão filtrada, sem monstro escondido — mandar ela de volta
+    // apagaria isso pro Mestre também).
+    enfileirarMovimentoJogador(state._verGradeCodigo, combatenteId, x, y);
     return true;
   }
 
@@ -1652,7 +1690,7 @@ function renderMestreGrade(){
     if(!state._gradeSelecionado || !combate.combatentes.some(c=>c.id===state._gradeSelecionado)){
       state._gradeSelecionado = combate.combatentes[0].id;
     }
-    const chipsRow = el('div',{style:'display:flex;gap:6px;overflow-x:auto;padding:4px 2px 10px;'});
+    const chipsRow = el('div',{'data-preservar-scroll':'grade-chips-combatentes', style:'display:flex;gap:6px;overflow-x:auto;padding:4px 2px 10px;'});
     combate.combatentes.forEach(c=>{
       const noTabuleiro = !!grade.posicoes[c.id];
       const foto = fotoDoCombatente(c);
@@ -1790,7 +1828,7 @@ function renderMestreGrade(){
   // Faixa de iniciativa em cima do tabuleiro — os mesmos retratos/ordem da aba Combate, sem
   // precisar trocar de aba pra saber de quem é a vez. Tocar num retrato pula pra vez dele
   // (igual já funciona na aba Combate).
-  const faixaIniciativa = el('div',{style:'display:flex;gap:5px;overflow-x:auto;padding:4px 2px 8px;'});
+  const faixaIniciativa = el('div',{'data-preservar-scroll':'grade-iniciativa', style:'display:flex;gap:5px;overflow-x:auto;padding:4px 2px 8px;'});
   combate.combatentes.forEach((c,idx)=>{
     const foto = fotoDoCombatente(c);
     const noTurno = idx===combate.turnoIdx;
@@ -2210,7 +2248,7 @@ function renderMestreCombate(){
     )
   );
 
-  const timeline = el('div',{class:'iniciativa-timeline'});
+  const timeline = el('div',{class:'iniciativa-timeline', 'data-preservar-scroll':'combate-timeline'});
   combate.combatentes.forEach((c, idx)=>{
     const noTurno = idx === combate.turnoIdx;
     timeline.appendChild(el('div',{class:'iniciativa-chip'+(noTurno?' atual':''), onclick:()=>{ combate.turnoIdx=idx; render(); }},
