@@ -649,9 +649,12 @@ function avatarCombatente(c, tamanho){
 }
 
 function novoCombatente(nome, tipo, bonusIniciativa, pv, pvMax, foto, dadosOuId){
+  // Se não veio foto explícita e é monstro, tenta achar uma automática na tabela de fotos do
+  // bestiário (FOTOS_CRIATURAS) — o Mestre sempre pode trocar depois se quiser outra.
+  const fotoFinal = foto || (tipo==='monstro' && typeof FOTOS_CRIATURAS!=='undefined' ? (FOTOS_CRIATURAS[nome]||null) : null);
   return {
     id: 'c'+Date.now()+Math.floor(Math.random()*10000),
-    nome, tipo, foto: foto||null, // 'pj' | 'monstro' | 'custom'
+    nome, tipo, foto: fotoFinal, // 'pj' | 'monstro' | 'custom'
     dados: tipo==='monstro' ? (dadosOuId||null) : null, // ficha completa da criatura, pro acordeão
     origemId: tipo==='pj' ? (dadosOuId||null) : null, // id do personagem, pra puxar dado ao vivo (condições, Defesa...)
     iniciativa: rolarD20() + (bonusIniciativa||0),
@@ -1016,9 +1019,13 @@ function corTokenPorTipo(tipo){
 }
 // PJ mostra a própria foto no token, se tiver uma cadastrada na ficha; senão cai pras iniciais.
 function fotoDoCombatente(c){
-  if(c.tipo!=='pj' || !c.origemId) return null;
-  const p = (state.perfisTodos||[]).find(x=>x.id===c.origemId);
-  return (p && p.foto) ? p.foto : null;
+  if(c.tipo==='pj' && c.origemId){
+    const p = (state.perfisTodos||[]).find(x=>x.id===c.origemId);
+    return (p && p.foto) ? p.foto : null;
+  }
+  // Monstro/NPC/custom não têm ficha viva pra puxar — usa a foto que já foi guardada no
+  // próprio combatente (manual, ou automática da tabela FOTOS_CRIATURAS via novoCombatente).
+  return c.foto || null;
 }
 // PV de PJ vem AO VIVO da ficha dele (quem controla a vida é o próprio jogador — o Mestre não
 // precisa ficar digitando). Monstro/NPC/personalizado continuam usando o valor guardado no

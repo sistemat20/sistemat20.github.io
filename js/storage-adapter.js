@@ -75,8 +75,15 @@ async function carregarPerfisArmazenamento(){
     try{
       const resp = await fetch(SHEETS_API_URL + '?playerId=' + encodeURIComponent(codigo));
       const data = await resp.json();
-      if(data && data.ok) return removerPersonagensDuplicados(data.personagens || []);
-      return [];
+      // Antes, se a resposta chegasse tecnicamente OK mas sem "ok:true" ou sem a lista de
+      // personagens (uma instabilidade momentânea do Apps Script, por exemplo — sem precisar
+      // nem cair em erro de rede), isso descartava a cópia local em cache e devolvia lista
+      // vazia — fazendo a ficha "sumir" da tela por causa de um problema passageiro, mesmo com
+      // tudo intacto tanto localmente quanto na planilha de verdade. Agora cai pro cache local
+      // nesse caso também, igual já fazia quando dava erro de rede.
+      if(data && data.ok && data.personagens) return removerPersonagensDuplicados(data.personagens);
+      console.error('Resposta da planilha veio incompleta, usando cópia local salva no navegador.', data);
+      return removerPersonagensDuplicados(carregarDoLocalStorage());
     }catch(e){
       console.error('Falha ao carregar da planilha, usando cópia local salva no navegador.', e);
       return removerPersonagensDuplicados(carregarDoLocalStorage());
