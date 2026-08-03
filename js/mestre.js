@@ -52,6 +52,12 @@ function iniciarAtualizacaoAutomaticaGradeMestre(){
     // sobrescrever a mudança mais nova por cima.
     if(_gradeSincronizando || _gradeVersaoLocal!==versaoAntesDaBusca) return;
     if(dados && dados.combateCompartilhado && dados.combateCompartilhado.grade){
+      // Mesma lógica do lado do jogador: se a grade buscada é EXATAMENTE igual à que já tá na
+      // tela, nem reconstrói nada — evita perder a posição de rolagem do tabuleiro à toa a
+      // cada 2s quando ninguém mexeu em nada nesse meio-tempo.
+      const assinaturaNova = JSON.stringify(dados.combateCompartilhado.grade);
+      if(assinaturaNova === state._gradeMestreUltimaAssinatura) return;
+      state._gradeMestreUltimaAssinatura = assinaturaNova;
       state._mestreIniciativa.grade = dados.combateCompartilhado.grade;
       const digitando = document.activeElement && ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName);
       if(!digitando) render();
@@ -180,12 +186,20 @@ async function carregarDadosMestreDoServidor(){
 // sem isso, quem abre o link não veria nada.
 async function salvarDadosMestreNoServidor(){
   const combate = state._mestreIniciativa;
-  await salvarMestreDadosArmazenamento({
+  return salvarMestreDadosArmazenamento({
     grupos: state._mestreGrupos||[],
     encontrosSalvos: state._mestreEncontrosSalvos||[],
     combateCompartilhado: combate ? {
       combatentes: (combate.combatentes||[]).map(c=>({
-        id:c.id, nome:c.nome, tipo:c.tipo, foto:c.foto, origemId:c.origemId,
+        id:c.id, nome:c.nome, tipo:c.tipo,
+        // Se o upload da foto pro Drive falhou alguma vez, o app guarda a imagem em base64
+        // bruto como reserva (pra não perder a foto) — mas isso pode passar de 50 mil
+        // caracteres, e o Google Sheets tem esse limite POR CÉLULA. Mandar isso no link
+        // compartilhado (que salva a cada jogada) arriscava estourar o limite e corromper o
+        // salvamento inteiro — foi provavelmente a causa real do "mapa sumindo" pro jogador.
+        // Só manda a foto se for um link de verdade (curto); base64 vira "sem foto" aqui.
+        foto: (c.foto && !c.foto.startsWith('data:')) ? c.foto : null,
+        origemId:c.origemId,
         // PV de monstro NUNCA vai pro link compartilhado — nem escondido no código, nem por
         // engano. PJ manda o valor AO VIVO da própria ficha (é o jogador quem controla a
         // vida dele, o Mestre não precisa mexer nisso).
@@ -218,11 +232,20 @@ let _gradeSincronizarPendente = false;
 // porque mudou alguma coisa NO MEIO DO CAMINHO, e não posso simplesmente sobrescrever por cima
 // (isso era exatamente o bug de "fundo/peça voltando" — buscar dado velho vencendo por último).
 let _gradeVersaoLocal = 0;
+let _gradeUltimoAvisoFalha = 0;
 function sincronizarGradeCompartilhada(){
   _gradeVersaoLocal++;
   if(_gradeSincronizando){ _gradeSincronizarPendente = true; return; }
   _gradeSincronizando = true;
-  salvarDadosMestreNoServidor().catch(()=>{}).then(()=>{
+  salvarDadosMestreNoServidor().then(sucesso=>{
+    // Antes isso falhava 100% em silêncio — se der errado de novo (por qualquer motivo), pelo
+    // menos agora avisa, em vez do Mestre só descobrir quando o link já tiver sumido pro
+    // jogador. Não repete o aviso toda hora — no máximo 1 a cada 20s, pra não floodar.
+    if(!sucesso && Date.now()-_gradeUltimoAvisoFalha>20000){
+      _gradeUltimoAvisoFalha = Date.now();
+      flashMsg('⚠ Não consegui salvar a última mudança da Grade no servidor — verifique a conexão.');
+    }
+  }).catch(()=>{}).then(()=>{
     _gradeSincronizando = false;
     if(_gradeSincronizarPendente){ _gradeSincronizarPendente = false; sincronizarGradeCompartilhada(); }
   });
@@ -1173,6 +1196,13 @@ async function atualizarVisualizacaoGrade(){
   // nem trafegando na rede. O Mestre é quem usa a versão completa (gradeParaJogadores nem
   // existe do lado dele).
   combateCompartilhado.grade = combateCompartilhado.gradeParaJogadores || combateCompartilhado.grade;
+  // Se nada mudou de verdade desde a última busca, nem reconstrói a tela — reconstruir à toa
+  // era o motivo real de "arrastei o mapa pro lado e ele volta sozinho": a cada 2s, mesmo sem
+  // ninguém ter mexido em nada, a tela inteira era refeita do zero e a rolagem que o próprio
+  // navegador tava segurando (inércia do dedo, por exemplo) se perdia no meio do caminho.
+  const assinaturaNova = JSON.stringify(combateCompartilhado);
+  if(assinaturaNova === state._verGradeUltimaAssinatura) return;
+  state._verGradeUltimaAssinatura = assinaturaNova;
   state._verGradeDados = combateCompartilhado;
   render();
 }
