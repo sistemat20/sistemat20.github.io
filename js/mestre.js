@@ -1295,6 +1295,29 @@ async function processarFilaJogador(){
   if(_jogadorFila.length>0) processarFilaJogador();
 }
 
+// Toda vez que a tela atualiza (mover token, o polling trazer algo novo...), o tabuleiro inteiro
+// é reconstruído do zero — e o navegador sai da tela cheia sozinho sempre que o elemento que
+// estava em tela cheia é removido do DOM, mesmo que um idêntico apareça no lugar em seguida
+// (é assim que a API de tela cheia funciona, não dá pra desligar esse comportamento). O que dá
+// pra fazer: reentrar automaticamente logo depois de uma ação que o PRÓPRIO jogador iniciou
+// (tocar num quadrado pra mover, por exemplo) — isso ainda conta como "gesto do usuário" pro
+// navegador permitir pedir tela cheia de novo sem intervenção. Já uma atualização vinda só do
+// polling (outra pessoa mexendo) não tem gesto nenhum por trás, então o navegador bloqueia
+// silenciosamente — é uma limitação de segurança do próprio navegador, não tem como contornar.
+function manterTelaCheiaApos(fn){
+  return (...args)=>{
+    const estavaEmTelaCheia = !!document.fullscreenElement;
+    const resultado = fn(...args);
+    if(estavaEmTelaCheia){
+      requestAnimationFrame(()=>{
+        const alvo = document.getElementById('viewer-scroll-wrap');
+        if(alvo && !document.fullscreenElement && alvo.requestFullscreen) alvo.requestFullscreen().catch(()=>{});
+      });
+    }
+    return resultado;
+  };
+}
+
 function renderVisualizacaoGrade(){
   const wrap = el('div',{style:'padding:14px;max-width:100vw;'});
   wrap.appendChild(el('div',{style:'display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:10px;position:relative;'},
@@ -1401,16 +1424,16 @@ function renderVisualizacaoGrade(){
         ';border-left:'+(bordas.left?'1px solid '+COR_GRADE_LINHA:'none')+';';
       const celula = el('div',{
         style:'width:'+tam+'px;height:'+tam+'px;background:'+bgCelula+';display:flex;align-items:center;justify-content:center;position:relative;cursor:pointer;'+estiloBordas,
-        onclick:()=>{
+        onclick: manterTelaCheiaApos(()=>{
           if(escondido) return;
           if(anchorId){ state._verGradeSelecionado = anchorId; render(); return; }
           if(state._verGradeSelecionado){ capturarParaAnimacaoMovimento(state._verGradeSelecionado); tentarMoverComoJogador(state._verGradeSelecionado, x, y); render(); }
-        }
+        })
       });
       if(!escondido){
         let temporizadorPing = null;
         const cancelarPing = ()=>{ if(temporizadorPing){ clearTimeout(temporizadorPing); temporizadorPing=null; } };
-        celula.addEventListener('pointerdown',()=>{
+        celula.addEventListener('pointerdown',manterTelaCheiaApos(()=>{
           cancelarPing();
           temporizadorPing = setTimeout(()=>{
             temporizadorPing = null;
@@ -1418,7 +1441,7 @@ function renderVisualizacaoGrade(){
             render();
             dispararPingComoJogador(state._verGradeCodigo, x, y);
           }, 500);
-        });
+        }));
         celula.addEventListener('pointerup', cancelarPing);
         celula.addEventListener('pointerleave', cancelarPing);
         celula.addEventListener('pointercancel', cancelarPing);
@@ -1914,7 +1937,7 @@ function renderMestreGrade(){
     faixaIniciativa.appendChild(el('button',{
       style:'flex-shrink:0;width:34px;height:34px;border-radius:50%;padding:0;border:'+(noTurno?'2px solid var(--gold)':'2px solid transparent')+';background:'+corTokenPorTipo(c.tipo)+';overflow:hidden;box-shadow:'+(noTurno?'0 0 8px var(--gold)':'none')+';',
       title:c.nome,
-      onclick:()=>{ combate.turnoIdx=idx; render(); }
+      onclick:()=>{ combate.turnoIdx=idx; sincronizarGradeCompartilhada(); render(); }
     }, foto ? el('img',{src:foto, style:'width:100%;height:100%;object-fit:cover;'}) : el('div',{style:'width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:0.62rem;font-weight:800;color:#1a0f0a;'}, c.nome.slice(0,2).toUpperCase())));
   });
   wrap.appendChild(faixaIniciativa);
@@ -2317,6 +2340,7 @@ function renderMestreCombate(){
       el('button',{class:'btn', onclick:()=>{
         combate.turnoIdx++;
         if(combate.turnoIdx >= combate.combatentes.length){ combate.turnoIdx = 0; combate.rodada++; }
+        sincronizarGradeCompartilhada();
         render();
       }}, 'Próximo turno ▶'),
       el('button',{class:'btn ghost', onclick:()=>{
@@ -2338,7 +2362,7 @@ function renderMestreCombate(){
   const timeline = el('div',{class:'iniciativa-timeline', 'data-preservar-scroll':'combate-timeline'});
   combate.combatentes.forEach((c, idx)=>{
     const noTurno = idx === combate.turnoIdx;
-    timeline.appendChild(el('div',{class:'iniciativa-chip'+(noTurno?' atual':''), onclick:()=>{ combate.turnoIdx=idx; render(); }},
+    timeline.appendChild(el('div',{class:'iniciativa-chip'+(noTurno?' atual':''), onclick:()=>{ combate.turnoIdx=idx; sincronizarGradeCompartilhada(); render(); }},
       el('div',{class:'iniciativa-chip-icone'}, avatarCombatente(c, 28)),
       el('div',{class:'iniciativa-chip-nome'}, c.nome.length>10 ? c.nome.slice(0,9)+'…' : c.nome),
       el('div',{class:'iniciativa-chip-num'}, c.iniciativa)
