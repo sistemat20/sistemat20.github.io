@@ -73,7 +73,7 @@ async function carregarPerfisArmazenamento(){
     const codigo = obterCodigoJogador();
     if(!codigo) return []; // sem código ainda — a tela de entrada cuida disso antes de chegar aqui
     try{
-      const resp = await fetch(SHEETS_API_URL + '?playerId=' + encodeURIComponent(codigo));
+      const resp = await fetch(SHEETS_API_URL + '?playerId=' + encodeURIComponent(codigo) + '&_t=' + Date.now(), {cache:'no-store'});
       const data = await resp.json();
       // Antes, se a resposta chegasse tecnicamente OK mas sem "ok:true" ou sem a lista de
       // personagens (uma instabilidade momentânea do Apps Script, por exemplo — sem precisar
@@ -161,7 +161,7 @@ async function carregarTodosPersonagensMestre(){
   }
   if(SHEETS_API_URL){
     try{
-      const resp = await fetch(SHEETS_API_URL + '?mestre=true');
+      const resp = await fetch(SHEETS_API_URL + '?mestre=true&_t=' + Date.now(), {cache:'no-store'});
       const data = await resp.json();
       if(data && data.ok) return removerPersonagensDuplicados(data.personagens || []);
       return [];
@@ -210,7 +210,7 @@ async function listaLeveDeTodosPersonagens(){
   }
   if(SHEETS_API_URL){
     try{
-      const resp = await fetch(SHEETS_API_URL + '?listaJogadores=true');
+      const resp = await fetch(SHEETS_API_URL + '?listaJogadores=true&_t=' + Date.now(), {cache:'no-store'});
       const data = await resp.json();
       if(data && data.ok) return data.personagens || [];
       return [];
@@ -266,7 +266,7 @@ async function carregarMestreDadosArmazenamento(){
     const codigo = obterCodigoJogador();
     if(!codigo) return {grupos:[], encontrosSalvos:[]};
     try{
-      const resp = await fetch(SHEETS_API_URL + '?mestreDados=true&mestreCodigo=' + encodeURIComponent(codigo));
+      const resp = await fetch(SHEETS_API_URL + '?mestreDados=true&mestreCodigo=' + encodeURIComponent(codigo) + '&_t=' + Date.now(), {cache:'no-store'});
       const data = await resp.json();
       if(data && data.ok) return data.dados || {grupos:[], encontrosSalvos:[]};
       return {grupos:[], encontrosSalvos:[]};
@@ -308,6 +308,12 @@ async function salvarMestreDadosArmazenamento(dados, codigoExplicito){
 // Variante de leitura pra tela de "ver grade" compartilhada — quem abre esse link não está
 // logado (não tem código salvo no aparelho), o código vem direto na URL. Reusa a MESMA rota
 // pública já existente (?mestreDados=true), só que com o código passado explicitamente.
+// Usada tanto pelo polling da Grade do Mestre (a cada 2s) quanto pelo link do jogador — a URL
+// é sempre igual a cada chamada (mesmo código), o que deixa o navegador (ou qualquer proxy no
+// meio do caminho, tipo rede de operadora/corporativa) livre pra devolver uma resposta antiga
+// guardada em cache em vez de buscar de novo — e isso parecia "o Mestre não atualiza" mesmo com
+// a aba aberta e o polling rodando certinho. cache:'no-store' + o "&_t=" (que muda a cada
+// chamada) garantem que É sempre uma busca de verdade na rede, nunca uma reaproveitada.
 async function carregarMestreDadosPorCodigo(codigo){
   if(!codigo) return {grupos:[], encontrosSalvos:[]};
   if(usandoStorageDoClaude()){
@@ -318,7 +324,7 @@ async function carregarMestreDadosPorCodigo(codigo){
   }
   if(SHEETS_API_URL){
     try{
-      const resp = await fetch(SHEETS_API_URL + '?mestreDados=true&mestreCodigo=' + encodeURIComponent(codigo));
+      const resp = await fetch(SHEETS_API_URL + '?mestreDados=true&mestreCodigo=' + encodeURIComponent(codigo) + '&_t=' + Date.now(), {cache:'no-store'});
       const data = await resp.json();
       if(data && data.ok) return data.dados || {grupos:[], encontrosSalvos:[]};
       return {grupos:[], encontrosSalvos:[]};

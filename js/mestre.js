@@ -2282,8 +2282,16 @@ function renderMestreCombate(){
         render();
       }}, 'Próximo turno ▶'),
       el('button',{class:'btn ghost', onclick:()=>{
-        if(!confirm('Limpar todo o combate atual?')) return;
-        state._mestreIniciativa = {combatentes:[], turnoIdx:0, rodada:1};
+        if(!confirm('Limpar a lista de combatentes e reiniciar a iniciativa? O mapa (paredes, terreno, mapa próprio) continua do jeito que está, pronto pro próximo encontro.')) return;
+        // Antes isso trocava state._mestreIniciativa inteiro por um objeto novo sem ".grade"
+        // nenhum — junto com um salvamento pendente que disparasse logo depois, isso podia
+        // apagar o mapa inteiro da planilha (paredes, terreno, tudo) sem querer. Agora só limpa
+        // combatentes/turno, preserva a grade, e sincroniza na hora (não deixa pendente).
+        combate.combatentes = [];
+        combate.turnoIdx = 0;
+        combate.rodada = 1;
+        if(combate.grade){ combate.grade.posicoes = {}; } // ninguém mais no tabuleiro, mas paredes/terreno continuam
+        sincronizarGradeCompartilhada();
         render();
       }}, 'Limpar tudo')
     )
