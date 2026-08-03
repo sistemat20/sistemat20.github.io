@@ -1098,7 +1098,8 @@ function renderPersonagemFicha(){
   ));
 
   wrap.appendChild(renderPainelCondicoes(f));
-  wrap.appendChild(renderPainelManobras(f));
+  // Manobras de Combate foi movido pra Notas (agora colapsável, junto com Proficiências,
+  // Poderes, Habilidades Iniciais e Descanso).
   wrap.appendChild(renderItensEquipados());
   wrap.appendChild(renderPainelVestidos(f));
 
@@ -1116,20 +1117,22 @@ const MANOBRAS_COMBATE = [
   ['Empurrar', 'Empurra o alvo 1,5m; +1,5m a cada 5 pontos de diferença no teste.'],
   ['Quebrar', 'Ataca um item que o alvo segura (ver estatísticas de objetos).'],
 ];
-function renderPainelManobras(f){
+function renderPainelManobrasColapsavel(f){
   const lutaInfo = PERICIAS.find(p=>p.nome==='Luta');
   const valorManobra = lutaInfo ? periciaValor(f, lutaInfo) : 0;
-  const panel = el('div',{class:'panel faixa'}, el('h2',{},'Manobras de Combate'));
-  panel.appendChild(el('div',{class:'tip'}, el('b',{},'Seu teste de manobra: '+(valorManobra>=0?'+':'')+valorManobra), 'É o mesmo valor de Luta corpo a corpo — a manobra é um teste oposto contra o alvo (mesmo que ele lute à distância, ele usa a Luta dele pra resistir). Não dá pra fazer manobra com ataque à distância.'));
-  const grid = el('div',{class:'option-grid'});
-  MANOBRAS_COMBATE.forEach(([nome,desc])=>{
-    grid.appendChild(el('div',{class:'option-card', style:'cursor:default;'},
-      el('div',{class:'opt-nome'}, nome),
-      el('div',{class:'opt-sub'}, desc)
-    ));
+  return renderSecaoNotasColapsavel('manobras-combate', '⚔️', 'Manobras de Combate',
+    'Teste: '+(valorManobra>=0?'+':'')+valorManobra, ()=>{
+    const corpo = [el('div',{class:'tip'}, el('b',{},'Seu teste de manobra: '+(valorManobra>=0?'+':'')+valorManobra), 'É o mesmo valor de Luta corpo a corpo — a manobra é um teste oposto contra o alvo (mesmo que ele lute à distância, ele usa a Luta dele pra resistir). Não dá pra fazer manobra com ataque à distância.')];
+    const grid = el('div',{class:'option-grid'});
+    MANOBRAS_COMBATE.forEach(([nome,desc])=>{
+      grid.appendChild(el('div',{class:'option-card', style:'cursor:default;'},
+        el('div',{class:'opt-nome'}, nome),
+        el('div',{class:'opt-sub'}, desc)
+      ));
+    });
+    corpo.push(grid);
+    return corpo;
   });
-  panel.appendChild(grid);
-  return panel;
 }
 
 // Painel de condições ativas — toque pra ligar/desligar. Mostra só o nome nas escolhidas de
@@ -1180,11 +1183,13 @@ function renderPersonagemNotas(){
   const f = fichaAtual();
   const wrap = el('div',{});
 
+  // ---- Proficiências ----
   const prof = proficienciasPersonagem(f);
   const racaObj = getRacaObj(f);
   const armasExtrasRaca = racaObj && racaObj.armasComoSimples ? racaObj.armasComoSimples : [];
-  wrap.appendChild(el('div',{class:'panel'},
-    el('h2',{},'Proficiências'),
+  const extrasContagem = [prof.armasMarciais, prof.armasFogo, prof.armadurasPesadas, prof.escudos].filter(Boolean).length;
+  wrap.appendChild(renderSecaoNotasColapsavel('proficiencias', '🛡️', 'Proficiências',
+    extrasContagem>0 ? extrasContagem+' proficiência(s) extra' : 'Só as básicas', ()=>[
     el('div',{class:'tip', style:'font-size:0.8rem;'},
       el('div',{}, el('b',{},'Sempre: '), 'armas simples, armaduras leves, ataques desarmados'),
       el('div',{}, el('b',{},'Armas marciais: '), prof.armasMarciais?'Sim ✓':'Não'),
@@ -1194,22 +1199,12 @@ function renderPersonagemNotas(){
       armasExtrasRaca.length ? el('div',{}, el('b',{},'Bônus racial: '), armasExtrasRaca.join(', ')+' contam como arma simples para você') : null,
     ),
     el('div',{class:'meta', style:'font-size:0.7rem;color:var(--ink-soft);margin-top:6px;'}, 'Usar arma sem proficiência: –5 no teste de ataque. Vestir armadura/escudo sem proficiência: a penalidade dele passa a valer em toda perícia de Força e Destreza (não só Acrobacia/Furtividade/Ladinagem).')
-  ));
+  ]));
 
-  const descansoPanel = el('div',{class:'panel'}, el('h2',{},'Descanso'));
-  descansoPanel.appendChild(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Uma noite de sono (8h+) recupera PV e PM iguais ao seu nível ('+nivelTotal(f)+') vezes a qualidade do descanso, e reinicia poderes de uso "por cena" e "por dia" (pág. 106 do livro).'));
-  const rowDescanso = el('div',{class:'option-grid', style:'margin-top:8px;'});
-  Object.keys(QUALIDADE_DESCANSO).forEach(qualidade=>{
-    rowDescanso.appendChild(el('button',{class:'option-card', onclick:()=>aplicarDescanso(f, qualidade)},
-      el('div',{class:'opt-nome'}, qualidade),
-      el('div',{class:'opt-sub'}, '+'+Math.floor(nivelTotal(f)*QUALIDADE_DESCANSO[qualidade])+' PV/PM')
-    ));
-  });
-  descansoPanel.appendChild(rowDescanso);
-  descansoPanel.appendChild(el('button',{class:'btn ghost', style:'margin-top:10px;', onclick:()=>novaCena(f)}, 'Nova Cena 🎬 (só reinicia poderes "por cena", sem recuperar PV/PM)'));
-  wrap.appendChild(descansoPanel);
+  // ---- Manobras de Combate ----
+  wrap.appendChild(renderPainelManobrasColapsavel(f));
 
-  const poderesPanel = el('div',{class:'panel'}, el('h2',{},'Poderes'));
+  // ---- Poderes ----
   const entradasPoderes = [];
   if(f.poderGeral && f.poderGeral.nome){
     const pInfo = PODERES_GERAIS.find(p=>p.nome===f.poderGeral.nome);
@@ -1261,32 +1256,50 @@ function renderPersonagemNotas(){
     }
     entradasPoderes.push({nome: p.nome + (p.sub?(' — '+p.sub):''), chaveBase:p.nome, fonte:'Nível '+p.nivel+' de '+p.classe+(p.trocaPorGeral?' (trocado)':''), desc});
   });
-  if(entradasPoderes.length===0){
-    poderesPanel.appendChild(el('div',{class:'empty'},'Nenhum poder registrado ainda.'));
-  } else {
-    entradasPoderes.forEach((entrada, idx)=>{
+  wrap.appendChild(renderSecaoNotasColapsavel('poderes', '⚡', 'Poderes',
+    entradasPoderes.length+' poder(es)', ()=>{
+    if(entradasPoderes.length===0) return [el('div',{class:'empty'},'Nenhum poder registrado ainda.')];
+    return entradasPoderes.map((entrada, idx)=>{
       const limite = tipoLimiteUso(entrada.desc);
       const usado = limite ? poderFoiUsado(f, entrada.chaveBase) : false;
-      poderesPanel.appendChild(renderItemColapsavel('poder-'+idx+'-'+entrada.nome, entrada.nome+(usado?' (usado)':''), entrada.fonte, [
+      return renderItemColapsavel('poder-'+idx+'-'+entrada.nome, entrada.nome+(usado?' (usado)':''), entrada.fonte, [
         el('div',{class:'desc'}, entrada.desc),
         limite ? el('button',{class:'btn ghost', style:'margin-top:8px;'+(usado?'opacity:0.6;':''), onclick:(e)=>{ e.stopPropagation(); alternarUsoPoder(f, entrada.chaveBase); }}, usado ? '↺ Marcar como disponível de novo' : '✓ Marcar como usado ('+limite+')') : null
-      ]));
+      ]);
     });
-  }
-  wrap.appendChild(poderesPanel);
+  }));
 
-  const habPanel = el('div',{class:'panel faixa'}, el('h2',{},'Habilidades Iniciais'));
-  habPanel.appendChild(el('div',{class:'tip', style:'font-size:0.8rem;'}, 'Habilidades de raça, itens de origem e outras concessões iniciais — não precisam ser anotadas manualmente.'));
-  if(!f.habilidadesIniciais || f.habilidadesIniciais.length===0){
-    habPanel.appendChild(el('div',{class:'empty'},'Nada registrado ainda.'));
-  } else {
-    f.habilidadesIniciais.forEach((h, idx)=>{
-      habPanel.appendChild(renderItemColapsavel('habinicial-'+idx+'-'+h.nome, h.nome, h.fonte, [
-        el('div',{class:'desc'}, h.desc)
-      ]));
+  // ---- Habilidades Iniciais ----
+  wrap.appendChild(renderSecaoNotasColapsavel('habilidades-iniciais', '🎁', 'Habilidades Iniciais',
+    (f.habilidadesIniciais||[]).length+' registrada(s)', ()=>{
+    const corpo = [el('div',{class:'tip', style:'font-size:0.8rem;'}, 'Habilidades de raça, itens de origem e outras concessões iniciais — não precisam ser anotadas manualmente.')];
+    if(!f.habilidadesIniciais || f.habilidadesIniciais.length===0){
+      corpo.push(el('div',{class:'empty'},'Nada registrado ainda.'));
+    } else {
+      f.habilidadesIniciais.forEach((h, idx)=>{
+        corpo.push(renderItemColapsavel('habinicial-'+idx+'-'+h.nome, h.nome, h.fonte, [
+          el('div',{class:'desc'}, h.desc)
+        ]));
+      });
+    }
+    return corpo;
+  }));
+
+  // ---- Descanso ----
+  wrap.appendChild(renderSecaoNotasColapsavel('descanso', '🌙', 'Descanso',
+    '+'+Math.floor(nivelTotal(f)*Math.max(...Object.values(QUALIDADE_DESCANSO)))+' PV/PM (no melhor caso)', ()=>{
+    const corpo = [el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Uma noite de sono (8h+) recupera PV e PM iguais ao seu nível ('+nivelTotal(f)+') vezes a qualidade do descanso, e reinicia poderes de uso "por cena" e "por dia" (pág. 106 do livro).')];
+    const rowDescanso = el('div',{class:'option-grid', style:'margin-top:8px;'});
+    Object.keys(QUALIDADE_DESCANSO).forEach(qualidade=>{
+      rowDescanso.appendChild(el('button',{class:'option-card', onclick:()=>aplicarDescanso(f, qualidade)},
+        el('div',{class:'opt-nome'}, qualidade),
+        el('div',{class:'opt-sub'}, '+'+Math.floor(nivelTotal(f)*QUALIDADE_DESCANSO[qualidade])+' PV/PM')
+      ));
     });
-  }
-  wrap.appendChild(habPanel);
+    corpo.push(rowDescanso);
+    corpo.push(el('button',{class:'btn ghost', style:'margin-top:10px;', onclick:()=>novaCena(f)}, 'Nova Cena 🎬 (só reinicia poderes "por cena", sem recuperar PV/PM)'));
+    return corpo;
+  }));
 
   if(f.arcanistaCaminho && ARCANISTA_CAMINHOS[f.arcanistaCaminho]){
     const info = ARCANISTA_CAMINHOS[f.arcanistaCaminho];
@@ -1838,6 +1851,35 @@ function renderItensCompleto(){
 // ---- ITENS (catálogo) ----
 // Card colapsável genérico para catálogos: mostra só nome + info curta por padrão,
 // e ao clicar expande descrição/avisos/botões — economiza espaço em listas longas.
+// Seção colapsável "grande" — usada pros blocos de referência dentro de Notas (Proficiências,
+// Manobras de Combate, Poderes, Habilidades Iniciais, Descanso). Diferente do
+// renderItemColapsavel (que é por ITEM dentro de uma lista), essa é a SEÇÃO inteira: fechada,
+// mostra só o título + um resumo rápido de 1 linha; aberta, desenha o conteúdo completo. O
+// corpo só é montado (corpoFn chamada) quando está de fato aberto, pra não gastar tempo à toa
+// calculando algo que nem vai aparecer.
+function renderSecaoNotasColapsavel(chave, icone, titulo, resumo, corpoFn){
+  if(!state._secoesNotasAbertas) state._secoesNotasAbertas = {};
+  const aberto = !!state._secoesNotasAbertas[chave];
+  const panel = el('div',{class:'panel', style:'padding-bottom:'+(aberto?'var(--sp-4)':'6px')+';'});
+  panel.appendChild(el('div',{
+    style:'display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;'+(aberto?'margin-bottom:var(--sp-3);border-bottom:1px solid var(--line);padding-bottom:var(--sp-2);':''),
+    onclick:()=>{ state._secoesNotasAbertas[chave]=!aberto; render(); }
+  },
+    el('div',{style:'display:flex;align-items:center;gap:10px;min-width:0;'},
+      el('span',{style:'font-size:1.15rem;flex-shrink:0;'}, icone),
+      el('h2',{style:'margin:0;border:none;padding:0;'}, titulo)
+    ),
+    el('div',{style:'display:flex;align-items:center;gap:8px;flex-shrink:0;'},
+      (!aberto && resumo) ? el('span',{class:'meta', style:'font-size:var(--fs-2xs);color:var(--ink-soft);white-space:nowrap;'}, resumo) : null,
+      el('span',{style:'color:var(--gold);font-size:0.8rem;transition:transform 200ms;'+(aberto?'transform:rotate(90deg);':'')}, '▸')
+    )
+  ));
+  if(aberto){
+    corpoFn().forEach(elemento => { if(elemento) panel.appendChild(elemento); });
+  }
+  return panel;
+}
+
 function renderItemColapsavel(chave, nomeExibido, metaTopo, corpoElementos, corAcento){
   if(!state._itensExpandidos) state._itensExpandidos = {};
   const aberto = !!state._itensExpandidos[chave];

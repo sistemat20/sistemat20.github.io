@@ -177,6 +177,18 @@ async function carregarDadosMestreDoServidor(){
   const dados = await carregarMestreDadosArmazenamento();
   state._mestreGrupos = dados.grupos || [];
   state._mestreEncontrosSalvos = dados.encontrosSalvos || [];
+  // O combate ativo (combatentes, posições, paredes, terreno — tudo da Grade) só era SALVO no
+  // servidor a cada mudança, mas nunca era CARREGADO de volta ao abrir a página — um F5 sempre
+  // reiniciava tudo do zero, mesmo com o dado real intacto na planilha. Restaura aqui, se tiver
+  // algo salvo; se não tiver nada ainda (primeira vez usando), deixa vazio normal.
+  if(dados.combateCompartilhado && dados.combateCompartilhado.combatentes){
+    state._mestreIniciativa = {
+      combatentes: dados.combateCompartilhado.combatentes,
+      grade: dados.combateCompartilhado.grade || {blocos:{}, posicoes:{}},
+      turnoIdx: dados.combateCompartilhado.turnoIdx || 0,
+      rodada: dados.combateCompartilhado.rodada || 1,
+    };
+  }
   state._mestreDadosCarregados = true;
   render();
 }
@@ -186,33 +198,45 @@ async function carregarDadosMestreDoServidor(){
 // sem isso, quem abre o link não veria nada.
 async function salvarDadosMestreNoServidor(){
   const combate = state._mestreIniciativa;
+  // "combatentes" agora é a versão COMPLETA (PV real de monstro, ficha inteira) — é o que o
+  // PRÓPRIO MESTRE precisa pra restaurar certinho depois de um F5 (antes, só Grupos e Encontros
+  // Salvos voltavam ao recarregar a página; o combate ativo inteiro se perdia, mesmo intacto no
+  // servidor, porque nunca tinha sido lido de volta). "combatentesParaJogadores" é a versão
+  // filtrada (sem PV de monstro, ficha reduzida) que o link compartilhado realmente usa — mesma
+  // ideia de "grade" vs "gradeParaJogadores" logo abaixo.
+  const combatentesCompletos = combate ? (combate.combatentes||[]).map(c=>({
+    id:c.id, nome:c.nome, tipo:c.tipo,
+    // Se o upload da foto pro Drive falhou alguma vez, o app guarda a imagem em base64 bruto
+    // como reserva (pra não perder a foto) — mas isso pode passar de 50 mil caracteres, e o
+    // Google Sheets tem esse limite POR CÉLULA. Mandar isso arriscava estourar o limite e
+    // corromper o salvamento inteiro. Só manda a foto se for um link de verdade (curto).
+    foto: (c.foto && !c.foto.startsWith('data:')) ? c.foto : null,
+    origemId:c.origemId,
+    pv: pvAtualCombatente(c),
+    pvMax: pvMaxCombatente(c),
+    dados: c.dados || null,
+  })) : [];
+  const combatentesParaJogadores = combatentesCompletos.map(c=>({
+    id:c.id, nome:c.nome, tipo:c.tipo, foto:c.foto, origemId:c.origemId,
+    // PV de monstro NUNCA vai pro link compartilhado — nem escondido no código, nem por engano.
+    // PJ manda o valor AO VIVO (é o jogador quem controla a vida dele).
+    pv: c.tipo==='monstro' ? null : c.pv,
+    pvMax: c.tipo==='monstro' ? null : c.pvMax,
+    dados: c.dados ? {tamanho:c.dados.tamanho} : null,
+  }));
   return salvarMestreDadosArmazenamento({
     grupos: state._mestreGrupos||[],
     encontrosSalvos: state._mestreEncontrosSalvos||[],
     combateCompartilhado: combate ? {
-      combatentes: (combate.combatentes||[]).map(c=>({
-        id:c.id, nome:c.nome, tipo:c.tipo,
-        // Se o upload da foto pro Drive falhou alguma vez, o app guarda a imagem em base64
-        // bruto como reserva (pra não perder a foto) — mas isso pode passar de 50 mil
-        // caracteres, e o Google Sheets tem esse limite POR CÉLULA. Mandar isso no link
-        // compartilhado (que salva a cada jogada) arriscava estourar o limite e corromper o
-        // salvamento inteiro — foi provavelmente a causa real do "mapa sumindo" pro jogador.
-        // Só manda a foto se for um link de verdade (curto); base64 vira "sem foto" aqui.
-        foto: (c.foto && !c.foto.startsWith('data:')) ? c.foto : null,
-        origemId:c.origemId,
-        // PV de monstro NUNCA vai pro link compartilhado — nem escondido no código, nem por
-        // engano. PJ manda o valor AO VIVO da própria ficha (é o jogador quem controla a
-        // vida dele, o Mestre não precisa mexer nisso).
-        pv: c.tipo==='monstro' ? null : pvAtualCombatente(c),
-        pvMax: c.tipo==='monstro' ? null : pvMaxCombatente(c),
-        dados: c.dados ? {tamanho:c.dados.tamanho} : null,
-      })),
+      combatentes: combatentesCompletos,
+      combatentesParaJogadores: combatentesParaJogadores,
       // "grade" é a versão COMPLETA — só o Mestre lê ela de volta (no polling da própria
       // Grade), pra nunca perder de vista onde um monstro escondido está. "gradeParaJogadores"
       // é a versão filtrada que o link compartilhado realmente usa pra desenhar o tabuleiro.
       grade: combate.grade || null,
       gradeParaJogadores: combate.grade ? computarGradeParaJogadores(combate.combatentes||[], combate.grade) : null,
       turnoIdx: combate.turnoIdx||0,
+      rodada: combate.rodada||1,
     } : null,
   });
 }
@@ -250,7 +274,11 @@ function sincronizarGradeCompartilhada(){
     if(_gradeSincronizarPendente){ _gradeSincronizarPendente = false; sincronizarGradeCompartilhada(); }
   });
 }
-function salvarGruposLocal(){ salvarDadosMestreNoServidor(); }
+// Passa pela mesma fila que protege a Grade (sincronizarGradeCompartilhada) — como Grupos,
+// Encontros Salvos e a Grade compartilham o MESMO bloco de dados no servidor, chamar
+// salvarDadosMestreNoServidor() direto aqui podia rodar ao mesmo tempo que um auto-salvamento da
+// Grade e um atropelar o outro (o mesmo tipo de corrida já corrigido em outros lugares).
+function salvarGruposLocal(){ sincronizarGradeCompartilhada(); }
 function personagensDoGrupoAtual(){
   carregarGruposSalvos();
   const todos = state.perfisTodos || [];
@@ -770,7 +798,7 @@ function renderEncontroAleatorio(combate){
 // O Mestre monta um encontro escolhendo criaturas do bestiário (com quantidade cada), dá um
 // nome, e salva — fica guardado na planilha (junto com Grupos), pra usar em qualquer sessão
 // futura sem precisar montar tudo de novo. "Usar agora" joga tudo direto na Iniciativa atual.
-function salvarEncontrosLocal(){ salvarDadosMestreNoServidor(); }
+function salvarEncontrosLocal(){ sincronizarGradeCompartilhada(); }
 
 function renderEncontrosSalvos(combate){
   carregarEncontrosSalvos();
@@ -1201,8 +1229,12 @@ async function atualizarVisualizacaoGrade(){
   const combateCompartilhado = dados.combateCompartilhado;
   // pro jogador, "grade" É a versão filtrada — ele nunca recebe posição de monstro escondido,
   // nem trafegando na rede. O Mestre é quem usa a versão completa (gradeParaJogadores nem
-  // existe do lado dele).
+  // existe do lado dele). Mesma ideia pra "combatentes": agora que esse campo virou a versão
+  // COMPLETA (com PV real de monstro, pro Mestre conseguir restaurar o combate certinho depois
+  // de um F5), o jogador precisa usar "combatentesParaJogadores" — a versão filtrada, sem PV de
+  // monstro nenhum vazando.
   combateCompartilhado.grade = combateCompartilhado.gradeParaJogadores || combateCompartilhado.grade;
+  combateCompartilhado.combatentes = combateCompartilhado.combatentesParaJogadores || combateCompartilhado.combatentes;
   // Se nada mudou de verdade desde a última busca, nem reconstrói a tela — reconstruir à toa
   // era o motivo real de "arrastei o mapa pro lado e ele volta sozinho": a cada 2s, mesmo sem
   // ninguém ter mexido em nada, a tela inteira era refeita do zero e a rolagem que o próprio
@@ -1681,8 +1713,14 @@ function renderMestreGrade(){
   if(state._gradePopup==='link'){
     const conteudo = el('div',{style:'padding:0 14px 10px;'});
     conteudo.appendChild(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Gera um link que abre o tabuleiro num tablet/celular de qualquer jogador — sem precisar logar em nada. Eles também podem mover os próprios tokens por lá. Atualiza sozinho a cada poucos segundos.'));
-    conteudo.appendChild(el('button',{class:'btn', style:'margin-top:8px;', onclick: async ()=>{
-      await salvarDadosMestreNoServidor();
+    conteudo.appendChild(el('button',{class:'btn', style:'margin-top:8px;', onclick: ()=>{
+      // Importante: passa pela FILA (sincronizarGradeCompartilhada), não chama
+      // salvarDadosMestreNoServidor() direto. Chamar direto ignorava a proteção contra dois
+      // salvamentos rodando ao mesmo tempo (a mesma que já existe pra qualquer outra mudança na
+      // Grade) — se isso rodasse junto com um auto-salvamento em andamento, os dois podiam se
+      // atropelar, e o efeito colateral parecia "a tela parou de atualizar depois de gerar o
+      // link".
+      sincronizarGradeCompartilhada();
       const codigo = obterCodigoJogador();
       const url = window.location.origin + window.location.pathname + '?vergrade=' + encodeURIComponent(codigo||'');
       state._gradeLinkGerado = url;
