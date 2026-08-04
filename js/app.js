@@ -730,8 +730,44 @@ const PENDENCIAS_DEFINICOES = [
     },
     resumo: 'A ficha foi criada antes da gente catalogar as habilidades automáticas de classe (tipo Inspiração do Bardo, Fúria do Bárbaro etc.) — estão faltando na lista de Habilidades Iniciais.',
   },
+  {
+    tipo: 'poderComEscolhaPendente',
+    titulo: 'Poder com Escolha Pendente',
+    detecta: (f)=> poderesComEscolhaFaltando(f).length>0,
+    resumo: 'Esse personagem tem poder(es) que exigem uma escolha extra (qual atributo, qual arma, qual escola...) mas essa escolha nunca foi feita — geralmente porque a ficha pegou o poder antes da gente adicionar essa opção no sistema. Sem resolver, o efeito do poder nunca chega a valer de verdade.',
+  },
 ];
+// Varre TODAS as fontes onde um poder pode estar guardado (origem, raça, poderes de classe) e
+// acha quem tem "escolha" obrigatória (arma, escola, atributo...) na definição do poder mas não
+// tem a sub-escolha preenchida na ficha — geralmente porque a ficha foi criada ANTES da gente
+// adicionar aquele "escolha" na definição do poder. Cada item devolvido sabe onde escrever de
+// volta a resposta (poderGeral, poderGeralExtra, poderRaca, ou o índice em poderesClasse).
+function buscarDefinicaoPoder(nome, classeDoPoder){
+  if(classeDoPoder && PODERES_CLASSE_COMPLETO[classeDoPoder]){
+    const achado = PODERES_CLASSE_COMPLETO[classeDoPoder].find(p=>p.nome===nome);
+    if(achado) return achado;
+  }
+  return PODERES_GERAIS.find(p=>p.nome===nome) || null;
+}
+function poderesComEscolhaFaltando(f){
+  const problemas = [];
+  ['poderGeral','poderGeralExtra','poderRaca'].forEach(campo=>{
+    const entrada = f[campo];
+    if(!entrada || !entrada.nome || entrada.sub) return;
+    const def = buscarDefinicaoPoder(entrada.nome, null);
+    if(def && def.escolha) problemas.push({origem:campo, nome:entrada.nome, def});
+  });
+  (f.poderesClasse||[]).forEach((p,idx)=>{
+    if(!p.nome || p.sub) return;
+    const def = buscarDefinicaoPoder(p.nome, p.trocaPorGeral ? null : p.classe);
+    if(def && def.escolha) problemas.push({origem:'poderesClasse', indice:idx, nome:p.nome, def});
+  });
+  return problemas;
+}
+
 function detectarPendencias(f){
+
+
   return PENDENCIAS_DEFINICOES.filter(p=>p.detecta(f));
 }
 // Um ícone por classe, só pra dar identidade visual rápida na ficha — puramente estético.

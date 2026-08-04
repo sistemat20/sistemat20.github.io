@@ -267,6 +267,49 @@ function renderPopupPendencias(f){
       }
     }
 
+    if(p.tipo==='poderComEscolhaPendente'){
+      const pendentes = poderesComEscolhaFaltando(f);
+      card.appendChild(el('div',{class:'tip', style:'font-size:0.78rem;'}, pendentes.length+' poder(es) esperando escolha:'));
+      pendentes.forEach(problema=>{
+        const chaveResolucao = problema.origem+'-'+(problema.indice!=null?problema.indice:'');
+        const resolvendoEsse = state._pendenciaResolvendo === ('poderComEscolhaPendente:'+chaveResolucao);
+        const miniCard = el('div',{class:'panel', style:'margin-top:8px;'},
+          el('div',{class:'meta'}, problema.nome+' — '+problema.def.escolha.label)
+        );
+        if(!resolvendoEsse){
+          miniCard.appendChild(el('button',{class:'btn ghost', style:'margin-top:6px;', onclick:()=>{ state._pendenciaResolvendo='poderComEscolhaPendente:'+chaveResolucao; render(); }}, 'Escolher'));
+        } else {
+          const grid = el('div',{class:'option-grid', style:'margin-top:6px;'});
+          problema.def.escolha.opcoes.forEach(opcao=>{
+            grid.appendChild(el('button',{class:'option-card', onclick:()=>{
+              // escreve a escolha de volta na fonte certa
+              if(problema.origem==='poderesClasse') f.poderesClasse[problema.indice].sub = opcao;
+              else f[problema.origem].sub = opcao;
+              // "Aumento de Atributo" precisa do efeito de verdade além de só guardar a escolha —
+              // soma +1 no atributo (e, se for Inteligência, abre a pendência de perícia extra,
+              // igual já acontece escolhendo isso pela primeira vez no level up).
+              if(problema.nome==='Aumento de Atributo'){
+                const mapaAtributo = {'Força':'for','Destreza':'des','Constituição':'con','Inteligência':'int','Sabedoria':'sab','Carisma':'car'};
+                const chave = mapaAtributo[opcao];
+                if(chave){
+                  f[chave] = (parseInt(f[chave])||0) + 1;
+                  registrarLog(f, 'Aumento de Atributo (pendência resolvida): +1 em '+opcao+' (agora '+f[chave]+')');
+                  if(chave==='int') f.periciasExtraIntPendentes = (f.periciasExtraIntPendentes||0) + 1;
+                }
+              }
+              salvarPerfis();
+              flashMsg('✅ '+problema.nome+' resolvido!');
+              state._pendenciaResolvendo=null;
+              render();
+            }}, opcao));
+          });
+          miniCard.appendChild(grid);
+          miniCard.appendChild(el('button',{class:'btn ghost', style:'margin-top:4px;', onclick:()=>{ state._pendenciaResolvendo=null; render(); }}, 'Cancelar'));
+        }
+        card.appendChild(miniCard);
+      });
+    }
+
     if(p.tipo==='escolasMagia'){
       if(!resolvendo){
         card.appendChild(el('button',{class:'btn', onclick:()=>{ state._pendenciaResolvendo='escolasMagia'; state._pendEscolas=[]; render(); }}, 'Resolver agora'));
