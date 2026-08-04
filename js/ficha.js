@@ -2099,10 +2099,9 @@ function renderPericias(){
   const treinadas = periciasTreinadasComDivindade(f);
   const nivel = nivelTotal(f);
 
-  wrap.appendChild(el('div',{class:'tip'},
-    el('b',{},'Como funciona'),
-    'Total = 1/2 do nível ('+Math.floor(nivel/2)+') + atributo-chave + '+bonusTreinoPericia(nivel)+' se for treinado. Perícias em destaque são as que ' + (f.nome||'seu personagem') + ' já tem treinadas — os valores já estão calculados para o nível '+nivel+' atual.'
-  ));
+  wrap.appendChild(renderSecaoNotasColapsavel('pericias-como-funciona', 'ℹ️', 'Como Funciona', null, ()=>[
+    el('div',{class:'tip'}, 'Total = 1/2 do nível ('+Math.floor(nivel/2)+') + atributo-chave + '+bonusTreinoPericia(nivel)+' se for treinado. Perícias em destaque são as que ' + (f.nome||'seu personagem') + ' já tem treinadas — os valores já estão calculados para o nível '+nivel+' atual.')
+  ], false));
 
   if(!state._periciaBusca) state._periciaBusca = '';
   wrap.appendChild(el('input',{id:'busca-pericias', type:'text', placeholder:'buscar perícia...', value: state._periciaBusca, oninput:(e)=>{ state._periciaBusca=e.target.value; renderDebounced(); }}));
@@ -2287,7 +2286,9 @@ function renderMagias(){
   const circuloMax = circuloMaximoDisponivel(f);
 
   if(!cc){
-    wrap.appendChild(el('div',{class:'tip'}, el('b',{},'Sem classe conjuradora'), 'Nenhuma das classes de '+f.nome+' lança magias pela progressão normal (Arcanista, Bardo, Clérigo, Druida). Se ganhou magias por um poder específico (ex: Orar do Paladino), consulte a descrição desse poder. Mesmo assim, você pode navegar pelo catálogo completo abaixo por curiosidade ou pra referência do mestre.'));
+    wrap.appendChild(renderSecaoNotasColapsavel('magias-sem-classe', '📖', 'Sem Classe Conjuradora', null, ()=>[
+      el('div',{class:'tip'}, 'Nenhuma das classes de '+f.nome+' lança magias pela progressão normal (Arcanista, Bardo, Clérigo, Druida). Se ganhou magias por um poder específico (ex: Orar do Paladino), consulte a descrição desse poder. Mesmo assim, você pode navegar pelo catálogo completo abaixo por curiosidade ou pra referência do mestre.')
+    ], false));
   } else if(!mf._tradAjustada){
     // na primeira vez que abre a aba, ajusta automaticamente pra tradição real da classe do personagem
     mf.trad = CLASSES[cc.classe].tradicao;
@@ -2295,10 +2296,9 @@ function renderMagias(){
     mf.modo = 'possiveis';
   }
 
-  wrap.appendChild(el('div',{class:'tip'},
-    el('b',{},'Como funciona'),
-    'Cada magia pertence a uma tradição (arcana ou divina — 🔮 marca as Universais, que qualquer conjurador pode aprender), um círculo e uma escola. Toque no nome de uma magia pra ver a descrição completa.'
-  ));
+  wrap.appendChild(renderSecaoNotasColapsavel('magias-como-funciona', 'ℹ️', 'Como Funciona', null, ()=>[
+    el('div',{class:'tip'}, 'Cada magia pertence a uma tradição (arcana ou divina — 🔮 marca as Universais, que qualquer conjurador pode aprender), um círculo e uma escola. Toque no nome de uma magia pra ver a descrição completa.')
+  ], false));
 
   const modoAtual = mf.modo || 'possiveis';
 

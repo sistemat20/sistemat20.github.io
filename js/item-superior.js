@@ -65,7 +65,9 @@ function renderCriadorItemSuperior(){
   ));
 
   wrap.appendChild(el('div',{class:'wizard-title'}, b.baseItem.n || b.baseItem.nome));
-  wrap.appendChild(el('div',{class:'tip'}, el('b',{},'Como funciona'), 'Escolha até 4 melhorias (Tabela 3-8). A quantidade de melhorias define o acréscimo no preço e na CD de fabricação (Tabela 3-7). Se escolher "Material especial", você ainda escolhe qual material.'));
+  wrap.appendChild(renderSecaoNotasColapsavel('item-superior-como-funciona', 'ℹ️', 'Como Funciona', null, ()=>[
+    el('div',{class:'tip'}, 'Escolha até 4 melhorias (Tabela 3-8). A quantidade de melhorias define o acréscimo no preço e na CD de fabricação (Tabela 3-7). Se escolher "Material especial", você ainda escolhe qual material.')
+  ], false));
 
   const opcoes = melhoriasDisponiveis(b.categoria);
   const grid = el('div',{class:'option-grid'});
