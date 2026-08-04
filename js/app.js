@@ -1299,7 +1299,24 @@ async function carregarPerfis(){
   state._ultimoEstadoSalvo = {};
   (state.perfis||[]).forEach(p=>{ state._ultimoEstadoSalvo[p.id] = JSON.parse(JSON.stringify(p)); });
 }
+// Fila de salvamento — mesma ideia já usada do lado do Mestre (sincronizarGradeCompartilhada):
+// nunca deixa 2 salvamentos rodando ao mesmo tempo. Aqui o risco é menor (state.perfis nunca é
+// TROCADO por outro array, só editado por dentro — ver iniciarAtualizacaoAutomaticaJogador), mas
+// como o padrão já provou valer a pena duas vezes achando corrida de verdade, vale reforçar aqui
+// também por segurança, já que é barato.
+let _perfisSalvando = false;
+let _perfisSalvarPendente = false;
 async function salvarPerfis(){
+  if(_perfisSalvando){ _perfisSalvarPendente = true; return; }
+  _perfisSalvando = true;
+  try{
+    await salvarPerfisInterno();
+  } finally {
+    _perfisSalvando = false;
+    if(_perfisSalvarPendente){ _perfisSalvarPendente = false; salvarPerfis(); }
+  }
+}
+async function salvarPerfisInterno(){
   // "Desfazer" precisa saber qual era o estado de CADA personagem antes deste save. Guardamos
   // sempre uma cópia do "último estado salvo conhecido" (state._ultimoEstadoSalvo); antes de
   // sobrescrever, ela vira o alvo de desfazer (state._paraDesfazer) — e só depois é atualizada

@@ -90,7 +90,7 @@ function renderMestreScreen(){
   }
   wrap.appendChild(el('header',{class:'top'},
     el('div',{style:'display:flex;justify-content:space-between;align-items:center;gap:10px;'},
-      el('button',{class:'btn ghost', style:'width:auto;flex-shrink:0;padding:6px 12px;background:transparent;border-color:#f4efe2;color:#f4efe2;', onclick:()=>{ pararAtualizacaoAutomaticaMestre(); precisaCodigoJogador() ? sairDoCodigoJogador() : (state.screen='perfis', render()); }}, '← Perfis'),
+      el('button',{class:'btn ghost', style:'width:auto;flex-shrink:0;padding:6px 12px;background:transparent;border-color:var(--ink);color:var(--ink);', onclick:()=>{ pararAtualizacaoAutomaticaMestre(); precisaCodigoJogador() ? sairDoCodigoJogador() : (state.screen='perfis', render()); }}, '← Perfis'),
       el('h1',{class:'display', style:'font-size:1.1rem;margin:0;'}, 'Mesa do Mestre'),
       botaoTema()
     ),
@@ -135,7 +135,7 @@ function renderMestreScreen(){
   }
 
   if(state.addMsg){
-    wrap.appendChild(el('div',{id:'add-msg', style:'position:fixed; left:14px; right:14px; bottom:70px; max-width:692px; margin:0 auto; background:#3a2a1a; color:#f4efe2; padding:10px 14px; border-radius:4px; font-size:0.85rem; box-shadow:0 4px 12px rgba(0,0,0,0.35); z-index:50;'}, state.addMsg));
+    wrap.appendChild(el('div',{id:'add-msg', style:'position:fixed; left:14px; right:14px; bottom:70px; max-width:692px; margin:0 auto; background:var(--card-2); color:var(--ink); padding:10px 14px; border-radius:4px; font-size:0.85rem; box-shadow:0 4px 12px rgba(0,0,0,0.35); z-index:50;'}, state.addMsg));
   }
 
   return wrap;
@@ -174,7 +174,17 @@ function carregarEncontrosSalvos(){
 // Busca do servidor Grupos + Encontros Salvos juntos (ficam na mesma linha) — chamada uma vez
 // ao entrar na tela do Mestre.
 async function carregarDadosMestreDoServidor(){
+  // A busca inicial (disparada por abrirTelaMestre, sem esperar por ela) pode demorar — se o
+  // Mestre criar um grupo/encontro/combate ENQUANTO ela ainda está no ar, e essa busca atrasada
+  // chegar DEPOIS, ela sobrescrevia o que ele acabou de criar com o estado antigo/vazio de
+  // antes. Mesma proteção de "versão local" já usada no polling da Grade: se algo mudou
+  // localmente enquanto essa busca corria, descarta o resultado em vez de aplicar por cima.
+  const versaoAntesDaBusca = _gradeVersaoLocal;
   const dados = await carregarMestreDadosArmazenamento();
+  if(_gradeVersaoLocal !== versaoAntesDaBusca){
+    state._mestreDadosCarregados = true;
+    return;
+  }
   state._mestreGrupos = dados.grupos || [];
   state._mestreEncontrosSalvos = dados.encontrosSalvos || [];
   // O combate ativo (combatentes, posições, paredes, terreno — tudo da Grade) só era SALVO no
@@ -356,9 +366,10 @@ function renderGerenciarGrupos(){
     wrap.appendChild(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Nenhum grupo criado ainda. Se você só roda uma mesa, não precisa criar nenhum — todos os personagens já aparecem juntos. Crie grupos só se administrar mais de uma mesa no mesmo banco.'));
   }
   state._mestreGrupos.forEach(g=>{
+    const membrosDoGrupo = g.membrosIds || [];
     wrap.appendChild(el('div',{class:'row', style:'align-items:center;margin-top:6px;'},
-      el('div',{style:'flex:1;font-weight:700;'}, g.nome+' ('+g.membrosIds.length+' personagem'+(g.membrosIds.length!==1?'ns':'')+')'),
-      el('button',{class:'btn ghost', style:'width:auto;padding:4px 10px;', onclick:()=>{ state._mestreGrupoEditando = {id:g.id, nome:g.nome, membrosIds:g.membrosIds.slice()}; render(); }}, 'Editar'),
+      el('div',{style:'flex:1;font-weight:700;'}, g.nome+' ('+membrosDoGrupo.length+' personagem'+(membrosDoGrupo.length!==1?'ns':'')+')'),
+      el('button',{class:'btn ghost', style:'width:auto;padding:4px 10px;', onclick:()=>{ state._mestreGrupoEditando = {id:g.id, nome:g.nome, membrosIds:membrosDoGrupo.slice()}; render(); }}, 'Editar'),
       el('button',{class:'remove-x', onclick:()=>{
         if(!confirm('Excluir o grupo "'+g.nome+'"? Isso não apaga nenhum personagem, só o agrupamento.')) return;
         state._mestreGrupos = state._mestreGrupos.filter(x=>x.id!==g.id);
@@ -863,20 +874,21 @@ function renderEncontrosSalvos(combate){
     wrap.appendChild(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Nenhum encontro salvo ainda. Monte um escolhendo criaturas do bestiário — depois é só usar de novo sem precisar montar tudo outra vez.'));
   }
   state._mestreEncontrosSalvos.forEach(enc=>{
-    const ndTotal = enc.criaturas.reduce((s,c)=>s+ (c.nd===20.5?20:c.nd), 0);
-    const balancoSalvo = balancoEncontro(ndCombateTotal(enc.criaturas));
+    const criaturasDoEncontro = enc.criaturas || [];
+    const ndTotal = criaturasDoEncontro.reduce((s,c)=>s+ (c.nd===20.5?20:c.nd), 0);
+    const balancoSalvo = balancoEncontro(ndCombateTotal(criaturasDoEncontro));
     wrap.appendChild(el('div',{class:'row', style:'align-items:center;margin-top:6px;'},
       el('div',{style:'flex:1;'},
         el('div',{style:'font-weight:700;'}, enc.nome),
-        el('div',{class:'meta'}, enc.criaturas.length+' criatura'+(enc.criaturas.length>1?'s':'')+': '+enc.criaturas.map(c=>c.nome).join(', ')),
+        el('div',{class:'meta'}, criaturasDoEncontro.length+' criatura'+(criaturasDoEncontro.length>1?'s':'')+': '+criaturasDoEncontro.map(c=>c.nome).join(', ')),
         el('div',{class:'meta', style:'color:'+balancoSalvo.cor+';font-weight:700;'}, '⚖️ '+balancoSalvo.texto+' pro grupo atual')
       ),
       el('button',{class:'btn ghost', style:'width:auto;padding:6px 12px;flex-shrink:0;', onclick:()=>{
-        enc.criaturas.forEach(c=>{
+        criaturasDoEncontro.forEach(c=>{
           const bonus = extrairBonusIniciativa(c.sentidos);
           combate.combatentes.push(novoCombatente(c.nome, 'monstro', bonus, c.pv, c.pv));
         });
-        flashMsg('⚔️ Encontro "'+enc.nome+'" adicionado ('+enc.criaturas.length+' criatura'+(enc.criaturas.length>1?'s':'')+')!');
+        flashMsg('⚔️ Encontro "'+enc.nome+'" adicionado ('+criaturasDoEncontro.length+' criatura'+(criaturasDoEncontro.length>1?'s':'')+')!');
         render();
       }}, 'Usar agora ⚔️'),
       el('button',{class:'remove-x', onclick:()=>{
@@ -1347,7 +1359,7 @@ function renderVisualizacaoGrade(){
     faixaIniciativa.appendChild(el('div',{
       style:'flex-shrink:0;width:34px;height:34px;border-radius:50%;border:'+(noTurno?'2px solid var(--gold)':'2px solid transparent')+';background:'+corTokenPorTipo(c.tipo)+';overflow:hidden;box-shadow:'+(noTurno?'0 0 8px var(--gold)':'none')+';',
       title:c.nome,
-    }, c.foto ? el('img',{src:c.foto, style:'width:100%;height:100%;object-fit:cover;'}) : el('div',{style:'width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:0.62rem;font-weight:800;color:#1a0f0a;'}, c.nome.slice(0,2).toUpperCase())));
+    }, c.foto ? el('img',{src:c.foto, style:'width:100%;height:100%;object-fit:cover;'}) : el('div',{style:'width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:0.62rem;font-weight:800;color:var(--token-texto);'}, c.nome.slice(0,2).toUpperCase())));
   });
   wrap.appendChild(faixaIniciativa);
 
@@ -1397,7 +1409,7 @@ function renderVisualizacaoGrade(){
   const terrenoRepete = temTerrenoImagem && terrenoAtual.tileable!==false;
   const terrenoCena = temTerrenoImagem && terrenoAtual.tileable===false;
   const larguraPx = grade.largura*tam, alturaPx = grade.altura*tam;
-  const scrollWrap = el('div',{id:'viewer-scroll-wrap', 'data-preservar-scroll':'viewer-tabuleiro', style:'max-width:100%; overflow:auto; -webkit-overflow-scrolling:touch; border:2px solid var(--line); border-radius:6px;'});
+  const scrollWrap = el('div',{id:'viewer-scroll-wrap', class:'tabuleiro-moldura', 'data-preservar-scroll':'viewer-tabuleiro', style:'max-width:100%; overflow:auto; -webkit-overflow-scrolling:touch;'});
   const tabuleiro = el('div',{style:'display:grid; grid-template-columns:'+Math.round(tam*0.7)+'px repeat('+grade.largura+', '+tam+'px); gap:0; background:var(--line); width:max-content;'
     +(temMapaCustom ? ' background-image:url('+mapaCustom.url+'); background-size:'+mapaCustom.escalaPx+'px '+mapaCustom.escalaPx+'px; background-position:'+mapaCustom.offsetX+'px '+mapaCustom.offsetY+'px; background-repeat:repeat;'
       : terrenoRepete ? ' background-image:url('+terrenoAtual.url+'); background-size:'+tam+'px '+tam+'px; background-repeat:repeat;' : '')});
@@ -1462,13 +1474,13 @@ function renderVisualizacaoGrade(){
           const nudgeViewer = grade.nudges && grade.nudges[c.id];
           const nudgePxViewer = nudgeViewer ? {x:Math.round(nudgeViewer.x*pxToken), y:Math.round(nudgeViewer.y*pxToken)} : {x:0,y:0};
           const tokenWrap = el('div',{'data-token-id':c.id, style:'position:absolute; top:'+nudgePxViewer.y+'px; left:'+nudgePxViewer.x+'px; width:'+pxToken+'px; height:'+pxToken+'px; z-index:5; filter:drop-shadow(0 3px 3px rgba(0,0,0,0.5));'});
-          tokenWrap.appendChild(el('div',{style:'width:100%;height:100%;border-radius:50%;background:'+corTokenPorTipo(c.tipo)+';display:flex;align-items:center;justify-content:center;font-weight:800;color:#1a0f0a;overflow:hidden;box-shadow:'+anelEstiloViewer+';font-size:'+Math.round(pxToken*0.34)+'px;'},
+          tokenWrap.appendChild(el('div',{style:'width:100%;height:100%;border-radius:50%;background:'+corTokenPorTipo(c.tipo)+';display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--token-texto);overflow:hidden;box-shadow:'+anelEstiloViewer+';font-size:'+Math.round(pxToken*0.34)+'px;'},
             c.foto ? el('img',{src:c.foto, style:'width:100%;height:100%;object-fit:cover;border-radius:50%;'}) : c.nome.slice(0,2).toUpperCase()
           ));
           if(c.pvMax){
             const pvPct = Math.max(0, Math.min(100, (c.pv||0)/c.pvMax*100));
             tokenWrap.appendChild(el('div',{style:'position:absolute;bottom:-3px;left:8%;width:84%;height:3px;background:rgba(0,0,0,0.5);border-radius:2px;overflow:hidden;'},
-              el('div',{style:'width:'+pvPct+'%;height:100%;background:'+(pvPct>50?'#5ea85e':pvPct>25?'#c9a23a':'#c94a3a')+';'})
+              el('div',{style:'width:'+pvPct+'%;height:100%;background:'+(pvPct>50?'var(--status-saudavel)':pvPct>25?'var(--status-ferido)':'var(--status-critico)')+';'})
             ));
           }
           const rotacaoViewer = grade.rotacoes && grade.rotacoes[c.id];
@@ -1938,7 +1950,7 @@ function renderMestreGrade(){
       style:'flex-shrink:0;width:34px;height:34px;border-radius:50%;padding:0;border:'+(noTurno?'2px solid var(--gold)':'2px solid transparent')+';background:'+corTokenPorTipo(c.tipo)+';overflow:hidden;box-shadow:'+(noTurno?'0 0 8px var(--gold)':'none')+';',
       title:c.nome,
       onclick:()=>{ combate.turnoIdx=idx; sincronizarGradeCompartilhada(); render(); }
-    }, foto ? el('img',{src:foto, style:'width:100%;height:100%;object-fit:cover;'}) : el('div',{style:'width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:0.62rem;font-weight:800;color:#1a0f0a;'}, c.nome.slice(0,2).toUpperCase())));
+    }, foto ? el('img',{src:foto, style:'width:100%;height:100%;object-fit:cover;'}) : el('div',{style:'width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:0.62rem;font-weight:800;color:var(--token-texto);'}, c.nome.slice(0,2).toUpperCase())));
   });
   wrap.appendChild(faixaIniciativa);
 
@@ -1948,7 +1960,7 @@ function renderMestreGrade(){
   const indicadorDistancia = el('div',{id:'grade-distancia-arraste', style:'display:none;text-align:center;font-weight:800;color:var(--gold);margin-bottom:4px;font-size:0.85rem;'});
   wrap.appendChild(indicadorDistancia);
 
-  const scrollWrap = el('div',{id:'grade-scroll-wrap', 'data-preservar-scroll':'grade-tabuleiro', style:'max-width:100%; max-height:60vh; overflow:auto; -webkit-overflow-scrolling:touch; border:2px solid var(--line); border-radius:6px; cursor:grab;'});
+  const scrollWrap = el('div',{id:'grade-scroll-wrap', class:'tabuleiro-moldura', 'data-preservar-scroll':'grade-tabuleiro', style:'max-width:100%; max-height:60vh; overflow:auto; -webkit-overflow-scrolling:touch; cursor:grab;'});
   const letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   const mapaCustom = grade.mapaCustomizado;
   const temMapaCustom = mapaCustom && mapaCustom.url;
@@ -2212,15 +2224,15 @@ function renderMestreGrade(){
             if(ind) ind.style.display='none';
           },
         });
-        tokenWrap.appendChild(el('div',{style:'width:100%;height:100%;border-radius:50%;background:'+corTokenPorTipo(c.tipo)+';display:flex;align-items:center;justify-content:center;font-weight:800;color:#1a0f0a;overflow:hidden;box-shadow:'+anelEstilo+';font-size:'+Math.round(pxToken*0.34)+'px;'},
+        tokenWrap.appendChild(el('div',{style:'width:100%;height:100%;border-radius:50%;background:'+corTokenPorTipo(c.tipo)+';display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--token-texto);overflow:hidden;box-shadow:'+anelEstilo+';font-size:'+Math.round(pxToken*0.34)+'px;'},
           foto ? el('img',{src:foto, style:'width:100%;height:100%;object-fit:cover;border-radius:50%;'}) : c.nome.slice(0,2).toUpperCase()
         ));
         tokenWrap.appendChild(el('div',{style:'position:absolute;bottom:-3px;left:8%;width:84%;height:3px;background:rgba(0,0,0,0.5);border-radius:2px;overflow:hidden;'},
-          el('div',{style:'width:'+pvPct+'%;height:100%;background:'+(pvPct>50?'#5ea85e':pvPct>25?'#c9a23a':'#c94a3a')+';'})
+          el('div',{style:'width:'+pvPct+'%;height:100%;background:'+(pvPct>50?'var(--status-saudavel)':pvPct>25?'var(--status-ferido)':'var(--status-critico)')+';'})
         ));
         if(condicao) tokenWrap.appendChild(el('div',{style:'position:absolute;top:-4px;right:-4px;background:var(--red-bright);color:#fff;border-radius:50%;width:14px;height:14px;font-size:9px;display:flex;align-items:center;justify-content:center;font-weight:800;', title:condicao.primeira}, condicao.qtd));
         if(state._gradeMultiModoAtivo && state._gradeMultiSelecao.includes(c.id)){
-          tokenWrap.appendChild(el('div',{style:'position:absolute;top:-4px;left:-4px;background:#5ea85e;color:#fff;border-radius:50%;width:16px;height:16px;font-size:11px;display:flex;align-items:center;justify-content:center;font-weight:800;box-shadow:0 0 0 2px rgba(0,0,0,0.4);'}, '✓'));
+          tokenWrap.appendChild(el('div',{style:'position:absolute;top:-4px;left:-4px;background:var(--status-saudavel);color:#fff;border-radius:50%;width:16px;height:16px;font-size:11px;display:flex;align-items:center;justify-content:center;font-weight:800;box-shadow:0 0 0 2px rgba(0,0,0,0.4);'}, '✓'));
         }
         const rotacaoToken = grade.rotacoes && grade.rotacoes[c.id];
         if(rotacaoToken){

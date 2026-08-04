@@ -20,6 +20,14 @@
     --pv-accent: #f0a8a8;
     --pm-accent: #9cc7e8;
 
+    /* Cores semânticas — o mesmo em qualquer tema, porque o significado (saudável/ferido/
+       crítico) precisa continuar óbvio de bater o olho, independente de Modo Mesa estar ligado.
+       Antes ficavam soltas como hex mágico espalhado pelo JS da Grade; agora têm nome. */
+    --status-saudavel: #5ea85e;
+    --status-ferido: #c9a23a;
+    --status-critico: #c94a3a;
+    --token-texto: #1a0f0a; /* texto escuro sobre o círculo colorido do token — precisa de contraste fixo, não do tema */
+
     /* Escala de tipografia — antes cada elemento tinha um tamanho ligeiramente diferente
        (0.72/0.75/0.78/0.8rem todos querendo dizer "texto pequeno"); consolidado em 5 níveis. */
     --fs-2xs: 0.68rem;   /* rótulos de campo, tags, legendas minúsculas */
@@ -197,6 +205,31 @@
   }
   .panel h2 .n{color:#f0d98a; font-weight:800; margin-right:6px;}
 
+  /* Base pra QUALQUER h2, não só dentro de .panel — a Grade de Combate (e outras telas
+     construídas depois) tinham título "cru" caindo na fonte padrão do navegador em vez de
+     Cinzel, sem precisar estar dentro de um .panel especificamente. .panel h2 (acima) continua
+     valendo por cima quando aplicável, por especificidade de CSS. */
+  h2{
+    font-family:'Cinzel',serif; font-size:var(--fs-base); letter-spacing:0.04em;
+    text-transform:uppercase; color:var(--gold); margin:0 0 var(--sp-2);
+    text-shadow:0 1px 2px rgba(0,0,0,0.5);
+  }
+
+  /* ===== Tabuleiro da Grade de Combate — moldura de "mapa de batalha" ===== */
+  /* Antes era só um retângulo com borda fina var(--line), igual qualquer caixa genérica do
+     navegador. Essa vinheta (cantos escurecidos, como se estivesse sob luz de lanterna) e a
+     borda dourada dão ao tabuleiro uma identidade própria — o elemento mais usado do app hoje
+     merecia um "momento" visual, não só funcionar bem. */
+  .tabuleiro-moldura{
+    border:2px solid var(--gold-deep);
+    border-radius:var(--radius-md);
+    box-shadow:
+      inset 0 0 46px 14px rgba(0,0,0,0.55),
+      inset 0 0 0 1px rgba(216,189,116,0.25),
+      0 8px 20px rgba(0,0,0,0.4);
+    background:var(--bg-2);
+  }
+
   label{display:block; font-size:var(--fs-2xs); text-transform:uppercase; letter-spacing:0.04em; color:var(--ink-soft); margin-bottom:3px; font-weight:600;}
   input[type=text], input[type=number], select, textarea{
     width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:var(--radius-sm);
@@ -235,6 +268,13 @@
   }
   .spell-card .head{display:flex; justify-content:space-between; align-items:baseline; gap:8px; flex-wrap:wrap;}
   .spell-card .name{font-weight:700; font-size:var(--fs-base); color:var(--gold); min-width:0;}
+  /* Base pra .meta sozinho — usado em quase 90 lugares do app inteiro (rótulo pequeno/
+     secundário: "Nível 3 de Guerreiro", resumo de uma seção fechada, etc), mas só tinha estilo
+     definido dentro de .spell-card especificamente. Fora dali, caía tudo no texto padrão do
+     navegador sem ninguém notar. .spell-card .meta continua valendo por cima quando aplicável
+     (ela tem um alinhamento à direita específico daquele layout). */
+  .meta{ font-size:var(--fs-2xs); color:var(--ink-soft); letter-spacing:0.02em; }
+
   .spell-card .meta{font-size:var(--fs-2xs); color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.03em; white-space:normal; text-align:right;}
   .magia-info-grid{
     display:grid; grid-template-columns:1fr 1fr; gap:6px 14px; margin-top:8px; padding:10px 12px;
