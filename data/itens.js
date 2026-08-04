@@ -89,8 +89,8 @@ A("Escudo pesado","T$ 15",2,-2,2,"Escudo"),
 A("Escudo de couro","T$ 3",1,-1,1,"Escudo"),
 ];
 
-function I(n,preco,esp,desc,cat,vestivel,bonusPericia,empunhavel,maos){
-  return {n,preco,esp,desc,cat,vestivel:!!vestivel,bonusPericia:bonusPericia||null,empunhavel:!!empunhavel,maos:maos||1};
+function I(n,preco,esp,desc,cat,vestivel,bonusPericia,empunhavel,maos,bonusRecurso){
+  return {n,preco,esp,desc,cat,vestivel:!!vestivel,bonusPericia:bonusPericia||null,empunhavel:!!empunhavel,maos:maos||1,bonusRecurso:bonusRecurso||null};
 }
 const ITENS_GERAIS = [
 // Equipamento de aventura
@@ -137,7 +137,7 @@ I("Camisa bufante","T$ 25",1,"+1 em Atuação","Vestuário", true, {nome:"Atuaç
 I("Capa esvoaçante","T$ 25",1,"+1 em Enganação","Vestuário", true, {nome:"Enganação", valor:1}),
 I("Capa pesada","T$ 15",1,"+1 em Fortitude","Vestuário", true, {nome:"Fortitude", valor:1}),
 I("Casaco longo","T$ 20",1,"+5 Fortitude contra frio; –2 de penalidade de armadura","Vestuário", true),
-I("Chapéu arcano","T$ 50",1,"+1 PM se tiver Caminho do Arcanista","Vestuário", true),
+I("Chapéu arcano","T$ 50",1,"+1 PM se tiver Caminho do Arcanista","Vestuário", true, null, false, 1, {recurso:'pm', valor:1, condicao:'arcanista'}),
 I("Enfeite de elmo","T$ 15",1,"+2 de resistência a medo","Vestuário", true),
 I("Farrapos de ermitão","T$ 1",1,"+2 Adestramento; –2 Diplomacia","Vestuário", true),
 I("Gorro de ervas","T$ 75",1,"+1 em Vontade","Vestuário", true, {nome:"Vontade", valor:1}),

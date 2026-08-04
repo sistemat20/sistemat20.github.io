@@ -13,15 +13,19 @@ const MENU_SECOES = [
 function renderMenuOverlay(){
   const overlay = el('div',{class:'menu-overlay', onclick:(e)=>{ if(e.target===e.currentTarget){ state._menuAberto=false; render(); } }});
   const sheet = el('div',{class:'menu-sheet'});
+
+  sheet.appendChild(el('div',{class:'lista-secao-titulo'}, 'Navegar'));
   MENU_SECOES.forEach(([id,label,ico])=>{
     sheet.appendChild(el('button',{class:'menu-item'+(state.tab===id?' active':''), onclick:()=>{ state.tab=id; state._menuAberto=false; render(); }},
       el('span',{class:'ico'}, ico), el('span',{}, label)
     ));
   });
+
+  sheet.appendChild(el('div',{class:'lista-secao-titulo'}, 'Esta ficha'));
   const pendencias = detectarPendencias(fichaAtual());
   sheet.appendChild(el('button',{class:'menu-item', style: pendencias.length>0 ? 'color:var(--red-bright);' : '', onclick:()=>{ state._menuAberto=false; state._pendenciasAberto=true; render(); }},
-    el('span',{class:'ico'}, pendencias.length>0?'⚠️':'📋'),
-    el('span',{}, 'Pendências'+(pendencias.length>0?' ('+pendencias.length+') !':''))
+    pendencias.length>0 ? el('span',{class:'selo-cera', style:'position:static;width:20px;height:20px;font-size:0.62rem;flex-shrink:0;'}, '!') : el('span',{class:'ico'}, '📋'),
+    el('span',{}, 'Pendências'+(pendencias.length>0?' ('+pendencias.length+')':''))
   ));
   sheet.appendChild(el('button',{class:'menu-item', onclick:()=>{ state._menuAberto=false; state._logAberto=true; render(); }},
     el('span',{class:'ico'}, '📜'), el('span',{}, 'Log de Alterações')
@@ -36,12 +40,15 @@ function renderMenuOverlay(){
   sheet.appendChild(el('button',{class:'menu-item', onclick:()=>{ state._menuAberto=false; baixarBackupFicha(fichaAtual()); }},
     el('span',{class:'ico'}, '💾'), el('span',{}, 'Baixar Cópia de Segurança')
   ));
+
+  sheet.appendChild(el('div',{class:'lista-secao-titulo'}, 'Preferências'));
   sheet.appendChild(el('button',{class:'menu-item', onclick:()=>{ alternarNotificacaoSom(); render(); }},
     el('span',{class:'ico'}, notificacaoSomAtiva()?'🔔':'🔕'), el('span',{}, notificacaoSomAtiva()?'Aviso Sonoro/Vibração: Ligado':'Aviso Sonoro/Vibração: Desligado')
   ));
   sheet.appendChild(el('button',{class:'menu-item', onclick:alternarTemaMesa},
     el('span',{class:'ico'}, document.documentElement.dataset.tema==='mesa'?'☀️':'🌓'), el('span',{}, document.documentElement.dataset.tema==='mesa'?'Modo Padrão':'Modo Mesa (alto contraste)')
   ));
+
   sheet.appendChild(el('button',{class:'menu-close', onclick:()=>{ state._menuAberto=false; render(); }}, 'Fechar'));
   overlay.appendChild(sheet);
   return overlay;
@@ -370,13 +377,18 @@ function renderPersonagemScreen(){
 }
 
 function renderFichaScreen(){
-  const wrap = el('div',{});
   const f = fichaAtual();
+  // Vinheta escura e distorcida nas bordas da tela — bem sutil, referenciando a própria
+  // Tormenta (o fenômeno caótico que corrompe Arton) como metáfora visual de "você está por um
+  // fio". Só aparece morto ou sangrando à beira da morte (não em qualquer PV baixo — isso
+  // ficaria cansativo de olhar durante um combate normal).
+  const emPerigoDeMorte = estaMorto(f) || (estaInconsciente(f) && !f.estabilizado);
+  const wrap = el('div',{class: emPerigoDeMorte ? 'vinheta-tormenta' : ''});
   const secaoAtual = MENU_SECOES.find(s=>s[0]===state.tab) || MENU_SECOES[0];
 
   wrap.appendChild(el('header',{class:'top'},
     el('div',{style:'display:flex;justify-content:space-between;align-items:center;gap:10px;'},
-      el('button',{class:'btn ghost', style:'width:auto;flex-shrink:0;padding:6px 12px;background:transparent;border-color:#f4efe2;color:#f4efe2;', onclick:()=>{ pararAtualizacaoAutomaticaJogador(); state.screen='perfis'; state.perfilAtualId=null; render(); }}, '← Perfis'),
+      el('button',{class:'btn ghost', style:'width:auto;flex-shrink:0;padding:6px 12px;background:transparent;border-color:var(--ink);color:var(--ink);', onclick:()=>{ pararAtualizacaoAutomaticaJogador(); state.screen='perfis'; state.perfilAtualId=null; render(); }}, '← Perfis'),
       el('h1',{class:'display', style:'font-size:1.1rem;margin:0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;text-align:center;'}, f.nome || 'Personagem'),
       el('button',{class:'menu-trigger', style:'flex-shrink:0;', onclick:()=>{ state._menuAberto=true; render(); }},
         el('span',{}, secaoAtual[2]), el('span',{},'Menu')
@@ -506,6 +518,43 @@ function notificarComSom(msg){
   if(!notificacaoSomAtiva()) return;
   if(navigator.vibrate){ try{ navigator.vibrate([90,60,90]); }catch(e){} }
   tocarSomNotificacao();
+}
+
+// Mesma ideia do aviso de turno (osciladores simples via Web Audio, sem nenhum arquivo de
+// áudio) — mas dois toques DIFERENTES, pra momentos diferentes. Level up é uma ocasião rara,
+// então ganha um arpejo de 3 notas subindo (uma pequena fanfarra). Salvar manual (o botão
+// "Salvar ficha", não os salvamentos automáticos em segundo plano — esses aconteceriam a cada
+// campo editado, seria irritante demais) ganha só um "tec" suave de confirmação.
+function tocarSomLevelUp(){
+  if(!notificacaoSomAtiva()) return;
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    [523.25, 659.25, 783.99].forEach((freq, i)=>{ // Dó-Mi-Sol, um acorde maior clássico de "conquista"
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.type = 'triangle'; osc.frequency.value = freq;
+      const inicio = ctx.currentTime + i*0.09;
+      gain.gain.setValueAtTime(0.001, inicio);
+      gain.gain.exponentialRampToValueAtTime(0.14, inicio+0.03);
+      gain.gain.exponentialRampToValueAtTime(0.001, inicio+0.5);
+      osc.start(inicio); osc.stop(inicio+0.55);
+    });
+  }catch(e){ /* sem suporte a áudio, sem problema */ }
+}
+function tocarSomSalvar(){
+  if(!notificacaoSomAtiva()) return;
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = 'sine'; osc.frequency.value = 660;
+    gain.gain.setValueAtTime(0.001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.1, ctx.currentTime+0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.18);
+    osc.start(); osc.stop(ctx.currentTime+0.2);
+  }catch(e){ /* sem suporte a áudio, sem problema */ }
 }
 
 function montarArmaEquipada(w){
@@ -773,6 +822,7 @@ function flashSaved(){
   const elMsg = document.getElementById('save-msg');
   if(elMsg){ elMsg.textContent = 'Salvo ✓'; setTimeout(()=>{ if(elMsg) elMsg.textContent=''; }, 1800); }
   flashMsg('✅ Ficha salva!');
+  tocarSomSalvar();
 }
 
 // Log de alterações — um histórico simples do que foi feito na ficha, pra quem tá jogando ter
@@ -828,8 +878,8 @@ async function desfazerUltimaAlteracao(f){
 
 // ============ RENDER ============
 
-function bindInput(obj, key, type){
-  const i = el('input',{type: type||'text', value: obj[key] ?? '', oninput: (e)=>{ obj[key] = e.target.value; }});
+function bindInput(obj, key, type, aoMudar){
+  const i = el('input',{type: type||'text', value: obj[key] ?? '', oninput: (e)=>{ obj[key] = e.target.value; }, onchange: aoMudar||null});
   return i;
 }
 
@@ -1061,7 +1111,7 @@ function renderPersonagemFicha(){
       el('div',{},
         el('label',{},'Nível total'),
         el('div',{class:'row', style:'align-items:center;gap:8px;'},
-          el('div',{style:'font-weight:800;font-size:1.3rem;padding:6px 0;'}, nivelTotal(f)),
+          el('div',{class: state._levelUpCelebrando ? 'selo-nivel-flash' : '', style:'font-weight:800;font-size:1.3rem;padding:6px 0;'}, nivelTotal(f)),
           el('button',{class:'btn', style:'width:auto;padding:8px 14px;', onclick:()=>{ abrirLevelUp(); }},'Level Up ⬆')
         )
       ),
@@ -1081,18 +1131,9 @@ function renderPersonagemFicha(){
     // aninhado dentro deles, escondendo o popup atrás de outros painéis.
   }
 
-  wrap.appendChild(el('div',{class:'panel faixa'},
-    el('h2',{},'Atributos'),
-    el('div',{class:'row6'},
-      ...['for','des','con','int','sab','car'].map(a=>
-        el('div',{class:'attr-box'}, el('div',{class:'lbl'}, a.toUpperCase()), bindInput(f,a,'number'))
-      )
-    ),
-    penalidadeCarismaTormenta(f)>0 ? el('div',{class:'tip', style:'margin-top:8px;border:1px solid var(--red-bright);'},
-      '☣️ Carisma efetivo: '+atributoEfetivo(f,'car')+' (o '+f.car+' digitado acima −'+penalidadeCarismaTormenta(f)+' pelos '+qtdPoderesTormenta(f)+' Poder(es) da Tormenta que você tem — já aplicado nas perícias baseadas em Carisma).'
-    ) : null
-  ));
-
+  // Vida & Mana e Defesa vêm logo aqui, ANTES de Atributos — são os números que você realmente
+  // fica olhando toda hora numa sessão de jogo; Atributos você define uma vez e quase nunca
+  // mexe de novo, então não precisa disputar espaço com o que importa durante o combate.
   const pvMax = pvMaxEfetivo(f), pvAtual = parseInt(f.pvatual)||0;
   const pmMax = pmMaxEfetivo(f), pmAtual = parseInt(f.pmatual)||0;
   wrap.appendChild(el('div',{class:'panel faixa'},
@@ -1140,6 +1181,23 @@ function renderPersonagemFicha(){
     )
   ));
 
+  wrap.appendChild(el('div',{class:'panel faixa'},
+    el('h2',{},'Atributos'),
+    el('div',{class:'row6'},
+      ...['for','des','con','int','sab','car'].map(a=>
+        // onchange (dispara ao sair do campo, não a cada tecla) recalcula e redesenha a tela na
+        // hora — sem isso, o valor mudava por baixo dos panos mas o aviso de "Carisma efetivo"
+        // logo abaixo só se atualizava depois de alguma OUTRA ação (trocar de aba, por exemplo).
+        // Foi exatamente esse atraso que confundiu um jogador (relatou não saber se tinha
+        // funcionado), então isso não é só um efeito bonito, é uma correção de verdade.
+        el('div',{class:'attr-box'}, el('div',{class:'lbl'}, a.toUpperCase()), bindInput(f,a,'number',()=>{ salvarPerfis(); render(); }))
+      )
+    ),
+    penalidadeCarismaTormenta(f)>0 ? el('div',{class:'tip', style:'margin-top:8px;border:1px solid var(--red-bright);'},
+      '☣️ Carisma efetivo: '+atributoEfetivo(f,'car')+' (o '+f.car+' digitado acima −'+penalidadeCarismaTormenta(f)+' pelos '+qtdPoderesTormenta(f)+' Poder(es) da Tormenta que você tem — já aplicado nas perícias baseadas em Carisma).'
+    ) : null
+  ));
+
   wrap.appendChild(renderPainelCondicoes(f));
   // Manobras de Combate foi movido pra Notas (agora colapsável, junto com Proficiências,
   // Poderes, Habilidades Iniciais e Descanso).
@@ -1182,44 +1240,47 @@ function renderPainelManobrasColapsavel(f){
 // cara; toda a lista só aparece quando o jogador toca em "Gerenciar condições".
 function renderPainelCondicoes(f){
   const ativas = condicoesAtivas(f);
-  const wrap = el('div',{class:'panel faixa'}, el('h2',{},'Condições Ativas'));
-  if(!state._gerenciandoCondicoes){
-    if(ativas.length===0){
-      wrap.appendChild(el('div',{class:'empty'},'Nenhuma condição ativa agora.'));
+  return renderSecaoNotasColapsavel('condicoes-ativas', '☣️', 'Condições Ativas',
+    ativas.length>0 ? ativas.length+' ativa(s)' : 'Nenhuma agora', ()=>{
+    const corpo = [];
+    if(!state._gerenciandoCondicoes){
+      if(ativas.length===0){
+        corpo.push(el('div',{class:'empty'},'Nenhuma condição ativa agora.'));
+      } else {
+        const row = el('div',{class:'option-grid'});
+        ativas.forEach(nome=>{
+          const info = CONDICOES_LISTA.find(c=>c[0]===nome);
+          const temEfeito = !!CONDICOES_EFEITOS[nome];
+          row.appendChild(el('button',{class:'option-card selected', onclick:()=>alternarCondicao(f,nome)},
+            el('div',{class:'opt-nome'}, nome+' ✕'),
+            info ? el('div',{class:'opt-sub'}, info[1]) : null,
+            temEfeito ? el('div',{class:'opt-sub', style:'color:var(--gold);'}, '⚡ já aplicado nos cálculos') : null
+          ));
+        });
+        corpo.push(row);
+      }
+      corpo.push(el('button',{class:'btn ghost', style:'margin-top:10px;', onclick:()=>{ state._gerenciandoCondicoes=true; render(); }}, 'Gerenciar condições'));
+      if(f.condicoesNota){
+        corpo.push(el('div',{class:'meta', style:'margin-top:8px;color:var(--gold);'}, '📝 '+f.condicoesNota));
+      }
     } else {
+      corpo.push(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Condições com ⚡ já entram sozinhas no cálculo de Defesa/perícias/deslocamento. As outras são mais sobre o que dá ou não dá pra fazer no turno — combine com o Mestre na hora.'));
       const row = el('div',{class:'option-grid'});
-      ativas.forEach(nome=>{
-        const info = CONDICOES_LISTA.find(c=>c[0]===nome);
+      CONDICOES_LISTA.forEach(([nome,desc])=>{
+        const marcado = ativas.includes(nome);
         const temEfeito = !!CONDICOES_EFEITOS[nome];
-        row.appendChild(el('button',{class:'option-card selected', onclick:()=>alternarCondicao(f,nome)},
-          el('div',{class:'opt-nome'}, nome+' ✕'),
-          info ? el('div',{class:'opt-sub'}, info[1]) : null,
-          temEfeito ? el('div',{class:'opt-sub', style:'color:var(--gold);'}, '⚡ já aplicado nos cálculos') : null
+        row.appendChild(el('button',{class:'option-card '+(marcado?'selected':''), onclick:()=>alternarCondicao(f,nome)},
+          el('div',{class:'opt-nome'}, nome+(temEfeito?' ⚡':'')),
+          el('div',{class:'opt-sub'}, desc)
         ));
       });
-      wrap.appendChild(row);
+      corpo.push(row);
+      corpo.push(el('label',{style:'margin-top:10px;'},'Nota livre (ex: "Veneno 2d6/turno", "Sangramento leve")'));
+      corpo.push(el('input',{id:'condicoes-nota', type:'text', value:f.condicoesNota||'', oninput:(e)=>{f.condicoesNota=e.target.value;}, onchange:()=>{salvarPerfis();}}));
+      corpo.push(el('button',{class:'btn ghost', style:'margin-top:10px;', onclick:()=>{ state._gerenciandoCondicoes=false; render(); }}, 'Fechar'));
     }
-    wrap.appendChild(el('button',{class:'btn ghost', style:'margin-top:10px;', onclick:()=>{ state._gerenciandoCondicoes=true; render(); }}, 'Gerenciar condições'));
-    if(f.condicoesNota){
-      wrap.appendChild(el('div',{class:'meta', style:'margin-top:8px;color:var(--gold);'}, '📝 '+f.condicoesNota));
-    }
-  } else {
-    wrap.appendChild(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Condições com ⚡ já entram sozinhas no cálculo de Defesa/perícias/deslocamento. As outras são mais sobre o que dá ou não dá pra fazer no turno — combine com o Mestre na hora.'));
-    const row = el('div',{class:'option-grid'});
-    CONDICOES_LISTA.forEach(([nome,desc])=>{
-      const marcado = ativas.includes(nome);
-      const temEfeito = !!CONDICOES_EFEITOS[nome];
-      row.appendChild(el('button',{class:'option-card '+(marcado?'selected':''), onclick:()=>alternarCondicao(f,nome)},
-        el('div',{class:'opt-nome'}, nome+(temEfeito?' ⚡':'')),
-        el('div',{class:'opt-sub'}, desc)
-      ));
-    });
-    wrap.appendChild(row);
-    wrap.appendChild(el('label',{style:'margin-top:10px;'},'Nota livre (ex: "Veneno 2d6/turno", "Sangramento leve")'));
-    wrap.appendChild(el('input',{id:'condicoes-nota', type:'text', value:f.condicoesNota||'', oninput:(e)=>{f.condicoesNota=e.target.value;}, onchange:()=>{salvarPerfis();}}));
-    wrap.appendChild(el('button',{class:'btn ghost', style:'margin-top:10px;', onclick:()=>{ state._gerenciandoCondicoes=false; render(); }}, 'Fechar'));
-  }
-  return wrap;
+    return corpo;
+  }, ativas.length>0);
 }
 
 function renderPersonagemNotas(){
@@ -1519,53 +1580,54 @@ function renderPainelLocais(f){
 
 function renderItensEquipados(){
   const f = fichaAtual();
-  const wrap = el('div',{class:'panel faixa'}, el('h2',{},'Itens Equipados'));
   const temAlgo = (f.armas.length>0) || ((f.esotericos||[]).length>0);
-
-  if(!temAlgo){
-    wrap.appendChild(el('div',{class:'empty'},'Nada equipado ainda. Vá na aba Itens para buscar e equipar armas ou esotéricos.'));
-    return wrap;
-  }
-
-  f.armas.forEach((a,idx)=>{
-    const efetivo = danoEfetivoArma(f, a);
-    const testeAtaque = testeAtaqueArma(f, a);
-    const bonusDano = bonusDanoArma(f, a);
-    const semProf = !proficienteComArma(f, a);
-    const card = el('div',{class:'spell-card'},
-      el('div',{class:'head'},
-        el('span',{class:'name'}, a.nome+(a.maos>=2?' (2 mãos)':'')),
-        el('button',{class:'remove-x', onclick:()=>guardarArmaNaMochila(idx)},'📦')
-      ),
-      el('div',{class:'desc'},
-        'Ataque='+(testeAtaque>=0?'+':'')+testeAtaque+' · Dano='+efetivo.dano+(bonusDano?'+'+bonusDano:'')+' · Crítico='+a.critico+' · Alcance='+a.alcance
-      )
-    );
-    if(semProf) card.appendChild(el('div',{class:'meta', style:'color:var(--red-bright);'}, '⚠ Sem proficiência — já aplicado o –5 acima'));
-    if(efetivo.nota) card.appendChild(el('div',{class:'meta', style:'color:var(--gold);'}, efetivo.nota));
-    if(a.superior && a.melhoriasTxt) card.appendChild(el('div',{class:'meta', style:'color:var(--gold);'}, '⭐ '+a.melhoriasTxt));
-    wrap.appendChild(card);
-  });
-
-  (f.esotericos||[]).forEach((eso, idx)=>{
-    const card = el('div',{class:'spell-card'},
-      el('div',{class:'head'}, el('span',{class:'name'}, eso.nome+' 🔮'+(eso.maos>=2?' (2 mãos)':'')), el('button',{class:'remove-x', onclick:()=>guardarEsotericoNaMochila(idx)},'📦'))
-    );
-    const efeitoTxt = (buscarItemEmpunhavel(eso.refBase||eso.nome)||{}).desc;
-    if(efeitoTxt) card.appendChild(el('div',{class:'desc'}, efeitoTxt));
-    if(eso.superior && eso.melhoriasTxt) card.appendChild(el('div',{class:'meta', style:'color:var(--gold);'}, '⭐ '+eso.melhoriasTxt));
-    const precisaEscola = (eso.efeito||[]).some(ef=>ef.tipo==='cd_arcana_escola');
-    if(precisaEscola){
-      const sel = el('select',{onchange:(e)=>{ eso.escolaFoco=e.target.value; salvarPerfis(); render(); }});
-      sel.appendChild(el('option',{value:''}, 'Escolha a escola de foco...'));
-      Object.keys(ESCOLAS).forEach(esc=> sel.appendChild(el('option',{value:esc, selected: eso.escolaFoco===esc}, esc)));
-      card.appendChild(sel);
+  const totalItens = f.armas.length + (f.esotericos||[]).length;
+  return renderSecaoNotasColapsavel('itens-equipados', '⚔️', 'Itens Equipados',
+    temAlgo ? totalItens+' equipado(s)' : 'Nada equipado', ()=>{
+    if(!temAlgo){
+      return [el('div',{class:'empty'},'Nada equipado ainda. Vá na aba Itens para buscar e equipar armas ou esotéricos.')];
     }
-    wrap.appendChild(card);
-  });
+    const corpo = [];
+    f.armas.forEach((a,idx)=>{
+      const efetivo = danoEfetivoArma(f, a);
+      const testeAtaque = testeAtaqueArma(f, a);
+      const bonusDano = bonusDanoArma(f, a);
+      const semProf = !proficienteComArma(f, a);
+      const card = el('div',{class:'spell-card'},
+        el('div',{class:'head'},
+          el('span',{class:'name'}, a.nome+(a.maos>=2?' (2 mãos)':'')),
+          el('button',{class:'remove-x', onclick:()=>guardarArmaNaMochila(idx)},'📦')
+        ),
+        el('div',{class:'desc'},
+          'Ataque='+(testeAtaque>=0?'+':'')+testeAtaque+' · Dano='+efetivo.dano+(bonusDano?'+'+bonusDano:'')+' · Crítico='+a.critico+' · Alcance='+a.alcance
+        )
+      );
+      if(semProf) card.appendChild(el('div',{class:'meta', style:'color:var(--red-bright);'}, '⚠ Sem proficiência — já aplicado o –5 acima'));
+      if(efetivo.nota) card.appendChild(el('div',{class:'meta', style:'color:var(--gold);'}, efetivo.nota));
+      if(a.superior && a.melhoriasTxt) card.appendChild(el('div',{class:'meta', style:'color:var(--gold);'}, '⭐ '+a.melhoriasTxt));
+      corpo.push(card);
+    });
 
-  wrap.appendChild(el('div',{class:'meta', style:'font-size:0.68rem;color:var(--ink-soft);margin-top:6px;'}, '📦 guarda na mochila (dá pra reequipar depois). 🔮 marca itens esotéricos.'));
-  return wrap;
+    (f.esotericos||[]).forEach((eso, idx)=>{
+      const card = el('div',{class:'spell-card'},
+        el('div',{class:'head'}, el('span',{class:'name'}, eso.nome+' 🔮'+(eso.maos>=2?' (2 mãos)':'')), el('button',{class:'remove-x', onclick:()=>guardarEsotericoNaMochila(idx)},'📦'))
+      );
+      const efeitoTxt = (buscarItemEmpunhavel(eso.refBase||eso.nome)||{}).desc;
+      if(efeitoTxt) card.appendChild(el('div',{class:'desc'}, efeitoTxt));
+      if(eso.superior && eso.melhoriasTxt) card.appendChild(el('div',{class:'meta', style:'color:var(--gold);'}, '⭐ '+eso.melhoriasTxt));
+      const precisaEscola = (eso.efeito||[]).some(ef=>ef.tipo==='cd_arcana_escola');
+      if(precisaEscola){
+        const sel = el('select',{onchange:(e)=>{ eso.escolaFoco=e.target.value; salvarPerfis(); render(); }});
+        sel.appendChild(el('option',{value:''}, 'Escolha a escola de foco...'));
+        Object.keys(ESCOLAS).forEach(esc=> sel.appendChild(el('option',{value:esc, selected: eso.escolaFoco===esc}, esc)));
+        card.appendChild(sel);
+      }
+      corpo.push(card);
+    });
+
+    corpo.push(el('div',{class:'meta', style:'font-size:0.68rem;color:var(--ink-soft);margin-top:6px;'}, '📦 guarda na mochila (dá pra reequipar depois). 🔮 marca itens esotéricos.'));
+    return corpo;
+  }, temAlgo);
 }
 
 // "Usar" um item consumível da mochila — desconta 1 da quantidade, e se chegar a 0, remove o
@@ -1913,8 +1975,13 @@ function renderItensCompleto(){
 // mostra só o título + um resumo rápido de 1 linha; aberta, desenha o conteúdo completo. O
 // corpo só é montado (corpoFn chamada) quando está de fato aberto, pra não gastar tempo à toa
 // calculando algo que nem vai aparecer.
-function renderSecaoNotasColapsavel(chave, icone, titulo, resumo, corpoFn){
+function renderSecaoNotasColapsavel(chave, icone, titulo, resumo, corpoFn, abertoPadrao){
   if(!state._secoesNotasAbertas) state._secoesNotasAbertas = {};
+  // Na primeira vez que essa seção aparece (ninguém ainda tocou nela), usa abertoPadrao pra
+  // decidir se começa aberta ou fechada — por exemplo, "Condições Ativas" já nasce aberta se
+  // tiver alguma condição de verdade, mas fechada (só o resumo) se estiver vazia. Depois que o
+  // jogador mexe uma vez, a preferência dele manda.
+  if(state._secoesNotasAbertas[chave]===undefined) state._secoesNotasAbertas[chave] = !!abertoPadrao;
   const aberto = !!state._secoesNotasAbertas[chave];
   const panel = el('div',{class:'panel', style:'padding-bottom:'+(aberto?'var(--sp-4)':'6px')+';'});
   panel.appendChild(el('div',{
@@ -2004,26 +2071,25 @@ function renderPainelVestidos(f){
   const usados = todos.length;
   const limite = limiteItensVestidos(f);
   const excedentes = itensVestidosExcedentes(f);
-  const cor = usados>limite ? 'var(--gold)' : 'var(--ink-soft)';
-  const panel = el('div',{class:'panel'},
-    el('h2',{},'Itens Vestidos ('+Math.min(usados,limite)+'/'+limite+')'),
-    el('div',{class:'tip', style:'font-size:0.8rem;'}, 'Só é possível manter o benefício de até '+limite+' itens vestidos ao mesmo tempo (roupas, capas, joias mágicas etc. — armas e escudos empunhados não contam). Armadura conta como 1 desses '+limite+(limite>4?' (inclui +1 do poder Costas Largas)':'')+'.'),
-  );
-  if(todos.length===0){
-    panel.appendChild(el('div',{class:'empty'},'Nenhum item vestido no momento.'));
-  } else {
-    todos.forEach((fonte, i)=>{
-      const ativo = i<4;
-      panel.appendChild(el('div',{class:'power-item', style: ativo?'':'opacity:0.5;border-left-color:var(--red);'},
-        el('b',{}, fonte.nome + (fonte.tipo==='armadura'?' (armadura)':'')),
-        ativo ? (fonte.catalogo && fonte.catalogo.bonusPericia ? 'Ativo — +'+fonte.catalogo.bonusPericia.valor+' em '+fonte.catalogo.bonusPericia.nome : (fonte.catalogo?fonte.catalogo.desc:'Ativo')) : 'Excedente — sem efeito até você remover outro item vestido'
-      ));
-    });
-  }
-  if(excedentes.length>0){
-    panel.appendChild(el('div',{class:'tip', style:'font-size:0.75rem;color:var(--gold);'}, '⚠ Você tem '+excedentes.length+' item(ns) vestido(s) além do limite — eles não fazem efeito até você desmarcar outro (aba Ficha → Mochila).'));
-  }
-  return panel;
+  return renderSecaoNotasColapsavel('itens-vestidos', '💍', 'Itens Vestidos',
+    Math.min(usados,limite)+'/'+limite, ()=>{
+    const corpo = [el('div',{class:'tip', style:'font-size:0.8rem;'}, 'Só é possível manter o benefício de até '+limite+' itens vestidos ao mesmo tempo (roupas, capas, joias mágicas etc. — armas e escudos empunhados não contam). Armadura conta como 1 desses '+limite+(limite>4?' (inclui +1 do poder Costas Largas)':'')+'.')];
+    if(todos.length===0){
+      corpo.push(el('div',{class:'empty'},'Nenhum item vestido no momento.'));
+    } else {
+      todos.forEach((fonte, i)=>{
+        const ativo = i<4;
+        corpo.push(el('div',{class:'power-item', style: ativo?'':'opacity:0.5;border-left-color:var(--red);'},
+          el('b',{}, fonte.nome + (fonte.tipo==='armadura'?' (armadura)':'')),
+          ativo ? (fonte.catalogo && fonte.catalogo.bonusPericia ? 'Ativo — +'+fonte.catalogo.bonusPericia.valor+' em '+fonte.catalogo.bonusPericia.nome : (fonte.catalogo?fonte.catalogo.desc:'Ativo')) : 'Excedente — sem efeito até você remover outro item vestido'
+        ));
+      });
+    }
+    if(excedentes.length>0){
+      corpo.push(el('div',{class:'tip', style:'font-size:0.75rem;color:var(--gold);'}, '⚠ Você tem '+excedentes.length+' item(ns) vestido(s) além do limite — eles não fazem efeito até você desmarcar outro (aba Ficha → Mochila).'));
+    }
+    return corpo;
+  }, usados>0);
 }
 
 // ---- PERÍCIAS ----

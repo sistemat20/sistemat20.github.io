@@ -1419,6 +1419,20 @@ function renderVisualizacaoGrade(){
   for(let x=0;x<grade.largura;x++){
     tabuleiro.appendChild(el('div',{style:'width:'+tam+'px;height:'+Math.round(tam*0.6)+'px;display:flex;align-items:center;justify-content:center;font-size:'+Math.round(tam*0.32)+'px;color:var(--ink-soft);'}, letras[x]||''));
   }
+  // Compara com o snapshot da névoa da última vez que essa função rodou, pra saber quais células
+  // são NOVAS agora (acabaram de ser reveladas) — essas ganham uma classe de "luz se espalhando"
+  // por um instante, em vez de simplesmente aparecerem sem transição nenhuma (o resto do app
+  // reconstrói o DOM inteiro a cada render, então uma transição CSS comum não teria "antes" pra
+  // animar a partir — precisa ser uma animação de entrada mesmo, tipo o movimento suave de token).
+  const fogAntesViewer = state._verGradeFogAnterior;
+  const celulasReveladasAgora = new Set();
+  // Só marca "recém-revelada" se JÁ tínhamos um snapshot de antes (ou seja, não é a primeira
+  // renderização desde que a página carregou) — senão, tudo que já estava revelado piscaria de
+  // uma vez só na abertura do link, o que pareceria um bug, não um efeito bonito.
+  if(fogAntesViewer){
+    Object.keys(grade.fogRevelado||{}).forEach(chave=>{ if(!fogAntesViewer[chave]) celulasReveladasAgora.add(chave); });
+  }
+  state._verGradeFogAnterior = Object.assign({}, grade.fogRevelado||{});
   for(let y=0;y<grade.altura;y++){
     tabuleiro.appendChild(el('div',{style:'width:'+Math.round(tam*0.7)+'px;height:'+tam+'px;display:flex;align-items:center;justify-content:center;font-size:'+Math.round(tam*0.32)+'px;color:var(--ink-soft);'}, String(y+1)));
     for(let x=0;x<grade.largura;x++){
@@ -1435,6 +1449,7 @@ function renderVisualizacaoGrade(){
         ';border-bottom:'+(bordas.bottom?'1px solid '+COR_GRADE_LINHA:'none')+
         ';border-left:'+(bordas.left?'1px solid '+COR_GRADE_LINHA:'none')+';';
       const celula = el('div',{
+        class: celulasReveladasAgora.has(chave) ? 'fog-revela' : '',
         style:'width:'+tam+'px;height:'+tam+'px;background:'+bgCelula+';display:flex;align-items:center;justify-content:center;position:relative;cursor:pointer;'+estiloBordas,
         onclick: manterTelaCheiaApos(()=>{
           if(escondido) return;
@@ -1555,6 +1570,28 @@ function capturarParaAnimacaoMovimento(combatenteId){
   const elAntes = document.querySelector('[data-token-id="'+combatenteId+'"]');
   if(!elAntes || typeof elAntes.getBoundingClientRect!=='function') return;
   const rectAntes = elAntes.getBoundingClientRect();
+  // Rastro que desvanece na posição de origem — um "eco" do token, além do próprio token
+  // deslizando suavemente pra posição nova (a animação FLIP logo abaixo). Clona o elemento tal
+  // como ele estava (mesma cor/foto/tamanho), tira qualquer id duplicado, prende como
+  // position:fixed exatamente onde ele estava, e deixa desvanecer sozinho. Funciona igual pro
+  // Mestre e pro jogador, porque essa função já é chamada nos dois lugares.
+  if(rectAntes.width>0){
+    const rastro = elAntes.cloneNode(true);
+    rastro.removeAttribute('id');
+    rastro.removeAttribute('data-token-id'); // senão uma busca pelo token real pode achar o rastro por engano
+    rastro.querySelectorAll('[id]').forEach(elemento=>elemento.removeAttribute('id'));
+    rastro.style.position = 'fixed';
+    rastro.style.left = rectAntes.left+'px';
+    rastro.style.top = rectAntes.top+'px';
+    rastro.style.width = rectAntes.width+'px';
+    rastro.style.height = rectAntes.height+'px';
+    rastro.style.margin = '0';
+    rastro.style.zIndex = '9999';
+    rastro.style.pointerEvents = 'none';
+    rastro.className = (rastro.className||'')+' token-rastro';
+    document.body.appendChild(rastro);
+    setTimeout(()=>{ rastro.remove(); }, 650);
+  }
   requestAnimationFrame(()=>{
     const elDepois = document.querySelector('[data-token-id="'+combatenteId+'"]');
     if(!elDepois) return;
@@ -2138,6 +2175,16 @@ function renderMestreGrade(){
   }
   window.addEventListener('mouseup',()=>{ state._gradeArrastandoPintura = false; });
 
+  // Mesma lógica do lado do jogador (comparar com o snapshot da última vez), mas com uma chave
+  // de estado SEPARADA — o Mestre e o jogador rodam essa comparação de forma independente, cada
+  // um na sua própria tela, então não podem compartilhar a mesma variável.
+  const fogAntesMestre = state._gradeFogAnteriorMestre;
+  const celulasReveladasAgoraMestre = new Set();
+  if(fogAntesMestre){
+    Object.keys(grade.fogRevelado||{}).forEach(chave=>{ if(!fogAntesMestre[chave]) celulasReveladasAgoraMestre.add(chave); });
+  }
+  state._gradeFogAnteriorMestre = Object.assign({}, grade.fogRevelado||{});
+
   for(let y=0;y<grade.altura;y++){
     tabuleiro.appendChild(el('div',{style:'width:'+Math.round(tam*0.7)+'px;height:'+tam+'px;display:flex;align-items:center;justify-content:center;font-size:'+Math.round(tam*0.32)+'px;color:var(--ink-soft);'}, String(y+1)));
     for(let x=0;x<grade.largura;x++){
@@ -2194,6 +2241,8 @@ function renderMestreGrade(){
       }
       if(grade.fogAtivo && !grade.fogRevelado[chave]){
         celula.appendChild(el('div',{style:'position:absolute;inset:0;background:rgba(0,0,0,0.5);pointer-events:none;'}));
+      } else if(celulasReveladasAgoraMestre.has(chave)){
+        celula.appendChild(el('div',{class:'fog-revela-overlay', style:'position:absolute;inset:0;pointer-events:none;'}));
       }
       if(c){
         const tamToken = tamanhoTokenCombatente(c);

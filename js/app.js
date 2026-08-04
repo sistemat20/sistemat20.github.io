@@ -546,9 +546,15 @@ function faixaPerigoStat(pct){
 function criarStatTracker(classeExtra, label, atual, max, onAjustar){
   const pct = max>0 ? Math.max(0, Math.min(100, (atual/max)*100)) : 0;
   const faixa = faixaPerigoStat(pct);
-  return el('div',{class:'stat-tracker '+classeExtra, onclick:(e)=>{
+  const chavePulso = classeExtra+'-'+label;
+  const pulsando = state._statPulso===chavePulso;
+  return el('div',{class:'stat-tracker '+classeExtra+(pulsando?' pulso-stat':''), onclick:(e)=>{
     const rect = e.currentTarget.getBoundingClientRect();
     const meio = rect.left + rect.width/2;
+    // Pulso rápido de feedback confirmando que o toque registrou — sem isso, um toque na borda
+    // que não muda visualmente o número (ex: já no máximo) parece "não fez nada".
+    state._statPulso = chavePulso;
+    setTimeout(()=>{ if(state._statPulso===chavePulso){ state._statPulso=null; render(); } }, 380);
     onAjustar(e.clientX < meio ? -1 : 1);
   }},
     el('div',{class:'stat-nums'}, el('span',{class:'stat-max'}, max), el('span',{class:'stat-slash'},'/'), el('span',{class:'stat-atual'}, atual)),
@@ -560,9 +566,13 @@ function criarStatTracker(classeExtra, label, atual, max, onAjustar){
 
 // Igual, mas sem máximo (pra PV/PM temporário): só mostra o valor atual, mínimo 0, sem teto.
 function criarStatTrackerSemMax(classeExtra, label, atual, onAjustar){
-  return el('div',{class:'stat-tracker '+classeExtra, onclick:(e)=>{
+  const chavePulso = classeExtra+'-'+label;
+  const pulsando = state._statPulso===chavePulso;
+  return el('div',{class:'stat-tracker '+classeExtra+(pulsando?' pulso-stat':''), onclick:(e)=>{
     const rect = e.currentTarget.getBoundingClientRect();
     const meio = rect.left + rect.width/2;
+    state._statPulso = chavePulso;
+    setTimeout(()=>{ if(state._statPulso===chavePulso){ state._statPulso=null; render(); } }, 380);
     onAjustar(e.clientX < meio ? -1 : 1);
   }},
     el('div',{class:'stat-nums'}, el('span',{class:'stat-atual'}, atual)),
@@ -665,7 +675,8 @@ function pvMaxEfetivo(f){
   const bonusVitalidade = nomes.includes('Vitalidade') ? nivelTotal(f) : 0;
   // Duro como Pedra (Anão): +3 PV no 1º nível, +1 a cada nível seguinte = nível + 2
   const bonusDuroComoPedra = (f.raca==='Anão') ? nivelTotal(f)+2 : 0;
-  return base + bonusVitalidade + bonusDuroComoPedra;
+  const bonusItens = bonusRecursoDeItensVestidos(f, 'pv');
+  return base + bonusVitalidade + bonusDuroComoPedra + bonusItens;
 }
 function pmMaxEfetivo(f){
   const base = parseInt(f.pmmax)||0;
@@ -673,7 +684,18 @@ function pmMaxEfetivo(f){
   const bonusVontadeFerro = nomes.includes('Vontade de Ferro') ? Math.floor(nivelTotal(f)/2) : 0;
   // Sangue Mágico (Elfo): +1 PM por nível
   const bonusSangueMagico = (f.raca==='Elfo') ? nivelTotal(f) : 0;
-  return base + bonusVontadeFerro + bonusSangueMagico;
+  // Arcanista soma o atributo-chave (definido pelo Caminho escolhido) no total de PM — regra do
+  // livro, pág. 65 ("Habilidades de Classe", Arcanista): "você soma seu atributo-chave no seu
+  // total de PM". É UMA soma só (não por nível, diferente de como Constituição entra no PV) —
+  // recalculada na hora a partir do atributo atual, então se o atributo mudar depois (ou tiver
+  // penalidade de Poder da Tormenta, no caso de Feiticeiro com Carisma) o total de PM já reflete
+  // isso sozinho. Faltava inteiramente no sistema — Bruxo/Mago usam Inteligência, Feiticeiro usa
+  // Carisma.
+  let bonusAtributoArcano = 0;
+  if(f.arcanistaCaminho==='Bruxo' || f.arcanistaCaminho==='Mago') bonusAtributoArcano = atributoEfetivo(f,'int');
+  else if(f.arcanistaCaminho==='Feiticeiro') bonusAtributoArcano = atributoEfetivo(f,'car');
+  const bonusItens = bonusRecursoDeItensVestidos(f, 'pm');
+  return base + bonusVontadeFerro + bonusSangueMagico + bonusAtributoArcano + bonusItens;
 }
 
 // ---- Pendências ----
@@ -1171,6 +1193,24 @@ function bonusPericiaDeItensVestidos(f, periciaNome){
   itensVestidosAtivos(f).forEach(fonte=>{
     if(fonte.catalogo && fonte.catalogo.bonusPericia && fonte.catalogo.bonusPericia.nome===periciaNome){
       total += fonte.catalogo.bonusPericia.valor;
+    }
+  });
+  return total;
+}
+// Mesma ideia do bônus de perícia acima, mas pra PM/PV — usado pelo Chapéu arcano (e qualquer
+// item parecido no futuro). "condicao" é opcional; hoje só existe 'arcanista' (checa se o
+// personagem tem qualquer Caminho do Arcanista escolhido), mas fica fácil de estender.
+function condicaoBonusRecursoCumprida(f, condicao){
+  if(!condicao) return true;
+  if(condicao==='arcanista') return !!f.arcanistaCaminho;
+  return true; // condição desconhecida — melhor aplicar o bônus do que travar ele por engano
+}
+function bonusRecursoDeItensVestidos(f, recurso){
+  let total = 0;
+  itensVestidosAtivos(f).forEach(fonte=>{
+    const br = fonte.catalogo && fonte.catalogo.bonusRecurso;
+    if(br && br.recurso===recurso && condicaoBonusRecursoCumprida(f, br.condicao)){
+      total += br.valor;
     }
   });
   return total;
@@ -1722,6 +1762,9 @@ function renderPerfisScreen(){
       el('div',{class:'perfil-sub'}, (p.raca||'—')+' · '+classeDisplay(p))
     );
     cardWrap.appendChild(card);
+    if(!state.gerenciandoPerfis && detectarPendencias(p).length>0){
+      cardWrap.appendChild(el('div',{class:'selo-cera', title: detectarPendencias(p).length+' pendência(s)'}, '!'));
+    }
     cardWrap.appendChild(el('button',{class:'perfil-delete-x', onclick:(e)=>{
       e.stopPropagation();
       if(confirm('Excluir "'+(p.nome||'este personagem')+'"? Isso não pode ser desfeito.')){

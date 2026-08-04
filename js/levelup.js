@@ -338,4 +338,10 @@ async function aplicarLevelUp(f){
   await salvarPerfis();
   state.levelUp = {aberto:false};
   flashMsg('Nível '+novoNivel+' de '+lv.classeEscolhida+' aplicado! +'+ganhoPV+' PV e +'+ganhoPM+' PM (já somados automaticamente).');
+  // Selo dourado piscando no número de nível por alguns segundos — um "momento" pra marcar que
+  // algo importante acabou de acontecer, em vez do número só trocar silenciosamente.
+  state._levelUpCelebrando = true;
+  tocarSomLevelUp();
+  render();
+  setTimeout(()=>{ state._levelUpCelebrando = false; render(); }, 2400);
 }
