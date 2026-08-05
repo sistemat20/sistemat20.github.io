@@ -103,9 +103,10 @@ function doGet(e) {
       .setMimeType(ContentService.MimeType.JSON);
   }
 
-  // Lista leve (só id/nome/jogador) de TODOS os personagens — usada pelo próprio jogador pra
-  // escolher um colega de mesa como destino ao mandar um item, sem expor a ficha completa de
-  // ninguém (só o suficiente pra montar um seletor de nomes).
+  // Lista leve de TODOS os personagens — usada tanto pra escolher destino ao mandar item/
+  // dinheiro quanto pro "perfil social" em Relacionamentos (foto/raça/classe são informação
+  // pública, do tipo que qualquer um na mesa já veria de qualquer jeito — PV, itens, dinheiro e
+  // notas continuam de fora, aqui nunca).
   if (String(e.parameter.listaJogadores || '').trim() === 'true') {
     const lista = [];
     for (let i = 1; i < dados.length; i++) {
@@ -113,7 +114,7 @@ function doGet(e) {
       if (linha[3]) {
         try {
           const p = JSON.parse(linha[3]);
-          lista.push({ id: p.id, nome: p.nome, jogador: p.jogador || '' });
+          lista.push({ id: p.id, nome: p.nome, jogador: p.jogador || '', foto: p.foto || '', raca: p.raca || '', classesNiveis: p.classesNiveis || [] });
         } catch (err) { /* linha corrompida, ignora */ }
       }
     }
@@ -183,6 +184,14 @@ function doPost(e) {
 
   if (body.action === 'jogadorEnviarItem') {
     return tratarJogadorEnviarItem_(body);
+  }
+
+  if (body.action === 'jogadorEnviarDinheiro') {
+    return tratarJogadorEnviarDinheiro_(body);
+  }
+
+  if (body.action === 'mestreTrocarCodigo') {
+    return tratarMestreTrocarCodigo_(body);
   }
 
   if (body.action === 'salvarMestreDados') {
@@ -318,6 +327,93 @@ function tratarJogadorEnviarItem_(body) {
           const personagem = JSON.parse(dados[i][3]);
           if (!personagem.equip) personagem.equip = [];
           personagem.equip.push(item);
+          sheet.getRange(i + 1, 4).setValue(JSON.stringify(personagem));
+          sheet.getRange(i + 1, 5).setValue(new Date());
+          return ContentService.createTextOutput(JSON.stringify({ ok: true, nomeDestino: personagem.nome }))
+            .setMimeType(ContentService.MimeType.JSON);
+        }
+      }
+      return ContentService.createTextOutput(JSON.stringify({ ok: false, erro: 'personagem de destino não encontrado' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    } finally {
+      lock.releaseLock();
+    }
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ ok: false, erro: String(err) }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+// Renomeia a linha do Mestre na planilha (troca só a coluna do código) — diferente de salvar
+// dados sob um código novo, isso NÃO cria uma linha extra nem deixa a antiga órfã. Se por acaso
+// já existir uma linha com o código novo (raríssimo, mas possível), não sobrescreve por engano —
+// devolve erro e deixa o app avisar a pessoa.
+function tratarMestreTrocarCodigo_(body) {
+  try {
+    const codigoAtual = String(body.codigoAtual || '').trim();
+    const codigoNovo = String(body.codigoNovo || '').trim();
+    if (!codigoAtual || !codigoNovo) {
+      return ContentService.createTextOutput(JSON.stringify({ ok: false, erro: 'código ausente' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    const lock = LockService.getScriptLock();
+    try {
+      lock.waitLock(10000);
+    } catch (e) {
+      return ContentService.createTextOutput(JSON.stringify({ ok: false, erro: 'Ocupado salvando outra alteração, tenta de novo em instantes.' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    try {
+      const sheet = getOuCriarAbaMestre_();
+      const dados = sheet.getDataRange().getValues();
+      let linhaAtual = -1;
+      for (let i = 1; i < dados.length; i++) {
+        if (String(dados[i][0]).toLowerCase() === codigoNovo.toLowerCase()) {
+          return ContentService.createTextOutput(JSON.stringify({ ok: false, erro: 'já existe uma linha com esse código' }))
+            .setMimeType(ContentService.MimeType.JSON);
+        }
+        if (String(dados[i][0]) === codigoAtual) linhaAtual = i;
+      }
+      if (linhaAtual === -1) {
+        // não achou a linha atual (mestre ainda sem nenhum dado salvo) — cria uma nova já com o código certo
+        sheet.appendRow([codigoNovo, JSON.stringify({}), new Date()]);
+      } else {
+        sheet.getRange(linhaAtual + 1, 1).setValue(codigoNovo);
+      }
+      return ContentService.createTextOutput(JSON.stringify({ ok: true }))
+        .setMimeType(ContentService.MimeType.JSON);
+    } finally {
+      lock.releaseLock();
+    }
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ ok: false, erro: String(err) }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function tratarJogadorEnviarDinheiro_(body) {
+  try {
+    const personagemDestinoId = String(body.personagemDestinoId || '').trim();
+    const campo = String(body.campo || '').trim(); // 'ts', 'tc' ou 'to'
+    const valor = parseInt(body.valor, 10);
+    if (!personagemDestinoId || !['ts', 'tc', 'to'].includes(campo) || !valor || valor <= 0) {
+      return ContentService.createTextOutput(JSON.stringify({ ok: false, erro: 'dados incompletos' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    const lock = LockService.getScriptLock();
+    try {
+      lock.waitLock(10000);
+    } catch (e) {
+      return ContentService.createTextOutput(JSON.stringify({ ok: false, erro: 'Ocupado salvando outra alteração, tenta de novo em instantes.' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    try {
+      const sheet = getOuCriarAba_();
+      const dados = sheet.getDataRange().getValues();
+      for (let i = 1; i < dados.length; i++) {
+        if (String(dados[i][0]) === personagemDestinoId) {
+          const personagem = JSON.parse(dados[i][3]);
+          personagem[campo] = (parseInt(personagem[campo], 10) || 0) + valor;
           sheet.getRange(i + 1, 4).setValue(JSON.stringify(personagem));
           sheet.getRange(i + 1, 5).setValue(new Date());
           return ContentService.createTextOutput(JSON.stringify({ ok: true, nomeDestino: personagem.nome }))

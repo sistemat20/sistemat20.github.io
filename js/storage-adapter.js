@@ -36,8 +36,15 @@ function definirCodigoJogador(codigo){
 function limparCodigoJogador(){
   try{ localStorage.removeItem(CHAVE_CODIGO_JOGADOR); }catch(e){}
 }
+// Palavra especial que vira código de Mestre — separado numa constante pra ficar fácil de trocar
+// no futuro (é usada aqui e também em qualquer lugar que precise "achar os dados do Mestre da
+// mesa", tipo os mapas em Notas → Locais do lado do jogador). Também dá pra trocar a qualquer
+// momento pela tela do Mestre (botão de chave, embaixo do de Modo Mesa).
+const CODIGO_MESTRE_ESPECIAL = 'Rola';
 function ehCodigoMestre(codigo){
-  return String(codigo||'').trim().toLowerCase() === 'mestre';
+  // minúsculo dos dois lados, não só do código digitado — assim funciona não importa como a
+  // constante acima estiver escrita (maiúscula, minúscula, misturada).
+  return String(codigo||'').trim().toLowerCase() === CODIGO_MESTRE_ESPECIAL.toLowerCase();
 }
 // Sugestão de código pra quem não quer pensar em um: palavra temática + 4 dígitos.
 function sugerirCodigoJogador(){
@@ -173,10 +180,48 @@ async function carregarTodosPersonagensMestre(){
   return [];
 }
 
+// Junta num personagem (que tá prestes a ser salvo) qualquer item/dinheiro que o servidor já
+// tenha e o personagem local ainda não — sem isso, salvar por cima de uma versão desatualizada
+// apagava qualquer coisa que tivesse chegado nesse meio-tempo (mesmo tipo de corrida já
+// corrigida em mesclarPresentesDoServidor, só que essa aqui é genérica: usada tanto quando o
+// PRÓPRIO jogador salva quanto quando o MESTRE atualiza a ficha de alguém).
+function mesclarSemPerderDados(personagemLocal, personagemServidor){
+  if(!personagemServidor) return personagemLocal;
+  const equipLocal = personagemLocal.equip || [];
+  const equipServidor = personagemServidor.equip || [];
+  if(equipServidor.length > equipLocal.length){
+    // Marca de presente ("recebido do Mestre"/"recebido de X") em vez de comparar por posição —
+    // por posição dava errado se o item removido localmente não fosse o último da lista (ex:
+    // jogador tirou um item do meio pra enviar pra outra pessoa; a lista local encolhe, mas não
+    // "por trás", então comparar por índice comparava a coisa errada).
+    const nomesLocais = equipLocal.map(e=>e.item);
+    const presentesNovos = equipServidor.filter(e=> /\(recebido (do Mestre|de .+)\)/.test(e.item) && !nomesLocais.includes(e.item));
+    if(presentesNovos.length>0){
+      if(!personagemLocal.equip) personagemLocal.equip = [];
+      personagemLocal.equip.push(...presentesNovos);
+    }
+  }
+  ['ts','tc','to'].forEach(campo=>{
+    const local = parseInt(personagemLocal[campo])||0;
+    const servidor = parseInt(personagemServidor[campo])||0;
+    if(servidor > local) personagemLocal[campo] = servidor;
+  });
+  return personagemLocal;
+}
+
 // Atualiza (ou cria) UM personagem específico, direto do Mestre, sem precisar do código do dono.
 async function mestreAtualizarPersonagem(personagem){
   const copia = Object.assign({}, personagem);
   delete copia._playerId; // campo interno só de leitura, não faz parte da ficha em si
+  // Antes de sobrescrever, busca rápido o que o servidor tem AGORA pra esse personagem — sem
+  // isso, essa função (usada tanto pelo jogador enviando um item quanto pelo Mestre editando
+  // PV/tesouro) podia apagar algo que chegou concorrentemente (o mesmo tipo de corrida já
+  // corrigida no salvamento normal da ficha, só que faltava proteger esse caminho também).
+  try{
+    const todos = await carregarTodosPersonagensMestre();
+    const versaoServidor = todos.find(p=>p.id===copia.id);
+    mesclarSemPerderDados(copia, versaoServidor);
+  }catch(e){ /* se não conseguir buscar, segue com o que tinha — melhor tentar salvar do que travar */ }
   if(usandoStorageDoClaude()){
     const lista = await carregarPerfisArmazenamento();
     const idx = lista.findIndex(p=>p.id===copia.id);
@@ -252,6 +297,35 @@ async function enviarItemParaOutroPersonagem(personagemDestinoId, item){
   return {ok:false};
 }
 
+// Mesma ideia do envio de item, mas pra dinheiro — soma direto no campo de moeda do destino no
+// servidor (ação atômica, sob trava), em vez de mandar a ficha inteira por cima (que arriscaria
+// apagar qualquer coisa que a pessoa tivesse acabado de mudar, sem a gente saber).
+async function enviarDinheiroParaOutroPersonagem(personagemDestinoId, campo, valor){
+  if(usandoStorageDoClaude()){
+    const lista = await carregarPerfisArmazenamento();
+    const alvo = lista.find(p=>p.id===personagemDestinoId);
+    if(!alvo) return {ok:false};
+    alvo[campo] = (parseInt(alvo[campo])||0) + valor;
+    await salvarPerfisArmazenamento(lista);
+    return {ok:true, nomeDestino:alvo.nome};
+  }
+  if(SHEETS_API_URL){
+    try{
+      const resp = await fetch(SHEETS_API_URL, {
+        method: 'POST',
+        headers: {'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify({ action:'jogadorEnviarDinheiro', personagemDestinoId, campo, valor })
+      });
+      const data = await resp.json();
+      return data && data.ok ? {ok:true, nomeDestino:data.nomeDestino} : {ok:false};
+    }catch(e){
+      console.error('Falha ao enviar dinheiro pro outro personagem.', e);
+      return {ok:false};
+    }
+  }
+  return {ok:false};
+}
+
 // ---- Dados do Mestre (Grupos + Encontros Salvos) — ficam numa aba separada da planilha,
 // uma linha por código de Mestre, então sincronizam entre qualquer aparelho que entre com o
 // mesmo código (em vez de ficar preso só num navegador via localStorage).
@@ -282,6 +356,30 @@ async function carregarMestreDadosArmazenamento(){
 // aparelho. Sem isso, obterCodigoJogador() voltava null pro jogador, o salvamento falhava
 // silenciosamente, e a jogada dele "sumia" no próximo polling — parecia bug de peça voltando
 // sozinha, mas na real nunca tinha sido salvo de verdade.
+// Renomeia a linha do Mestre na planilha (não cria linha nova nem deixa órfã pra trás).
+async function trocarCodigoMestreArmazenamento(codigoAtual, codigoNovo){
+  if(usandoStorageDoClaude()){
+    // Storage do Claude é por chave já isolada por usuário, não tem "linha" pra renomear — só
+    // confirma que pode trocar (o localStorage muda depois, do lado de quem chamou).
+    return true;
+  }
+  if(SHEETS_API_URL){
+    try{
+      const resp = await fetch(SHEETS_API_URL, {
+        method: 'POST',
+        headers: {'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify({ action:'mestreTrocarCodigo', codigoAtual, codigoNovo })
+      });
+      const data = await resp.json();
+      return data && data.ok ? true : (data && data.erro) || false;
+    }catch(e){
+      console.error('Falha ao trocar código do Mestre.', e);
+      return false;
+    }
+  }
+  return false;
+}
+
 async function salvarMestreDadosArmazenamento(dados, codigoExplicito){
   if(usandoStorageDoClaude()){
     try{ await window.storage.set('mestre_dados', JSON.stringify(dados), false); }catch(e){}

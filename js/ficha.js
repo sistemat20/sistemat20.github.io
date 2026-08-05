@@ -216,13 +216,45 @@ function renderPopupPendencias(f){
       }
     }
 
-    if(p.tipo==='vanguardista'){
-      card.appendChild(el('button',{class:'btn', onclick:()=>{
-        f.vanguardistaOficio = 'Ofício';
+    if(p.tipo==='oficioSemEspecialidade'){
+      if(!state._pendOficioNome) state._pendOficioNome = '';
+      card.appendChild(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Qual ofício esse personagem pratica? (armeiro, alquimista, cozinheiro, ferreiro, entalhador, joalheiro... qualquer um que faça sentido)'));
+      card.appendChild(el('input',{id:'oficio-nome', type:'text', placeholder:'ex: alquimista', value:state._pendOficioNome, oninput:(e)=>{state._pendOficioNome=e.target.value;}}));
+      card.appendChild(el('button',{class:'btn', style:'margin-top:8px;', onclick:()=>{
+        const nome = (state._pendOficioNome||'').trim();
+        if(!nome){ flashMsg('Digita o nome do ofício primeiro.'); return; }
+        if((f.periciasTreinadas||[]).includes('Ofício')){
+          const idxOficio = f.periciasTreinadas.indexOf('Ofício');
+          f.periciasTreinadas[idxOficio] = 'Ofício ('+nome+')';
+        }
+        if(f.vanguardistaOficio==='Ofício') f.vanguardistaOficio = 'Ofício ('+nome+')';
         salvarPerfis();
-        flashMsg('✅ Bônus de Vanguardista aplicado em Ofício!');
+        flashMsg('✅ Especialidade de Ofício definida: '+nome+'!');
+        state._pendOficioNome = '';
         render();
-      }}, 'Aplicar em Ofício'));
+      }}, 'Salvar'));
+    }
+
+    if(p.tipo==='vanguardista'){
+      if(!state._pendVanguardistaOficio) state._pendVanguardistaOficio = '';
+      card.appendChild(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Kliren recebe +2 num Ofício à escolha — qual ofício esse personagem pratica? (armeiro, alquimista, cozinheiro, ferreiro, entalhador...)'));
+      card.appendChild(el('input',{id:'vanguardista-oficio', type:'text', placeholder:'ex: armeiro', value:state._pendVanguardistaOficio, oninput:(e)=>{state._pendVanguardistaOficio=e.target.value;}}));
+      card.appendChild(el('button',{class:'btn', style:'margin-top:8px;', onclick:()=>{
+        const nome = (state._pendVanguardistaOficio||'').trim();
+        if(!nome){ flashMsg('Digita o nome do ofício primeiro.'); return; }
+        f.vanguardistaOficio = 'Ofício ('+nome+')';
+        // se a ficha ainda não tem NENHUM Ofício treinado, essa escolha também vira a
+        // especialidade treinada — mata as duas pendências de uma vez, já que normalmente é o
+        // mesmo ofício (o personagem pratica UMA coisa, e o bônus racial reforça ela mesma).
+        if((f.periciasTreinadas||[]).includes('Ofício')){
+          const idxOficio = f.periciasTreinadas.indexOf('Ofício');
+          f.periciasTreinadas[idxOficio] = 'Ofício ('+nome+')';
+        }
+        salvarPerfis();
+        flashMsg('✅ Bônus de Vanguardista aplicado em Ofício ('+nome+')!');
+        state._pendVanguardistaOficio = '';
+        render();
+      }}, 'Salvar'));
     }
 
     if(p.tipo==='arcanistaCaminho'){
@@ -412,13 +444,34 @@ function renderFichaScreen(){
   if(state._enviarItemFluxo){
     wrap.appendChild(renderPopupEnviarItem(fichaAtual()));
   }
+  if(state._enviarDinheiroFluxo){
+    wrap.appendChild(renderPopupEnviarDinheiro(fichaAtual()));
+  }
+  if(state._moedaPopup){
+    wrap.appendChild(renderPopupMoeda(fichaAtual()));
+  }
+  if(state._escolherJogadorRelFluxo){
+    wrap.appendChild(renderPopupEscolherJogadorRel(fichaAtual()));
+  }
+  if(state._escolherMapaFluxo){
+    wrap.appendChild(renderPopupEscolherMapa(fichaAtual()));
+  }
+  if(state._perfilJogadorPopup){
+    wrap.appendChild(renderPopupPerfilJogador());
+  }
+  if(state._usarMagiaPopup){
+    wrap.appendChild(renderPopupUsarMagia(fichaAtual()));
+  }
+  if(state._efeitoItemPopup){
+    wrap.appendChild(renderPopupEfeitoItemCustom(fichaAtual()));
+  }
   if(state._pendenciasAberto){
     wrap.appendChild(renderPopupPendencias(fichaAtual()));
   }
   if(state._logAberto){
     wrap.appendChild(renderPopupLog(fichaAtual()));
   }
-  const semMenuAberto = !state._menuAberto && !state._divindadeFluxo && !state._cropperFoto && !(state.levelUp&&state.levelUp.aberto) && !state._enviarItemFluxo && !state._pendenciasAberto && !state._logAberto;
+  const semMenuAberto = !state._menuAberto && !state._divindadeFluxo && !state._cropperFoto && !(state.levelUp&&state.levelUp.aberto) && !state._enviarItemFluxo && !state._enviarDinheiroFluxo && !state._moedaPopup && !state._escolherJogadorRelFluxo && !state._escolherMapaFluxo && !state._perfilJogadorPopup && !state._usarMagiaPopup && !state._efeitoItemPopup && !state._pendenciasAberto && !state._logAberto;
   if(estaMorto(f) && semMenuAberto){
     wrap.appendChild(el('div',{class:'aviso-sobrecarga aviso-morte'}, '💀 '+(f.nome||'Personagem')+' morreu.'));
   } else if(estaInconsciente(f) && semMenuAberto){
@@ -1509,7 +1562,7 @@ function renderPainelRelacionamentos(f){
   if(!f.relacionamentos) f.relacionamentos = [];
   return renderSecaoNotasColapsavel('relacionamentos', '👥', 'Relacionamentos',
     f.relacionamentos.length>0 ? f.relacionamentos.length+' registrado(s)' : null, ()=>{
-    const corpo = [el('div',{class:'tip', style:'font-size:0.78rem;'}, 'PNJs importantes pro seu personagem — aliados, rivais, família, quem for. Toque num nome pra ver/editar a nota.')];
+    const corpo = [el('div',{class:'tip', style:'font-size:0.78rem;'}, 'PNJs importantes pro seu personagem — aliados, rivais, família, quem for. Toque num nome pra ver/editar a nota. Também dá pra vincular a outro personagem de verdade da mesa.')];
     if(f.relacionamentos.length===0){
       corpo.push(el('div',{class:'empty'},'Nenhum relacionamento anotado ainda.'));
     } else {
@@ -1518,14 +1571,19 @@ function renderPainelRelacionamentos(f){
         const card = el('div',{class:'option-card', style:'margin-top:8px;cursor:pointer;', onclick:(e)=>{ if(e.target.closest('button')) return; state._relacionamentoAberto = aberto?null:idx; render(); }},
           el('div',{class:'row', style:'align-items:center;'},
             el('div',{style:'flex:1;'},
-              el('div',{class:'opt-nome'}, ICONE_RELACIONAMENTO[rel.tipo]||'👤', ' ', rel.nome),
+              el('div',{class:'opt-nome'}, ICONE_RELACIONAMENTO[rel.tipo]||'👤', ' ', rel.nome, rel.personagemId?' 🔗':''),
               el('div',{class:'opt-sub'}, rel.tipo)
             ),
+            rel.personagemId ? el('button',{class:'btn ghost', style:'width:auto;padding:5px 10px;font-size:0.7rem;flex-shrink:0;', onclick:(e)=>{ e.stopPropagation(); abrirPerfilJogador(rel.personagemId); }}, '👁️ Perfil') : null,
             el('button',{class:'remove-x', onclick:()=>{ if(!confirm('Remover "'+rel.nome+'" dos relacionamentos?')) return; f.relacionamentos.splice(idx,1); salvarPerfis(); render(); }},'✕')
           )
         );
         if(aberto){
-          card.appendChild(el('input',{type:'text', value:rel.nome, placeholder:'nome do PNJ', style:'margin-top:8px;', oninput:(e)=>{rel.nome=e.target.value;}, onchange:()=>{salvarPerfis(); render();}, onclick:(e)=>e.stopPropagation()}));
+          if(!rel.personagemId){
+            card.appendChild(el('input',{type:'text', value:rel.nome, placeholder:'nome do PNJ', style:'margin-top:8px;', oninput:(e)=>{rel.nome=e.target.value;}, onchange:()=>{salvarPerfis(); render();}, onclick:(e)=>e.stopPropagation()}));
+          } else {
+            card.appendChild(el('div',{class:'meta', style:'margin-top:8px;color:var(--gold);'}, '🔗 Vinculado a um personagem de verdade da mesa — o nome acompanha automaticamente.'));
+          }
           const selTipo = el('select',{style:'margin-top:6px;', onchange:(e)=>{rel.tipo=e.target.value; salvarPerfis(); render();}, onclick:(e)=>e.stopPropagation()});
           TIPOS_RELACIONAMENTO.forEach(t=> selTipo.appendChild(el('option',{value:t, ...(rel.tipo===t?{selected:'selected'}:{})}, t)));
           card.appendChild(selTipo);
@@ -1536,13 +1594,16 @@ function renderPainelRelacionamentos(f){
     }
     if(!state._novoRelNome) state._novoRelNome = '';
     corpo.push(el('input',{id:'novo-rel-nome', type:'text', placeholder:'nome do PNJ...', style:'margin-top:10px;', value:state._novoRelNome, oninput:(e)=>{state._novoRelNome=e.target.value;}}));
-    corpo.push(el('button',{class:'btn ghost', onclick:()=>{
-      if(!state._novoRelNome.trim()) return;
-      f.relacionamentos.push({nome:state._novoRelNome.trim(), tipo:'Aliado', nota:''});
-      registrarLog(f, 'Novo relacionamento anotado: '+state._novoRelNome.trim());
-      state._novoRelNome = '';
-      salvarPerfis(); render();
-    }}, 'Adicionar relacionamento +'));
+    corpo.push(el('div',{class:'row', style:'margin-top:6px;gap:8px;'},
+      el('button',{class:'btn ghost', style:'flex:1;', onclick:()=>{
+        if(!state._novoRelNome.trim()) return;
+        f.relacionamentos.push({nome:state._novoRelNome.trim(), tipo:'Aliado', nota:'', personagemId:null});
+        registrarLog(f, 'Novo relacionamento anotado: '+state._novoRelNome.trim());
+        state._novoRelNome = '';
+        salvarPerfis(); render();
+      }}, 'Adicionar PNJ +'),
+      el('button',{class:'btn ghost', style:'flex:1;', onclick:abrirEscolherJogadorRelacionamento}, '👤 Vincular jogador')
+    ));
     return corpo;
   });
 }
@@ -1557,23 +1618,29 @@ function renderPainelLocais(f){
       corpo.push(el('div',{class:'empty'},'Nenhum local anotado ainda.'));
     } else {
       f.locais.forEach((loc,idx)=>{
-        corpo.push(el('div',{class:'row', style:'align-items:flex-start;margin-top:6px;'},
-          el('div',{style:'flex:1;'},
-            el('div',{style:'font-weight:700;'}, loc.nome),
-            el('input',{id:'local-nota-'+idx, type:'text', placeholder:'nota (opcional)', value:loc.nota||'', style:'margin-top:4px;', oninput:(e)=>{loc.nota=e.target.value;}, onchange:()=>salvarPerfis()})
-          ),
-          el('button',{class:'remove-x', onclick:()=>{ f.locais.splice(idx,1); salvarPerfis(); render(); }},'✕')
+        corpo.push(el('div',{style:'margin-top:6px;padding-bottom:6px;border-bottom:1px solid var(--line);'},
+          loc.mapaUrl ? el('img',{src:loc.mapaUrl, style:'width:100%;border-radius:8px;margin-bottom:6px;display:block;'}) : null,
+          el('div',{class:'row', style:'align-items:flex-start;'},
+            el('div',{style:'flex:1;'},
+              el('div',{style:'font-weight:700;'}, loc.nome),
+              el('input',{id:'local-nota-'+idx, type:'text', placeholder:'nota (opcional)', value:loc.nota||'', style:'margin-top:4px;', oninput:(e)=>{loc.nota=e.target.value;}, onchange:()=>salvarPerfis()})
+            ),
+            el('button',{class:'remove-x', onclick:()=>{ f.locais.splice(idx,1); salvarPerfis(); render(); }},'✕')
+          )
         ));
       });
     }
     if(!state._novoLocalNome) state._novoLocalNome = '';
-    corpo.push(el('input',{id:'novo-local', type:'text', placeholder:'nome do lugar...', style:'margin-top:8px;', value:state._novoLocalNome, oninput:(e)=>{state._novoLocalNome=e.target.value;}}));
-    corpo.push(el('button',{class:'btn ghost', onclick:()=>{
-      if(!state._novoLocalNome.trim()) return;
-      f.locais.push({nome:state._novoLocalNome.trim(), nota:''});
-      state._novoLocalNome = '';
-      salvarPerfis(); render();
-    }}, 'Adicionar local +'));
+    corpo.push(el('input',{id:'novo-local', type:'text', placeholder:'nome do lugar...', style:'margin-top:10px;', value:state._novoLocalNome, oninput:(e)=>{state._novoLocalNome=e.target.value;}}));
+    corpo.push(el('div',{class:'row', style:'margin-top:6px;gap:8px;'},
+      el('button',{class:'btn ghost', style:'flex:1;', onclick:()=>{
+        if(!state._novoLocalNome.trim()) return;
+        f.locais.push({nome:state._novoLocalNome.trim(), nota:''});
+        state._novoLocalNome = '';
+        salvarPerfis(); render();
+      }}, 'Adicionar local +'),
+      el('button',{class:'btn ghost', style:'flex:1;', onclick:abrirEscolherMapaMestre}, '🗺️ Mapa do Mestre')
+    ));
     return corpo;
   });
 }
@@ -1703,6 +1770,302 @@ function renderPopupEnviarItem(f){
   return overlay;
 }
 
+// Popup que abre ao tocar numa das 3 caixas de moeda — "Receber" no topo (soma uma quantidade
+// e já salva na hora, sem precisar editar um campo solto e torcer pra ter salvado) e "Enviar
+// dinheiro" embaixo (abre o fluxo de escolher destinatário, já com essa moeda pré-selecionada).
+function renderPopupMoeda(f){
+  const campo = state._moedaPopup.campo;
+  const rotulo = {tc:'TC (cobre)', ts:'T$ (padrão)', to:'TO (ouro)'}[campo];
+  if(!state._moedaPopup.receberValor) state._moedaPopup.receberValor = '';
+  const overlay = el('div',{class:'menu-overlay', onclick:(e)=>{ if(e.target===e.currentTarget){ state._moedaPopup=null; render(); } }});
+  const sheet = el('div',{class:'menu-sheet'});
+  sheet.appendChild(el('div',{class:'wizard-title', style:'padding:6px 14px 0;'}, rotulo));
+  sheet.appendChild(el('div',{class:'tip', style:'margin:6px 14px;'}, 'Você tem: '+(parseInt(f[campo])||0)+' '+rotulo));
+  const conteudo = el('div',{style:'padding:0 14px;'},
+    el('label',{},'Quantidade a receber'),
+    el('input',{type:'number', value:state._moedaPopup.receberValor, oninput:(e)=>{state._moedaPopup.receberValor=e.target.value;}}),
+    el('button',{class:'btn', style:'margin-top:8px;', onclick:()=>{
+      const valor = parseInt(state._moedaPopup.receberValor);
+      if(!valor || valor<=0){ flashMsg('Digita uma quantidade válida primeiro.'); return; }
+      f[campo] = (parseInt(f[campo])||0) + valor;
+      registrarLog(f, 'Recebeu '+valor+' '+rotulo);
+      salvarPerfis();
+      flashMsg('✅ +'+valor+' '+rotulo+'!');
+      state._moedaPopup = null;
+      render();
+    }}, '✓ Receber')
+  );
+  sheet.appendChild(conteudo);
+  sheet.appendChild(el('div',{class:'secao-divisor', style:'margin:14px;'}));
+  sheet.appendChild(el('div',{style:'padding:0 14px;'},
+    el('button',{class:'btn ghost', onclick:()=>{ state._moedaPopup=null; abrirEnviarDinheiro(campo); }}, '📤 Enviar dinheiro')
+  ));
+  sheet.appendChild(el('button',{class:'menu-close', style:'margin-top:14px;', onclick:()=>{ state._moedaPopup=null; render(); }}, 'Fechar'));
+  overlay.appendChild(sheet);
+  return overlay;
+}
+
+// Busca os mapas que o Mestre enviou (usa o código especial de Mestre, o mesmo que
+// ehCodigoMestre reconhece — funciona mesmo sem o jogador saber qual é o código do Mestre,
+// porque só existe UM Mestre por mesa/planilha).
+function abrirEscolherMapaMestre(){
+  state._escolherMapaFluxo = {mapas:null, carregando:true};
+  render();
+  carregarMestreDadosPorCodigo(CODIGO_MESTRE_ESPECIAL).then(dados=>{
+    if(!state._escolherMapaFluxo) return;
+    state._escolherMapaFluxo.mapas = dados.mapas || [];
+    state._escolherMapaFluxo.carregando = false;
+    render();
+  });
+}
+function renderPopupEscolherMapa(f){
+  const fluxo = state._escolherMapaFluxo;
+  const overlay = el('div',{class:'menu-overlay', onclick:(e)=>{ if(e.target===e.currentTarget){ state._escolherMapaFluxo=null; render(); } }});
+  const sheet = el('div',{class:'menu-sheet'});
+  sheet.appendChild(el('div',{class:'wizard-title', style:'padding:6px 14px 0;'}, 'Mapas do Mestre'));
+  if(fluxo.carregando){
+    sheet.appendChild(el('div',{class:'empty'}, 'Carregando mapas...'));
+  } else if(!fluxo.mapas || fluxo.mapas.length===0){
+    sheet.appendChild(el('div',{class:'empty'}, 'O Mestre ainda não enviou nenhum mapa.'));
+  } else {
+    fluxo.mapas.forEach(mapa=>{
+      sheet.appendChild(el('button',{class:'menu-item', style:'height:auto;padding:10px 14px;', onclick:()=>{
+        if(!f.locais) f.locais = [];
+        f.locais.push({nome:mapa.nome, nota:'', mapaUrl:mapa.url});
+        registrarLog(f, 'Adicionou local com mapa do Mestre: '+mapa.nome);
+        salvarPerfis();
+        state._escolherMapaFluxo = null;
+        render();
+      }},
+        mapa.url ? el('img',{src:mapa.url, style:'width:40px;height:40px;object-fit:cover;border-radius:6px;flex-shrink:0;'}) : el('span',{class:'ico'},'🗺️'),
+        el('span',{}, mapa.nome)
+      ));
+    });
+  }
+  sheet.appendChild(el('button',{class:'menu-close', onclick:()=>{ state._escolherMapaFluxo=null; render(); }}, 'Cancelar'));
+  overlay.appendChild(sheet);
+  return overlay;
+}
+
+// Fluxo de vincular um relacionamento a um personagem de verdade da mesa — reaproveita a mesma
+// lista leve usada pra escolher destino de item/dinheiro.
+// Efeito customizado num item personalizado (fora do catálogo) — lista curada dos tipos mais
+// pedidos (bônus de perícia, PM, PV), reaproveitando exatamente as mesmas estruturas que os
+// itens de verdade do catálogo já usam (bonusPericia/bonusRecurso), só que guardado direto na
+// linha do item em vez de numa definição fixa. Cobrir TODO efeito possível do jogo seria uma
+// tarefa enorme; isso cobre os pedidos mais comuns de item homebrew.
+function descricaoEfeitoCustom(efeito){
+  if(efeito.tipo==='bonusPericia') return '+'+efeito.valor+' em '+efeito.pericia;
+  if(efeito.tipo==='bonusPM') return '+'+efeito.valor+' PM';
+  if(efeito.tipo==='bonusPV') return '+'+efeito.valor+' PV';
+  return '—';
+}
+function abrirEfeitoItemCustom(idx){
+  const f = fichaAtual();
+  const atual = f.equip[idx].efeitoCustom;
+  state._efeitoItemPopup = {
+    idx,
+    tipo: atual ? atual.tipo : 'bonusPericia',
+    pericia: atual && atual.tipo==='bonusPericia' ? atual.pericia : PERICIAS[0].nome,
+    valor: atual ? String(atual.valor) : '1',
+  };
+  render();
+}
+function renderPopupEfeitoItemCustom(f){
+  const fluxo = state._efeitoItemPopup;
+  const row = f.equip[fluxo.idx];
+  const overlay = el('div',{class:'menu-overlay', onclick:(e)=>{ if(e.target===e.currentTarget){ state._efeitoItemPopup=null; render(); } }});
+  const sheet = el('div',{class:'menu-sheet'});
+  sheet.appendChild(el('div',{class:'wizard-title', style:'padding:6px 14px 0;'}, 'Efeito de "'+(row?row.item:'')+'"'));
+  sheet.appendChild(el('div',{class:'tip', style:'margin:6px 14px;'}, 'Esse efeito só vale enquanto o item estiver vestido (conta contra o limite de 4 itens vestidos, igual qualquer outro).'));
+  const conteudo = el('div',{style:'padding:0 14px;'});
+  conteudo.appendChild(el('label',{},'Tipo de efeito'));
+  const selTipo = el('select',{onchange:(e)=>{fluxo.tipo=e.target.value; render();}});
+  [['bonusPericia','Bônus fixo numa perícia'],['bonusPM','Bônus de PM (mana máxima)'],['bonusPV','Bônus de PV (vida máxima)']].forEach(([v,label])=>{
+    selTipo.appendChild(el('option',{value:v, selected:fluxo.tipo===v?'selected':undefined}, label));
+  });
+  conteudo.appendChild(selTipo);
+  if(fluxo.tipo==='bonusPericia'){
+    conteudo.appendChild(el('label',{style:'margin-top:8px;'},'Qual perícia'));
+    const selPericia = el('select',{onchange:(e)=>{fluxo.pericia=e.target.value;}});
+    PERICIAS.forEach(p=> selPericia.appendChild(el('option',{value:p.nome, selected:fluxo.pericia===p.nome?'selected':undefined}, p.nome)));
+    conteudo.appendChild(selPericia);
+  }
+  conteudo.appendChild(el('label',{style:'margin-top:8px;'},'Valor do bônus'));
+  conteudo.appendChild(el('input',{type:'number', value:fluxo.valor, oninput:(e)=>{fluxo.valor=e.target.value;}}));
+  sheet.appendChild(conteudo);
+
+  sheet.appendChild(el('button',{class:'btn', style:'margin:14px 14px 0;width:calc(100% - 28px);', onclick:()=>{
+    const valor = parseInt(fluxo.valor);
+    if(isNaN(valor) || valor===0){ flashMsg('Coloca um valor de bônus válido primeiro.'); return; }
+    if(fluxo.tipo==='bonusPericia'){
+      row.efeitoCustom = {tipo:'bonusPericia', pericia:fluxo.pericia, valor};
+    } else {
+      row.efeitoCustom = {tipo:fluxo.tipo, valor};
+    }
+    registrarLog(f, 'Definiu efeito em "'+row.item+'": '+descricaoEfeitoCustom(row.efeitoCustom));
+    salvarPerfis();
+    flashMsg('⚡ Efeito definido: '+descricaoEfeitoCustom(row.efeitoCustom));
+    state._efeitoItemPopup = null;
+    render();
+  }}, '✓ Salvar efeito'));
+  if(row && row.efeitoCustom){
+    sheet.appendChild(el('button',{class:'btn ghost', style:'margin:10px 14px 0;width:calc(100% - 28px);', onclick:()=>{
+      row.efeitoCustom = null;
+      salvarPerfis();
+      flashMsg('Efeito removido.');
+      state._efeitoItemPopup = null;
+      render();
+    }}, 'Remover efeito'));
+  }
+  sheet.appendChild(el('button',{class:'menu-close', style:'margin-top:10px;', onclick:()=>{ state._efeitoItemPopup=null; render(); }}, 'Cancelar'));
+  overlay.appendChild(sheet);
+  return overlay;
+}
+
+function abrirEscolherJogadorRelacionamento(){
+  state._escolherJogadorRelFluxo = {lista:null, carregando:true};
+  render();
+  const f = fichaAtual();
+  listaLeveDeTodosPersonagens().then(lista=>{
+    if(!state._escolherJogadorRelFluxo) return;
+    state._escolherJogadorRelFluxo.lista = lista.filter(p=>p.id!==f.id);
+    state._escolherJogadorRelFluxo.carregando = false;
+    render();
+  });
+}
+function renderPopupEscolherJogadorRel(f){
+  const fluxo = state._escolherJogadorRelFluxo;
+  const overlay = el('div',{class:'menu-overlay', onclick:(e)=>{ if(e.target===e.currentTarget){ state._escolherJogadorRelFluxo=null; render(); } }});
+  const sheet = el('div',{class:'menu-sheet'});
+  sheet.appendChild(el('div',{class:'wizard-title', style:'padding:6px 14px 0;'}, 'Vincular a um jogador'));
+  sheet.appendChild(el('div',{class:'tip', style:'margin:6px 14px;'}, 'O nome e a foto acompanham automaticamente esse personagem — você só escreve a relação/nota.'));
+  if(fluxo.carregando){
+    sheet.appendChild(el('div',{class:'empty'}, 'Carregando lista de personagens...'));
+  } else if(!fluxo.lista || fluxo.lista.length===0){
+    sheet.appendChild(el('div',{class:'empty'}, 'Nenhum outro personagem encontrado.'));
+  } else {
+    fluxo.lista.forEach(p=>{
+      sheet.appendChild(el('button',{class:'menu-item', onclick:()=>{
+        if(!f.relacionamentos) f.relacionamentos = [];
+        if(f.relacionamentos.some(r=>r.personagemId===p.id)){ flashMsg('Já tem esse personagem nos seus relacionamentos.'); return; }
+        f.relacionamentos.push({nome:p.nome, tipo:'Aliado', nota:'', personagemId:p.id});
+        registrarLog(f, 'Vinculou relacionamento a: '+p.nome);
+        salvarPerfis();
+        state._escolherJogadorRelFluxo = null;
+        render();
+      }},
+        el('span',{class:'ico'},'👤'), el('span',{}, p.nome+(p.jogador?' ('+p.jogador+')':''))
+      ));
+    });
+  }
+  sheet.appendChild(el('button',{class:'menu-close', onclick:()=>{ state._escolherJogadorRelFluxo=null; render(); }}, 'Cancelar'));
+  overlay.appendChild(sheet);
+  return overlay;
+}
+
+// "Perfil social" de um personagem — foto, nome, raça, classe. De propósito NÃO mostra PV,
+// itens, dinheiro ou notas (nada disso é "informação pública" que outro personagem da mesa
+// saberia só de olhar/conhecer alguém). Busca sempre fresco (não guarda cópia local), então
+// sempre reflete o nome/foto/raça atuais.
+function abrirPerfilJogador(personagemId){
+  state._perfilJogadorPopup = {personagemId, dados:null, carregando:true};
+  render();
+  listaLeveDeTodosPersonagens().then(lista=>{
+    if(!state._perfilJogadorPopup || state._perfilJogadorPopup.personagemId!==personagemId) return;
+    state._perfilJogadorPopup.dados = lista.find(p=>p.id===personagemId) || null;
+    state._perfilJogadorPopup.carregando = false;
+    render();
+  });
+}
+function renderPopupPerfilJogador(){
+  const fluxo = state._perfilJogadorPopup;
+  const overlay = el('div',{class:'menu-overlay', onclick:(e)=>{ if(e.target===e.currentTarget){ state._perfilJogadorPopup=null; render(); } }});
+  const sheet = el('div',{class:'menu-sheet'});
+  if(fluxo.carregando){
+    sheet.appendChild(el('div',{class:'empty', style:'padding:24px;'}, 'Carregando perfil...'));
+  } else if(!fluxo.dados){
+    sheet.appendChild(el('div',{class:'empty', style:'padding:24px;'}, 'Não achei esse personagem — talvez tenha sido removido.'));
+  } else {
+    const p = fluxo.dados;
+    const classesTxt = (p.classesNiveis||[]).map(c=>c.classe).join(' / ') || '—';
+    sheet.appendChild(el('div',{style:'display:flex;flex-direction:column;align-items:center;gap:10px;padding:20px 14px 6px;'},
+      el('div',{class:'foto-upload', style:'cursor:default;width:100px;height:100px;'},
+        p.foto ? el('img',{src:p.foto, style:'width:100%;height:100%;object-fit:cover;'}) : el('span',{class:'foto-placeholder'},'👤')
+      ),
+      el('div',{class:'wizard-title', style:'margin:0;'}, p.nome),
+      el('div',{class:'meta'}, (p.raca||'—')+' · '+classesTxt)
+    ));
+  }
+  sheet.appendChild(el('button',{class:'menu-close', style:'margin-top:14px;', onclick:()=>{ state._perfilJogadorPopup=null; render(); }}, 'Fechar'));
+  overlay.appendChild(sheet);
+  return overlay;
+}
+
+function abrirEnviarDinheiro(campoInicial){
+  state._enviarDinheiroFluxo = {campo:campoInicial||'ts', valor:'', destinoId:null, lista:null, carregando:true, enviando:false};
+  render();
+  const f = fichaAtual();
+  listaLeveDeTodosPersonagens().then(lista=>{
+    if(!state._enviarDinheiroFluxo) return; // já cancelou antes da lista chegar
+    state._enviarDinheiroFluxo.lista = lista.filter(p=>p.id!==f.id);
+    state._enviarDinheiroFluxo.carregando = false;
+    render();
+  });
+}
+function renderPopupEnviarDinheiro(f){
+  const fluxo = state._enviarDinheiroFluxo;
+  const overlay = el('div',{class:'menu-overlay', onclick:(e)=>{ if(e.target===e.currentTarget && !fluxo.enviando){ state._enviarDinheiroFluxo=null; render(); } }});
+  const sheet = el('div',{class:'menu-sheet'});
+  sheet.appendChild(el('div',{class:'wizard-title', style:'padding:6px 14px 0;'}, 'Enviar dinheiro'));
+  const rotuloMoeda = {tc:'TC (cobre)', ts:'T$ (padrão)', to:'TO (ouro)'};
+  const disponivel = parseInt(f[fluxo.campo])||0;
+  const conteudo = el('div',{style:'padding:0 14px;'},
+    el('label',{},'Moeda'),
+    el('select',{onchange:(e)=>{ fluxo.campo=e.target.value; render(); }},
+      ...['tc','ts','to'].map(c=> el('option',{value:c, selected: fluxo.campo===c?'selected':undefined}, rotuloMoeda[c]))
+    ),
+    el('div',{class:'meta', style:'margin-top:4px;'}, 'Você tem: '+disponivel+' '+rotuloMoeda[fluxo.campo]),
+    el('label',{style:'margin-top:8px;'},'Quantidade'),
+    el('input',{type:'number', value:fluxo.valor, oninput:(e)=>{fluxo.valor=e.target.value;}})
+  );
+  sheet.appendChild(conteudo);
+  sheet.appendChild(el('div',{class:'tip', style:'margin:10px 14px;'}, 'Escolha pra quem enviar — a quantidade sai da sua ficha e vai direto pra ficha da pessoa escolhida.'));
+  if(fluxo.enviando){
+    sheet.appendChild(el('div',{class:'empty'}, 'Enviando...'));
+  } else if(fluxo.carregando){
+    sheet.appendChild(el('div',{class:'empty'}, 'Carregando lista de personagens...'));
+  } else if(!fluxo.lista || fluxo.lista.length===0){
+    sheet.appendChild(el('div',{class:'empty'}, 'Nenhum outro personagem encontrado.'));
+  } else {
+    fluxo.lista.forEach(p=>{
+      sheet.appendChild(el('button',{class:'menu-item', onclick: async ()=>{
+        const valor = parseInt(fluxo.valor);
+        if(!valor || valor<=0){ flashMsg('Digita uma quantidade válida primeiro.'); return; }
+        if(valor > disponivel){ flashMsg('Você não tem '+valor+' '+rotuloMoeda[fluxo.campo]+' pra enviar.'); return; }
+        fluxo.enviando = true; render();
+        const resultado = await enviarDinheiroParaOutroPersonagem(p.id, fluxo.campo, valor);
+        if(resultado.ok){
+          f[fluxo.campo] = (parseInt(f[fluxo.campo])||0) - valor;
+          registrarLog(f, 'Enviou '+valor+' '+rotuloMoeda[fluxo.campo]+' pra '+(resultado.nomeDestino||p.nome));
+          await salvarPerfis();
+          flashMsg('💰 '+valor+' '+rotuloMoeda[fluxo.campo]+' enviado(s) pra '+(resultado.nomeDestino||p.nome)+'!');
+          state._enviarDinheiroFluxo = null;
+        } else {
+          flashMsg('⚠ Não consegui enviar agora — tenta de novo em instantes.');
+          fluxo.enviando = false;
+        }
+        render();
+      }},
+        el('span',{class:'ico'},'👤'), el('span',{}, p.nome+(p.jogador?' ('+p.jogador+')':''))
+      ));
+    });
+  }
+  sheet.appendChild(el('button',{class:'menu-close', onclick:()=>{ if(!fluxo.enviando){ state._enviarDinheiroFluxo=null; render(); } }}, 'Cancelar'));
+  overlay.appendChild(sheet);
+  return overlay;
+}
+
 function renderPersonagemMochila(){
   const f = fichaAtual();
   const wrap = el('div',{});
@@ -1722,7 +2085,24 @@ function renderPersonagemMochila(){
         const itemCatalogo = ITENS_GERAIS.find(i=>i.n===nomeSemSufixo);
         const reconhecidoAutomatico = (itemCatalogo && itemCatalogo.vestivel) || ACESSORIOS_VESTIVEIS.has(nomeSemSufixo);
         const ehVestivel = reconhecidoAutomatico || row.marcadoVestivel;
+        const ehMochilaAventureiro = nomeSemSufixo === 'Mochila de aventureiro';
         corpo.push(
+          // Descrição do catálogo — faltava completamente antes (item "geral" nunca mostrava o
+          // que fazia, só nome/quantidade/espaço). É aqui também que a Mochila de Aventureiro
+          // mostra "aumenta sua capacidade de carga em 2 espaços" — o bônus agora é aplicado de
+          // verdade (ver limiteCarga), isso só deixa claro pro jogador o que o item faz.
+          itemCatalogo && itemCatalogo.desc ? el('div',{class:'desc'}, itemCatalogo.desc) : null,
+          // Botão de Upgrade — só a Mochila de Aventureiro tem esse fluxo especial. É uma ação
+          // deliberada do jogador (não automática só por ter o item guardado), e só pode
+          // acontecer uma vez POR PERSONAGEM (não por mochila) — comprar 5 mochilas não dá +10.
+          ehMochilaAventureiro && !f.mochilaAventureiroUpgrade ? el('button',{class:'btn', style:'margin-top:4px;margin-bottom:8px;', onclick:()=>{
+            f.mochilaAventureiroUpgrade = true;
+            registrarLog(f, 'Upgrade da Mochila de Aventureiro aplicado (+2 de capacidade de carga)');
+            salvarPerfis();
+            flashMsg('⬆️ Upgrade aplicado! +2 de capacidade de carga.');
+            render();
+          }}, '⬆️ Fazer Upgrade (+2 de capacidade)') : null,
+          ehMochilaAventureiro && f.mochilaAventureiroUpgrade ? el('div',{class:'meta', style:'color:var(--gold);margin-bottom:8px;'}, '✓ Upgrade aplicado — já soma +2 na capacidade de carga') : null,
           el('label',{},'Nome'),
           el('input',{id:'mochila-nome-'+idx, type:'text', value:row.item, oninput:(e)=>{row.item=e.target.value;}, onchange:()=>{salvarPerfis(); render();}}),
           el('div',{class:'row', style:'margin-top:8px;'},
@@ -1734,6 +2114,13 @@ function renderPersonagemMochila(){
             el('input',{type:'checkbox', id:'mochila-vestivel-'+idx, checked: row.marcadoVestivel?'checked':undefined, onchange:(e)=>{ row.marcadoVestivel=e.target.checked; if(!e.target.checked) row.vestido=false; salvarPerfis(); render(); }}),
             el('label',{for:'mochila-vestivel-'+idx, style:'margin:0;font-size:0.78rem;text-transform:none;'}, 'É um item vestível (anel, colar, roupa etc. — conta como 1 dos 4 slots vestidos)')
           ) : null,
+          // Efeito customizado — só faz sentido em item vestível (o bônus só se aplica enquanto
+          // vestido, igual qualquer outro item — ver itensVestidosAtivos). Item do catálogo já
+          // vem com efeito prontinho; isso aqui é só pra item personalizado mesmo.
+          ehVestivel ? el('div',{style:'margin-top:8px;'},
+            row.efeitoCustom ? el('div',{class:'meta', style:'color:var(--gold);'}, '⚡ Efeito: '+descricaoEfeitoCustom(row.efeitoCustom)) : null,
+            el('button',{class:'btn ghost', style:'margin-top:4px;', onclick:()=>abrirEfeitoItemCustom(idx)}, row.efeitoCustom?'Trocar efeito':'⚡ Definir efeito')
+          ) : null,
           el('div',{class:'row', style:'margin-top:8px;'},
             (/^\d+$/.test(String(row.qtd).trim()) && parseInt(row.qtd)>0) ? el('button',{class:'btn', onclick:()=> usarItemMochila(f, idx)}, 'Usar (−1) ✨') : null,
             ehVestivel ? el('button',{class:'btn ghost', onclick:()=>{ row.vestido=!row.vestido; salvarPerfis(); render(); }}, row.vestido?'Guardar':'Vestir') : null,
@@ -1742,8 +2129,28 @@ function renderPersonagemMochila(){
           )
         );
       } else {
+        // Estatísticas do catálogo (não são as mesmas de quando equipado — ali soma bônus de
+        // encantos/força/proficiência do personagem; aqui é só a referência crua do item, pra
+        // saber o que ele é antes de decidir equipar). Faltava completamente antes — a mochila
+        // só mostrava quantidade/espaço, sem dizer o que o item de fato fazia.
+        let descCatalogo = null;
+        const nomeSemSufixo = row.item.replace(' (recebido do Mestre)','');
+        if(row.tipo==='arma'){
+          const w = ARMAS.find(x=>x.n===nomeSemSufixo);
+          if(w) descCatalogo = 'Dano '+w.dano+' · Crítico '+w.critico+' · Alcance '+w.alcance+' · '+w.tipo+(w.maos>=2?' · 2 mãos':'');
+        } else if(row.tipo==='armadura'){
+          const a = ARMADURAS.find(x=>x.n===nomeSemSufixo);
+          if(a) descCatalogo = 'Defesa +'+a.def+' · Penalidade '+a.pen+' · '+a.cat;
+        } else if(row.tipo==='escudo'){
+          const e = ESCUDOS.find(x=>x.n===nomeSemSufixo);
+          if(e) descCatalogo = 'Defesa +'+e.def+' · Penalidade '+e.pen;
+        } else if(row.tipo==='esoterico'){
+          const it = buscarItemEmpunhavel(row.refBase||nomeSemSufixo);
+          if(it && it.desc) descCatalogo = it.desc;
+        }
         corpo.push(
-          el('div',{class:'row'},
+          descCatalogo ? el('div',{class:'desc'}, descCatalogo) : null,
+          el('div',{class:'row', style:'margin-top:8px;'},
             el('div',{style:'flex:1;'}, el('label',{},'Quantidade'), el('input',{id:'mochila-qtd-'+idx, type:'text', value:row.qtd, oninput:(e)=>{row.qtd=e.target.value;}, onchange:()=>{salvarPerfis(); render();}})),
             el('div',{style:'flex:1;'}, el('label',{},'Espaço'), el('input',{id:'mochila-carga-'+idx, type:'text', value:row.carga, oninput:(e)=>{row.carga=e.target.value;}, onchange:()=>{salvarPerfis(); render();}})),
           ),
@@ -1754,7 +2161,9 @@ function renderPersonagemMochila(){
           )
         );
       }
-      eqPanel.appendChild(renderItemColapsavel('mochila-'+idx, row.item, rotulo+' · Qtd '+row.qtd+' · Esp '+row.carga, corpo));
+      const ehMochilaAventureiroUpgradeAtiva = row.tipo==='geral' && row.item.replace(' (recebido do Mestre)','')==='Mochila de aventureiro' && f.mochilaAventureiroUpgrade;
+      const tituloExibido = ehMochilaAventureiroUpgradeAtiva ? row.item+' ⭐ (Upgrade)' : row.item;
+      eqPanel.appendChild(renderItemColapsavel('mochila-'+idx, tituloExibido, rotulo+' · Qtd '+row.qtd+' · Esp '+row.carga, corpo, ehMochilaAventureiroUpgradeAtiva ? 'var(--gold)' : null));
     });
   }
   eqPanel.appendChild(el('button',{class:'btn ghost', style:'margin-top:10px;', onclick:()=>{
@@ -1763,14 +2172,18 @@ function renderPersonagemMochila(){
   }}, '+ Item personalizado (fora do catálogo)'));
   wrap.appendChild(eqPanel);
 
+  const rotuloMoedaCurta = {tc:'TC', ts:'T$', to:'TO'};
   wrap.appendChild(el('div',{class:'panel'},
     el('h2',{},'Moedas'),
     el('div',{class:'row3'},
-      el('div',{}, el('label',{},'TC (cobre)'), bindInput(f,'tc','number')),
-      el('div',{}, el('label',{},'T$ (padrão)'), bindInput(f,'ts','number')),
-      el('div',{}, el('label',{},'TO (ouro)'), bindInput(f,'to','number')),
+      ...['tc','ts','to'].map(campo=>
+        el('div',{class:'attr-box', style:'cursor:pointer;', onclick:()=>{ state._moedaPopup = {campo}; render(); }},
+          el('div',{class:'lbl'}, rotuloMoedaCurta[campo]),
+          el('div',{style:'font-family:"Cinzel",serif;font-weight:800;font-size:1.35rem;color:var(--ink);'}, parseInt(f[campo])||0)
+        )
+      )
     ),
-    el('div',{class:'meta', style:'font-size:0.7rem;color:var(--ink-soft);margin-top:4px;'}, '1 TC = 1/10 T$ · 1 TO = 10 T$')
+    el('div',{class:'meta', style:'font-size:0.7rem;color:var(--ink-soft);margin-top:8px;'}, '1 TC = 1/10 T$ · 1 TO = 10 T$ · toque numa moeda pra receber ou enviar')
   ));
 
   return wrap;
@@ -2053,6 +2466,7 @@ function renderPainelCarga(f){
     cor = 'var(--ink-soft)'; faixa = 'saudavel';
   }
   const pct = maxima>0 ? Math.max(0, Math.min(100, (usada/maxima)*100)) : 0;
+  const temMochila = !!f.mochilaAventureiroUpgrade;
   return el('div',{class:'panel'},
     el('h2',{},'Carga'),
     el('div',{class:'row3'},
@@ -2062,7 +2476,7 @@ function renderPainelCarga(f){
     ),
     el('div',{class:'stat-bar', style:'margin-top:8px;'}, el('div',{class:'stat-bar-fill '+faixa, style:'width:'+pct+'%;'})),
     el('div',{style:'margin-top:8px;color:'+cor+';font-size:0.8rem;font-weight:600;'}, estado),
-    el('div',{style:'margin-top:4px;font-size:0.7rem;color:var(--ink-soft);'}, 'Limite = 10 + 2×Força (ou 10 − Força, se negativa). Máxima = limite × 2 (regra do livro, pág. 146).')
+    el('div',{style:'margin-top:4px;font-size:0.7rem;color:var(--ink-soft);'}, 'Limite = 10 + 2×Força (ou 10 − Força, se negativa). Máxima = limite × 2 (regra do livro, pág. 146).'+(temMochila?' Já inclui os +2 da Mochila de Aventureiro (ela mesma não ocupa espaço).':''))
   );
 }
 
@@ -2149,7 +2563,7 @@ function magiasPorTradicao(trad){
   return MAGIAS.filter(m => m.trad===alvo || m.trad==='Universal');
 }
 
-function renderCardMagia(s, grupoChave, aoAdicionar, aoRemover, fichaCtx){
+function renderCardMagia(s, grupoChave, aoAdicionar, aoRemover, fichaCtx, aoUsar){
   if(!state._acordeaoAberto) state._acordeaoAberto = {};
   const aberto = state._acordeaoAberto[grupoChave] === s.n;
   const card = el('div',{class:'spell-card'},
@@ -2189,11 +2603,98 @@ function renderCardMagia(s, grupoChave, aoAdicionar, aoRemover, fichaCtx){
   } else {
     custoTxt = custoPM(s.c);
   }
-  card.appendChild(el('div',{style:'margin-top:8px;display:flex;justify-content:space-between;align-items:center;'},
+  card.appendChild(el('div',{style:'margin-top:8px;display:flex;justify-content:space-between;align-items:center;gap:8px;'},
     el('span',{class:'meta'}, 'custo: '+custoTxt+' PM'+(custoNota||'')),
-    aoAdicionar ? el('button',{class:'btn', style:'width:auto;padding:6px 12px;', onclick:aoAdicionar},'+ Adicionar à ficha') : null
+    el('div',{style:'display:flex;gap:6px;'},
+      aoUsar ? el('button',{class:'btn', style:'width:auto;padding:6px 12px;', onclick:(e)=>{ e.stopPropagation(); aoUsar(); }},'✨ Usar') : null,
+      aoAdicionar ? el('button',{class:'btn', style:'width:auto;padding:6px 12px;', onclick:aoAdicionar},'+ Adicionar à ficha') : null
+    )
   ));
   return card;
+}
+
+// Extrai o número de PM de um texto de custo de aprimoramento (ex: "+1 PM" -> 1). Alguns
+// aprimoramentos têm custo diferente de PM puro (ex: "+2 PM por alvo adicional") — nesse caso
+// pega só o primeiro número como aproximação; o jogador sempre pode ajustar o total na mão
+// antes de confirmar, o campo fica editável.
+function extrairCustoPM(custoTexto){
+  const m = String(custoTexto||'').match(/(\d+)/);
+  return m ? parseInt(m[1]) : 0;
+}
+
+function abrirUsarMagia(s){
+  const f = fichaAtual();
+  const custoBase = custoPMAjustado(f, s);
+  state._usarMagiaPopup = {magia:s, aprimSelecionados:[], aprimExpandido:null, custoTotal:String(custoBase)};
+  render();
+}
+function renderPopupUsarMagia(f){
+  const fluxo = state._usarMagiaPopup;
+  const s = fluxo.magia;
+  const custoBase = custoPMAjustado(f, s);
+  const limite = limitePMPorMagia(f, s);
+  const overlay = el('div',{class:'menu-overlay', onclick:(e)=>{ if(e.target===e.currentTarget){ state._usarMagiaPopup=null; render(); } }});
+  const sheet = el('div',{class:'menu-sheet'});
+  sheet.appendChild(el('div',{class:'wizard-title', style:'padding:6px 14px 0;'}, '✨ Usar: '+s.n));
+  const totalAtual = parseInt(fluxo.custoTotal)||0;
+  const passouLimite = totalAtual > limite;
+  sheet.appendChild(el('div',{class:'tip', style:'margin:6px 14px;'+(passouLimite?'border:1px solid var(--red-bright);':'')},
+    'Custo base: '+custoBase+' PM · Você tem: '+(parseInt(f.pmatual)||0)+' PM · Limite por magia: '+limite+' PM (seu nível'
+    + ((s.trad!=='Divina'&&limitePMExtraArcana(f)>0)?', +'+limitePMExtraArcana(f)+' de item':'')
+    + (poderesAtivos(f).includes('Magia Ilimitada')?', +'+(valorAtributoChaveMagia(f)||0)+' de Magia Ilimitada':'')
+    + ')'
+    + (passouLimite ? ' ⚠ o total atual passa do limite!' : '')
+  ));
+
+  if(s.aprim && s.aprim.length>0){
+    const aprimWrap = el('div',{style:'padding:0 14px;'}, el('label',{},'Aprimoramentos (opcional — toque no ⓘ pra ver o que cada um faz)'));
+    s.aprim.forEach((a,idx)=>{
+      const marcado = fluxo.aprimSelecionados.includes(idx);
+      const custoNum = extrairCustoPM(a.custo);
+      const linha = el('div',{class:'option-card'+(marcado?' selected':''), style:'margin-top:6px;cursor:pointer;', onclick:()=>{
+        if(marcado){ fluxo.aprimSelecionados = fluxo.aprimSelecionados.filter(i=>i!==idx); }
+        else { fluxo.aprimSelecionados.push(idx); }
+        // recalcula o total automaticamente — mas só se o jogador não tiver mexido no campo à mão
+        const somaAprim = fluxo.aprimSelecionados.reduce((tot,i)=> tot+extrairCustoPM(s.aprim[i].custo), 0);
+        fluxo.custoTotal = String(custoBase + somaAprim);
+        render();
+      }},
+        el('div',{class:'row', style:'align-items:center;'},
+          el('div',{style:'flex:1;'}, el('span',{},marcado?'✓ ':'○ '), el('b',{},a.custo)),
+          el('button',{class:'btn ghost', style:'width:auto;padding:3px 8px;font-size:0.68rem;flex-shrink:0;', onclick:(e)=>{ e.stopPropagation(); fluxo.aprimExpandido = fluxo.aprimExpandido===idx?null:idx; render(); }}, fluxo.aprimExpandido===idx?'ocultar':'ⓘ o que faz')
+        )
+      );
+      if(fluxo.aprimExpandido===idx){
+        linha.appendChild(el('div',{class:'desc', style:'margin-top:6px;'}, a.efeito));
+      }
+      aprimWrap.appendChild(linha);
+    });
+    sheet.appendChild(aprimWrap);
+  }
+
+  sheet.appendChild(el('div',{style:'padding:10px 14px 0;'},
+    el('label',{},'Total de PM a gastar'),
+    el('input',{type:'number', value:fluxo.custoTotal, oninput:(e)=>{fluxo.custoTotal=e.target.value;}}),
+    el('div',{class:'meta', style:'margin-top:2px;'}, 'Preenchido automaticamente pelos aprimoramentos marcados, mas pode ajustar na mão se precisar.')
+  ));
+
+  sheet.appendChild(el('button',{class:'btn', style:'margin:14px 14px 0;width:calc(100% - 28px);', onclick:()=>{
+    const total = parseInt(fluxo.custoTotal);
+    if(isNaN(total) || total<0){ flashMsg('Coloca um custo válido primeiro.'); return; }
+    if(total > limite){ flashMsg('Isso passa do limite de '+limite+' PM numa magia só (seu nível'+((s.trad!=='Divina'&&limitePMExtraArcana(f)>0)?' + itens':'')+'). Escolha menos aprimoramentos.'); return; }
+    const pmAtual = parseInt(f.pmatual)||0;
+    if(total > pmAtual){ flashMsg('Você não tem '+total+' PM disponíveis (tem '+pmAtual+').'); return; }
+    f.pmatual = pmAtual - total;
+    const aprimTxt = fluxo.aprimSelecionados.length>0 ? ' com '+fluxo.aprimSelecionados.length+' aprimoramento(s)' : '';
+    registrarLog(f, 'Usou "'+s.n+'"'+aprimTxt+' (-'+total+' PM)');
+    salvarPerfis();
+    flashMsg('✨ "'+s.n+'" usada! -'+total+' PM.');
+    state._usarMagiaPopup = null;
+    render();
+  }}, '✓ Confirmar uso'));
+  sheet.appendChild(el('button',{class:'menu-close', style:'margin-top:10px;', onclick:()=>{ state._usarMagiaPopup=null; render(); }}, 'Cancelar'));
+  overlay.appendChild(sheet);
+  return overlay;
 }
 
 function renderPersonagemMagias(){
@@ -2225,7 +2726,7 @@ function renderPersonagemMagias(){
     magPanel.appendChild(el('div',{class:'empty'},'Nenhuma magia adicionada ainda. Vá no Menu → Magias pra buscar e adicionar.'));
   } else {
     f.magias.forEach((s,idx)=>{
-      const card = renderCardMagia(s, 'minhas', null, ()=>{ if(!confirm('Remover "'+s.n+'" das suas magias conhecidas? Não tem como desfazer.')) return; registrarLog(f, 'Esqueceu a magia: '+s.n); f.magias.splice(idx,1); salvarPerfis(); render(); }, f);
+      const card = renderCardMagia(s, 'minhas', null, ()=>{ if(!confirm('Remover "'+s.n+'" das suas magias conhecidas? Não tem como desfazer.')) return; registrarLog(f, 'Esqueceu a magia: '+s.n); f.magias.splice(idx,1); salvarPerfis(); render(); }, f, ()=>abrirUsarMagia(s));
       if(f.arcanistaCaminho==='Mago'){
         const memorizada = (f.magiasMemorizadas||[]).includes(s.n);
         card.querySelector('.head .name')?.appendChild(el('span',{class:'pill', style:'margin-left:6px;background:'+(memorizada?'#2e5e3e':'#4a3a1e')+';color:#e8f5e9;'}, memorizada?'📖 memorizada':'não memorizada'));

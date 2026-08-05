@@ -72,8 +72,54 @@ function pararAtualizacaoAutomaticaGradeMestre(){
 const CATEGORIAS_MESTRE = {
   combate: {label:'Combate', abas:[['combate','Combate'],['grade','Grade de Combate'],['preparar','Preparar Encontro'],['grupo','Grupo']]},
   bestiario: {label:'Bestiário', abas:[['bestiario','Bestiário'],['npc','NPC Rápido'],['nomes','Nomes']]},
-  recursos: {label:'Recursos', abas:[['tesouro','Tesouro'],['loja','Loja'],['itens','Itens'],['magicos','Itens Mágicos']]},
+  recursos: {label:'Recursos', abas:[['tesouro','Tesouro'],['loja','Loja'],['itens','Itens'],['magicos','Itens Mágicos'],['mapas','Mapas']]},
 };
+
+// Troca o código de Mestre a qualquer momento, sem perder nada — pega tudo que já tá salvo sob
+// o código atual (grupos, encontros, mapas, combate ativo) e salva de novo sob o código NOVO,
+// depois troca o localStorage pra usar ele daqui pra frente. O código antigo continua existindo
+// na planilha (uma linha "órfã"), mas ninguém mais acessa por ele.
+function abrirTrocarCodigoMestre(){
+  state._trocarCodigoMestrePopup = {novoCodigo:'', trocando:false};
+  render();
+}
+function renderPopupTrocarCodigoMestre(){
+  const fluxo = state._trocarCodigoMestrePopup;
+  const codigoAtual = obterCodigoJogador();
+  const overlay = el('div',{class:'menu-overlay', onclick:(e)=>{ if(e.target===e.currentTarget && !fluxo.trocando){ state._trocarCodigoMestrePopup=null; render(); } }});
+  const sheet = el('div',{class:'menu-sheet'});
+  sheet.appendChild(el('div',{class:'wizard-title', style:'padding:6px 14px 0;'}, '🔑 Trocar código de Mestre'));
+  sheet.appendChild(el('div',{class:'tip', style:'margin:6px 14px;'}, 'Código atual: "'+codigoAtual+'". Isso renomeia sua linha na planilha — nada é duplicado nem fica pra trás, é só o código que muda.'));
+  if(fluxo.trocando){
+    sheet.appendChild(el('div',{class:'empty', style:'padding:14px;'}, 'Trocando...'));
+  } else {
+    const conteudo = el('div',{style:'padding:0 14px;'},
+      el('label',{},'Novo código'),
+      el('input',{type:'text', placeholder:'ex: Rola, ou o que preferir', value:fluxo.novoCodigo, oninput:(e)=>{fluxo.novoCodigo=e.target.value;}})
+    );
+    sheet.appendChild(conteudo);
+    sheet.appendChild(el('button',{class:'btn', style:'margin:14px 14px 0;width:calc(100% - 28px);', onclick: async ()=>{
+      const novo = fluxo.novoCodigo.trim();
+      if(!novo){ flashMsg('Digita o código novo primeiro.'); return; }
+      if(novo.toLowerCase()===codigoAtual.toLowerCase()){ flashMsg('Esse já é o código atual.'); return; }
+      fluxo.trocando = true; render();
+      const resultado = await trocarCodigoMestreArmazenamento(codigoAtual, novo);
+      if(resultado!==true){
+        flashMsg(resultado==='já existe uma linha com esse código' ? '⚠ Esse código já tá em uso por outra mesa — escolhe outro.' : '⚠ Não consegui trocar agora — tenta de novo em instantes.');
+        fluxo.trocando = false; render();
+        return;
+      }
+      localStorage.setItem('painel_aventureiro_codigo_jogador', novo);
+      flashMsg('🔑 Código trocado pra "'+novo+'"!');
+      state._trocarCodigoMestrePopup = null;
+      await carregarDadosMestreDoServidor();
+      render();
+    }}, '✓ Confirmar troca'));
+  }
+  sheet.appendChild(el('button',{class:'menu-close', style:'margin-top:10px;', onclick:()=>{ if(!fluxo.trocando){ state._trocarCodigoMestrePopup=null; render(); } }}, 'Cancelar'));
+  overlay.appendChild(sheet);
+  return overlay;
+}
 
 function renderMestreScreen(){
   const wrap = el('div',{});
@@ -92,7 +138,10 @@ function renderMestreScreen(){
     el('div',{style:'display:flex;justify-content:space-between;align-items:center;gap:10px;'},
       el('button',{class:'btn ghost', style:'width:auto;flex-shrink:0;padding:6px 12px;background:transparent;border-color:var(--ink);color:var(--ink);', onclick:()=>{ pararAtualizacaoAutomaticaMestre(); precisaCodigoJogador() ? sairDoCodigoJogador() : (state.screen='perfis', render()); }}, '← Perfis'),
       el('h1',{class:'display', style:'font-size:1.1rem;margin:0;'}, 'Mesa do Mestre'),
-      botaoTema()
+      el('div',{style:'display:flex;flex-direction:column;gap:6px;align-items:center;'},
+        botaoTema(),
+        el('button',{class:'btn ghost', style:'width:auto;flex-shrink:0;padding:6px 10px;background:transparent;border-color:var(--ink);color:var(--ink);', onclick:abrirTrocarCodigoMestre, title:'Trocar o código de Mestre'}, '🔑')
+      )
     ),
     el('div',{class:'sub'}, 'Bestiário, NPCs, tesouro, lojas e nomes — tudo pra conduzir a sessão')
   ));
@@ -125,6 +174,7 @@ function renderMestreScreen(){
   if(state.mestreTab==='loja') main.appendChild(renderMestreLoja());
   if(state.mestreTab==='itens') main.appendChild(renderMestreItens());
   if(state.mestreTab==='magicos') main.appendChild(renderMestreItensMagicos());
+  if(state.mestreTab==='mapas') main.appendChild(renderMestreMapas());
   if(state.mestreTab==='nomes') main.appendChild(renderMestreNomes());
   wrap.appendChild(main);
 
@@ -132,6 +182,9 @@ function renderMestreScreen(){
     const p = (state.perfisTodos||[]).find(x=>x.id===state._verFichaMestre);
     if(p) wrap.appendChild(renderPopupFichaCompletaMestre(p));
     else state._verFichaMestre = null;
+  }
+  if(state._trocarCodigoMestrePopup){
+    wrap.appendChild(renderPopupTrocarCodigoMestre());
   }
 
   if(state.addMsg){
@@ -187,6 +240,7 @@ async function carregarDadosMestreDoServidor(){
   }
   state._mestreGrupos = dados.grupos || [];
   state._mestreEncontrosSalvos = dados.encontrosSalvos || [];
+  state._mestreMapas = dados.mapas || [];
   // O combate ativo (combatentes, posições, paredes, terreno — tudo da Grade) só era SALVO no
   // servidor a cada mudança, mas nunca era CARREGADO de volta ao abrir a página — um F5 sempre
   // reiniciava tudo do zero, mesmo com o dado real intacto na planilha. Restaura aqui, se tiver
@@ -237,6 +291,7 @@ async function salvarDadosMestreNoServidor(){
   return salvarMestreDadosArmazenamento({
     grupos: state._mestreGrupos||[],
     encontrosSalvos: state._mestreEncontrosSalvos||[],
+    mapas: state._mestreMapas||[],
     combateCompartilhado: combate ? {
       combatentes: combatentesCompletos,
       combatentesParaJogadores: combatentesParaJogadores,

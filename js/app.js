@@ -96,11 +96,18 @@ function cdMagiaEspecifica(f, magia){
   const ehArcanaOuUniversal = magia.trad==='Arcana' || magia.trad==='Universal';
   return base + (ehArcanaOuUniversal ? bonusCdArcana(f, magia.e) : 0);
 }
-// Limite de PM que pode gastar em aprimoramentos de uma única magia arcana (atributo-chave + itens)
+// Limite de PM que pode gastar numa única magia/habilidade de custo variável (regra geral do
+// livro, pág. de Classes — o mesmo exemplo do livro: "um arcanista de 11º nível pode gastar até
+// 11 PM" numa magia só). É o NÍVEL do personagem, não o atributo-chave (conferido com a wiki
+// oficial antes de mudar — o código antigo aqui usava o atributo por engano, e nunca tinha sido
+// usado em lugar nenhum do app ainda, então corrigir não quebra nada). Magia Ilimitada (poder
+// geral, qualquer conjurador) soma o atributo-chave por cima — esse sim vale pra QUALQUER
+// tradição (diferente do bônus de item, que é só arcana).
 function limitePMPorMagia(f, magia){
-  const attrVal = valorAtributoChaveMagia(f) || 0;
   const ehArcanaOuUniversal = magia.trad==='Arcana' || magia.trad==='Universal';
-  return attrVal + (ehArcanaOuUniversal ? limitePMExtraArcana(f) : 0);
+  const bonusItens = ehArcanaOuUniversal ? limitePMExtraArcana(f) : 0;
+  const bonusMagiaIlimitada = poderesAtivos(f).includes('Magia Ilimitada') ? (valorAtributoChaveMagia(f)||0) : 0;
+  return nivelTotal(f) + bonusItens + bonusMagiaIlimitada;
 }
 
 // Atributo-chave de magia do personagem (baseado na 1ª classe conjuradora que ele tiver)
@@ -237,6 +244,14 @@ function bonusPericiaDeDivindade(f, periciaNome){
 // o mesmo poder nunca duplica nada.
 function periciasTreinadasComDivindade(f){
   const set = new Set(f.periciasTreinadas||[]);
+  // Perícias especializadas (hoje só Ofício, ex: "Ofício (armeiro)") também entram pela versão
+  // BASE ("Ofício") — sem isso, um pré-requisito genérico "treinado em Ofício" (sem pedir uma
+  // especialidade específica) parava de reconhecer a perícia assim que ela ganhava
+  // especialidade, mesmo o personagem continuando treinado nela.
+  (f.periciasTreinadas||[]).forEach(p=>{
+    const base = nomeBasePericia(p);
+    if(base!==p) set.add(base);
+  });
   listaPoderesConcedidos(f).forEach(pc=>{
     if(!pc || !pc.nome) return;
     const fixa = PODER_CONCEDIDO_TREINA_PERICIA_FIXA[pc.nome];
@@ -402,6 +417,85 @@ function ajustarPM(f, delta){
 
 // Recebe um arquivo de imagem escolhido pelo jogador e abre o ajustador de posição (arrastar
 // pra escolher o que aparece) antes de confirmar — só depois disso é que redimensiona/comprime/envia.
+// Upload de mapa — bem mais simples que o de foto de personagem (sem recorte circular, mapa é
+// retângulo mesmo). Redimensiona se for muito grande (economiza espaço/banda), manda pro Drive
+// (ou guarda direto, no modo Claude) e adiciona na lista de mapas do Mestre.
+function handleMapaUpload(file){
+  if(!file || !file.type.startsWith('image/')) return;
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    const img = new Image();
+    img.onload = async ()=>{
+      const MAX_LADO = 1600;
+      let w = img.naturalWidth, h = img.naturalHeight;
+      if(w>MAX_LADO || h>MAX_LADO){
+        const escala = MAX_LADO / Math.max(w,h);
+        w = Math.round(w*escala); h = Math.round(h*escala);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      const base64 = canvas.toDataURL('image/jpeg', 0.85);
+      state._mapaEnviando = true;
+      render();
+      const url = await enviarFotoParaBackend(base64, 'mapa_'+Date.now()+'.jpg');
+      if(!state._mestreMapas) state._mestreMapas = [];
+      state._mestreMapas.push({nome: state._novoMapaNome||'Mapa sem nome', url});
+      state._novoMapaNome = '';
+      state._mapaEnviando = false;
+      sincronizarGradeCompartilhada();
+      flashMsg('🗺️ Mapa adicionado!');
+      render();
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function renderMestreMapas(){
+  const wrap = el('div',{});
+  if(!state._mestreMapas) state._mestreMapas = [];
+  const panel = el('div',{class:'panel faixa'}, el('h2',{},'Mapas'));
+  panel.appendChild(el('div',{class:'tip', style:'font-size:0.8rem;'}, 'Envie mapas/imagens de lugares importantes — eles ficam disponíveis pros jogadores em Notas → Locais, pra qualquer um adicionar como referência visual de um lugar que já visitaram.'));
+  if(!state._novoMapaNome) state._novoMapaNome = '';
+  panel.appendChild(el('label',{style:'margin-top:8px;'},'Nome do mapa/lugar'));
+  panel.appendChild(el('input',{type:'text', placeholder:'ex: Taverna do Javali Dourado', value:state._novoMapaNome, oninput:(e)=>{state._novoMapaNome=e.target.value;}}));
+  if(state._mapaEnviando){
+    panel.appendChild(el('div',{class:'empty', style:'margin-top:10px;'}, 'Enviando mapa...'));
+  } else {
+    panel.appendChild(el('label',{class:'btn ghost', style:'margin-top:10px;display:block;text-align:center;cursor:pointer;'},
+      '📤 Escolher imagem',
+      el('input',{type:'file', accept:'image/*', style:'display:none;', onchange:(e)=>{
+        if(!state._novoMapaNome || !state._novoMapaNome.trim()){ flashMsg('Coloca um nome pro mapa primeiro.'); e.target.value=''; return; }
+        if(e.target.files[0]) handleMapaUpload(e.target.files[0]);
+      }})
+    ));
+  }
+  wrap.appendChild(panel);
+
+  const listaPanel = el('div',{class:'panel'}, el('h2',{},'Mapas Enviados ('+state._mestreMapas.length+')'));
+  if(state._mestreMapas.length===0){
+    listaPanel.appendChild(el('div',{class:'empty'}, 'Nenhum mapa enviado ainda.'));
+  } else {
+    state._mestreMapas.forEach((mapa, idx)=>{
+      listaPanel.appendChild(el('div',{class:'spell-card'},
+        el('div',{class:'head'}, el('span',{class:'name'}, mapa.nome),
+          el('button',{class:'remove-x', onclick:()=>{
+            if(!confirm('Remover o mapa "'+mapa.nome+'"? Os jogadores que já adicionaram como local continuam vendo (a imagem fica guardada na anotação deles).')) return;
+            state._mestreMapas.splice(idx,1);
+            sincronizarGradeCompartilhada();
+            render();
+          }},'✕')
+        ),
+        mapa.url ? el('img',{src:mapa.url, style:'width:100%;border-radius:8px;margin-top:8px;display:block;'}) : null
+      ));
+    });
+  }
+  wrap.appendChild(listaPanel);
+
+  return wrap;
+}
+
 function handleFotoUpload(f, file){
   if(!file || !file.type.startsWith('image/')) return;
   const reader = new FileReader();
@@ -622,7 +716,13 @@ function limiteCarga(f){
   const for_ = parseInt(f.for)||0;
   const base = for_>=0 ? 10 + 2*for_ : 10 - for_;
   const bonusCostasLargas = poderesAtivos(f).includes('Costas Largas') ? 5 : 0;
-  return base + bonusCostasLargas;
+  // Mochila de aventureiro: "+2 espaços de capacidade" — só vale depois que o jogador faz o
+  // "Upgrade" de verdade (botão dentro do item, na mochila) — não é automático só por ter o
+  // item guardado. f.mochilaAventureiroUpgrade é uma marca NO PERSONAGEM (não por unidade de
+  // mochila), então comprar/guardar várias mochilas não soma o bônus várias vezes — só existe
+  // "aplicado" ou "não aplicado", uma vez só pra sempre.
+  const bonusMochila = f.mochilaAventureiroUpgrade ? 2 : 0;
+  return base + bonusCostasLargas + bonusMochila;
 }
 function cargaMaxima(f){ return limiteCarga(f)*2; }
 function cargaUsada(f){
@@ -757,6 +857,12 @@ const PENDENCIAS_DEFINICOES = [
     titulo: 'Poder com Escolha Pendente',
     detecta: (f)=> poderesComEscolhaFaltando(f).length>0,
     resumo: 'Esse personagem tem poder(es) que exigem uma escolha extra (qual atributo, qual arma, qual escola...) mas essa escolha nunca foi feita — geralmente porque a ficha pegou o poder antes da gente adicionar essa opção no sistema. Sem resolver, o efeito do poder nunca chega a valer de verdade.',
+  },
+  {
+    tipo: 'oficioSemEspecialidade',
+    titulo: 'Ofício sem Especialidade',
+    detecta: (f)=> (f.periciasTreinadas||[]).includes('Ofício') || (f.vanguardistaOficio==='Ofício'),
+    resumo: 'A perícia Ofício precisa de uma especialidade (armeiro, alquimista, cozinheiro, ferreiro, entalhador... qualquer ofício que faça sentido pro personagem) — sem isso, poderes e itens que pedem um ofício específico como pré-requisito não reconhecem que esse personagem tem a perícia.',
   },
 ];
 // Varre TODAS as fontes onde um poder pode estar guardado (origem, raça, poderes de classe) e
@@ -1194,6 +1300,13 @@ function bonusPericiaDeItensVestidos(f, periciaNome){
     if(fonte.catalogo && fonte.catalogo.bonusPericia && fonte.catalogo.bonusPericia.nome===periciaNome){
       total += fonte.catalogo.bonusPericia.valor;
     }
+    // Efeito que o próprio jogador definiu num item personalizado (fora do catálogo) — mesma
+    // ideia do bônus de item de catálogo acima, só que guardado direto na linha do item em vez
+    // de numa definição fixa em ITENS_GERAIS.
+    const ec = fonte.row && fonte.row.efeitoCustom;
+    if(ec && ec.tipo==='bonusPericia' && ec.pericia===periciaNome){
+      total += parseInt(ec.valor)||0;
+    }
   });
   return total;
 }
@@ -1211,6 +1324,10 @@ function bonusRecursoDeItensVestidos(f, recurso){
     const br = fonte.catalogo && fonte.catalogo.bonusRecurso;
     if(br && br.recurso===recurso && condicaoBonusRecursoCumprida(f, br.condicao)){
       total += br.valor;
+    }
+    const ec = fonte.row && fonte.row.efeitoCustom;
+    if(ec && ec.tipo==='bonus'+(recurso==='pm'?'PM':'PV')){
+      total += parseInt(ec.valor)||0;
     }
   });
   return total;
@@ -1243,7 +1360,10 @@ function avaliarSubClausulaPrereq(f, texto){
   if(m){
     const nomes = m[1].split(/ e /i).map(s=>s.trim()).filter(Boolean);
     const treinadas = periciasTreinadasComDivindade(f);
-    return {ok: nomes.every(n=> treinadas.has(nomeBasePericia(n))), reconhecido:true};
+    // Se o pré-requisito pedir uma especialidade EXATA (ex: "Ofício (armeiro)"), precisa bater
+    // certinho — não basta ter QUALQUER Ofício. Se pedir só o nome base (ex: "Ofício" sem
+    // especificar qual), qualquer especialidade treinada já serve.
+    return {ok: nomes.every(n=> n.includes('(') ? treinadas.has(n) : treinadas.has(nomeBasePericia(n))), reconhecido:true};
   }
   // Nome de classe isolado (precisa ter nível nela)
   const classeBatida = NOMES_CLASSES_T20.find(c=>c.toLowerCase()===texto.toLowerCase());
@@ -1357,6 +1477,12 @@ async function salvarPerfis(){
   }
 }
 async function salvarPerfisInterno(){
+  // Antes de sobrescrever a planilha com a cópia local, busca rapidinho se o servidor tem algum
+  // presente (item/dinheiro do Mestre) que ainda não vimos — sem isso, salvar logo depois de
+  // receber algo (antes do jogador ter atualizado a página) apagava o presente, porque a cópia
+  // local (sem ele) ia por cima da versão do servidor (com ele).
+  await mesclarPresentesDoServidor();
+
   // "Desfazer" precisa saber qual era o estado de CADA personagem antes deste save. Guardamos
   // sempre uma cópia do "último estado salvo conhecido" (state._ultimoEstadoSalvo); antes de
   // sobrescrever, ela vira o alvo de desfazer (state._paraDesfazer) — e só depois é atualizada
@@ -1389,51 +1515,57 @@ async function salvarPerfisInterno(){
 // que já tinha — se aparecer um item novo marcado "(recebido do Mestre)" ou o dinheiro aumentar,
 // avisa na hora. Só troca esses campos específicos (item/dinheiro), não mexe em mais nada da
 // ficha, pra nunca sobrescrever uma edição que o jogador esteja fazendo em outro campo.
+// Busca o que o servidor tem AGORA e mescla só o que for presente de verdade (item marcado
+// "recebido do Mestre" que ainda não temos, ou dinheiro que aumentou) — NUNCA troca a lista
+// inteira, só acrescenta/soma por cima do que já existe localmente. Usada tanto pelo polling de
+// 12s quanto (mais importante) bem antes de QUALQUER salvamento manual — sem isso, salvar logo
+// depois de receber um presente (antes do polling ter tido a chance de buscar) sobrescrevia o
+// servidor com a cópia local antiga, apagando o que acabou de chegar.
+async function mesclarPresentesDoServidor(){
+  let listaNova;
+  try{ listaNova = await carregarPerfisArmazenamento(); }catch(e){ return false; }
+  let mudou = false;
+  (state.perfis||[]).forEach(fAtual=>{
+    const fNovo = listaNova.find(p=>p.id===fAtual.id);
+    if(!fNovo) return;
+    const equipAntigo = fAtual.equip || [];
+    const equipNovo = fNovo.equip || [];
+    if(equipNovo.length > equipAntigo.length){
+      const nomesAntigos = equipAntigo.map(e=>e.item);
+      const novosItens = equipNovo.filter(e=> e.item.includes('(recebido do Mestre)') && !nomesAntigos.includes(e.item));
+      if(novosItens.length>0){
+        novosItens.forEach(it=>{
+          notificarComSom('🎁 '+fAtual.nome+' recebeu: '+it.item.replace(' (recebido do Mestre)','')+'!');
+          fAtual.equip.push(it);
+        });
+        mudou = true;
+      }
+    }
+    if(!state._ultimoServidorMoeda) state._ultimoServidorMoeda = {};
+    if(!state._ultimoServidorMoeda[fAtual.id]) state._ultimoServidorMoeda[fAtual.id] = {ts:fNovo.ts, tc:fNovo.tc, to:fNovo.to};
+    const snapshot = state._ultimoServidorMoeda[fAtual.id];
+    ['ts','tc','to'].forEach(campo=>{
+      const servidorAntes = parseInt(snapshot[campo])||0, servidorDepois = parseInt(fNovo[campo])||0;
+      if(servidorDepois > servidorAntes){
+        const delta = servidorDepois - servidorAntes;
+        notificarComSom('💰 '+fAtual.nome+' recebeu +'+delta+' '+(campo==='ts'?'T$':campo==='tc'?'TC':'TO')+'!');
+        fAtual[campo] = (parseInt(fAtual[campo])||0) + delta;
+        mudou = true;
+      }
+      snapshot[campo] = servidorDepois;
+    });
+  });
+  return mudou;
+}
 let _intervalAtualizacaoJogador = null;
 function iniciarAtualizacaoAutomaticaJogador(){
   pararAtualizacaoAutomaticaJogador();
   _intervalAtualizacaoJogador = setInterval(async ()=>{
     if(state.screen !== 'ficha' || usandoStorageDoClaude()){ return; }
-    let listaNova;
-    try{ listaNova = await carregarPerfisArmazenamento(); }catch(e){ return; }
     const digitando = document.activeElement && ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName);
     if(digitando) return;
-    let precisaRender = false;
-    (state.perfis||[]).forEach(fAtual=>{
-      const fNovo = listaNova.find(p=>p.id===fAtual.id);
-      if(!fNovo) return;
-      const equipAntigo = fAtual.equip || [];
-      const equipNovo = fNovo.equip || [];
-      if(equipNovo.length > equipAntigo.length){
-        const nomesAntigos = equipAntigo.map(e=>e.item);
-        const novosItens = equipNovo.filter(e=> e.item.includes('(recebido do Mestre)') && !nomesAntigos.includes(e.item));
-        if(novosItens.length>0){
-          novosItens.forEach(it=>{
-            notificarComSom('🎁 '+fAtual.nome+' recebeu: '+it.item.replace(' (recebido do Mestre)','')+'!');
-            fAtual.equip.push(it); // só ACRESCENTA o item novo — nunca substitui a lista inteira,
-          });                       // pra não apagar uma mudança local (equipar/guardar) ainda não salva
-          precisaRender = true;
-        }
-      }
-      // Moedas: compara contra o último valor que a GENTE MESMA viu vir do servidor (não contra
-      // o valor local atual, que pode estar sendo editado agora e ainda não foi salvo). Assim,
-      // um presente de verdade do Mestre soma por cima da edição em andamento, em vez de
-      // sobrescrever e "desfazer" o que o jogador estava digitando.
-      if(!state._ultimoServidorMoeda) state._ultimoServidorMoeda = {};
-      if(!state._ultimoServidorMoeda[fAtual.id]) state._ultimoServidorMoeda[fAtual.id] = {ts:fNovo.ts, tc:fNovo.tc, to:fNovo.to};
-      const snapshot = state._ultimoServidorMoeda[fAtual.id];
-      ['ts','tc','to'].forEach(campo=>{
-        const servidorAntes = parseInt(snapshot[campo])||0, servidorDepois = parseInt(fNovo[campo])||0;
-        if(servidorDepois > servidorAntes){
-          const delta = servidorDepois - servidorAntes;
-          notificarComSom('💰 '+fAtual.nome+' recebeu +'+delta+' '+(campo==='ts'?'T$':campo==='tc'?'TC':'TO')+'!');
-          fAtual[campo] = (parseInt(fAtual[campo])||0) + delta;
-          precisaRender = true;
-        }
-        snapshot[campo] = servidorDepois;
-      });
-    });
-    if(precisaRender){ salvarNoLocalStorage(state.perfis); render(); }
+    const mudou = await mesclarPresentesDoServidor();
+    if(mudou){ salvarNoLocalStorage(state.perfis); render(); }
   }, 12000);
 }
 function pararAtualizacaoAutomaticaJogador(){
@@ -1534,7 +1666,7 @@ function renderEntradaCodigoScreen(){
   painel.appendChild(el('h2',{},'Código de acesso'));
   painel.appendChild(el('div',{class:'tip'},
     el('b',{},'O que é isso?'),
-    'Seu código liga seus personagens a você — use o mesmo código em qualquer aparelho pra continuar de onde parou. Se você for o mestre da mesa, digite "Mestre".'
+    'Seu código liga seus personagens a você — use o mesmo código em qualquer aparelho pra continuar de onde parou.'
   ));
   if(state._codigoInput==null) state._codigoInput = '';
   painel.appendChild(el('input',{type:'text', placeholder:'ex: LOBO-4821 ou uma frase sua', value:state._codigoInput, oninput:(e)=>{state._codigoInput=e.target.value;}}));
