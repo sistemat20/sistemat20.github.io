@@ -452,6 +452,26 @@ function handleMapaUpload(file){
   reader.readAsDataURL(file);
 }
 
+// Popup de visualização ampliada — usado tanto pelo Mestre (lista de mapas enviados) quanto
+// pelo jogador (Notas → Locais), pra não ter que rolar a tela toda cheia de imagem: o nome vira
+// clicável, e só abre grande quando alguém realmente quer ver.
+function abrirVisualizarMapa(nome, url){
+  state._visualizarMapaPopup = {nome, url};
+  render();
+}
+function renderPopupVisualizarMapa(){
+  const fluxo = state._visualizarMapaPopup;
+  const overlay = el('div',{class:'menu-overlay', style:'padding:10px;', onclick:(e)=>{ if(e.target===e.currentTarget){ state._visualizarMapaPopup=null; render(); } }});
+  const sheet = el('div',{class:'menu-sheet', style:'max-width:none;width:100%;padding:0;'});
+  sheet.appendChild(el('div',{style:'display:flex;justify-content:space-between;align-items:center;padding:12px 14px;'},
+    el('div',{class:'wizard-title', style:'margin:0;'}, fluxo.nome),
+    el('button',{class:'remove-x', onclick:()=>{ state._visualizarMapaPopup=null; render(); }},'✕')
+  ));
+  sheet.appendChild(el('img',{src:fluxo.url, style:'width:100%;display:block;'}));
+  overlay.appendChild(sheet);
+  return overlay;
+}
+
 function renderMestreMapas(){
   const wrap = el('div',{});
   if(!state._mestreMapas) state._mestreMapas = [];
@@ -479,15 +499,16 @@ function renderMestreMapas(){
   } else {
     state._mestreMapas.forEach((mapa, idx)=>{
       listaPanel.appendChild(el('div',{class:'spell-card'},
-        el('div',{class:'head'}, el('span',{class:'name'}, mapa.nome),
-          el('button',{class:'remove-x', onclick:()=>{
+        el('div',{class:'head', style:'cursor:pointer;', onclick:()=>abrirVisualizarMapa(mapa.nome, mapa.url)},
+          el('span',{class:'name'}, '🗺️ ', mapa.nome),
+          el('button',{class:'remove-x', onclick:(e)=>{
+            e.stopPropagation();
             if(!confirm('Remover o mapa "'+mapa.nome+'"? Os jogadores que já adicionaram como local continuam vendo (a imagem fica guardada na anotação deles).')) return;
             state._mestreMapas.splice(idx,1);
             sincronizarGradeCompartilhada();
             render();
           }},'✕')
         ),
-        mapa.url ? el('img',{src:mapa.url, style:'width:100%;border-radius:8px;margin-top:8px;display:block;'}) : null
       ));
     });
   }

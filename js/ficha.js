@@ -465,13 +465,16 @@ function renderFichaScreen(){
   if(state._efeitoItemPopup){
     wrap.appendChild(renderPopupEfeitoItemCustom(fichaAtual()));
   }
+  if(state._visualizarMapaPopup){
+    wrap.appendChild(renderPopupVisualizarMapa());
+  }
   if(state._pendenciasAberto){
     wrap.appendChild(renderPopupPendencias(fichaAtual()));
   }
   if(state._logAberto){
     wrap.appendChild(renderPopupLog(fichaAtual()));
   }
-  const semMenuAberto = !state._menuAberto && !state._divindadeFluxo && !state._cropperFoto && !(state.levelUp&&state.levelUp.aberto) && !state._enviarItemFluxo && !state._enviarDinheiroFluxo && !state._moedaPopup && !state._escolherJogadorRelFluxo && !state._escolherMapaFluxo && !state._perfilJogadorPopup && !state._usarMagiaPopup && !state._efeitoItemPopup && !state._pendenciasAberto && !state._logAberto;
+  const semMenuAberto = !state._menuAberto && !state._divindadeFluxo && !state._cropperFoto && !(state.levelUp&&state.levelUp.aberto) && !state._enviarItemFluxo && !state._enviarDinheiroFluxo && !state._moedaPopup && !state._escolherJogadorRelFluxo && !state._escolherMapaFluxo && !state._perfilJogadorPopup && !state._usarMagiaPopup && !state._efeitoItemPopup && !state._visualizarMapaPopup && !state._pendenciasAberto && !state._logAberto;
   if(estaMorto(f) && semMenuAberto){
     wrap.appendChild(el('div',{class:'aviso-sobrecarga aviso-morte'}, '💀 '+(f.nome||'Personagem')+' morreu.'));
   } else if(estaInconsciente(f) && semMenuAberto){
@@ -1619,10 +1622,11 @@ function renderPainelLocais(f){
     } else {
       f.locais.forEach((loc,idx)=>{
         corpo.push(el('div',{style:'margin-top:6px;padding-bottom:6px;border-bottom:1px solid var(--line);'},
-          loc.mapaUrl ? el('img',{src:loc.mapaUrl, style:'width:100%;border-radius:8px;margin-bottom:6px;display:block;'}) : null,
           el('div',{class:'row', style:'align-items:flex-start;'},
             el('div',{style:'flex:1;'},
-              el('div',{style:'font-weight:700;'}, loc.nome),
+              loc.mapaUrl
+                ? el('div',{style:'font-weight:700;cursor:pointer;color:var(--gold);', onclick:()=>abrirVisualizarMapa(loc.nome, loc.mapaUrl)}, '🗺️ ', loc.nome)
+                : el('div',{style:'font-weight:700;'}, loc.nome),
               el('input',{id:'local-nota-'+idx, type:'text', placeholder:'nota (opcional)', value:loc.nota||'', style:'margin-top:4px;', oninput:(e)=>{loc.nota=e.target.value;}, onchange:()=>salvarPerfis()})
             ),
             el('button',{class:'remove-x', onclick:()=>{ f.locais.splice(idx,1); salvarPerfis(); render(); }},'✕')

@@ -186,6 +186,9 @@ function renderMestreScreen(){
   if(state._trocarCodigoMestrePopup){
     wrap.appendChild(renderPopupTrocarCodigoMestre());
   }
+  if(state._visualizarMapaPopup){
+    wrap.appendChild(renderPopupVisualizarMapa());
+  }
 
   if(state.addMsg){
     wrap.appendChild(el('div',{id:'add-msg', style:'position:fixed; left:14px; right:14px; bottom:70px; max-width:692px; margin:0 auto; background:var(--card-2); color:var(--ink); padding:10px 14px; border-radius:4px; font-size:0.85rem; box-shadow:0 4px 12px rgba(0,0,0,0.35); z-index:50;'}, state.addMsg));
