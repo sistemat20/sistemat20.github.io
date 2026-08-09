@@ -103,6 +103,24 @@ function limitePMExtraPorEscola(f, escola){
   return total;
 }
 // Custo em PM de uma magia específica, já considerando itens que reduzem custo (ex: Medalhão de Prata)
+// Deslocamentos alternativos (escalada, natação, voo) que algumas raças têm — existiam só no
+// texto do traço racial, sem lugar nenhum na ficha pra consultar. Alguns são fixos em metros,
+// outros acompanham o deslocamento terrestre do personagem (que muda com armadura/carga).
+const DESLOCAMENTOS_ALTERNATIVOS = {
+  'Goblin': [{tipo:'Escalada', igualTerrestre:true, obs:'Espelunqueiro'}],
+  'Sereia/Tritão': [{tipo:'Natação', valor:12, obs:'Transformação Anfíbia'}],
+  'Sílfide': [{tipo:'Voo', valor:12, obs:'Asas de Borboleta — custa 1 PM por rodada'}],
+};
+function deslocamentosAlternativos(f){
+  const lista = DESLOCAMENTOS_ALTERNATIVOS[f.raca];
+  if(!lista) return [];
+  return lista.map(d=>({
+    tipo: d.tipo,
+    valor: d.igualTerrestre ? deslocamentoEfetivo(f) : d.valor,
+    obs: d.obs,
+  }));
+}
+
 function custoPMAjustado(f, magia){
   let custo = custoPM(magia.c);
   if(/pessoal/i.test(magia.alcance||'')){
@@ -110,6 +128,9 @@ function custoPMAjustado(f, magia){
       (e.efeito||[]).forEach(ef=>{ if(ef.tipo==='custo_pm_alcance_pessoal') custo += ef.valor; });
     });
   }
+  // Condição Alquebrado: "custo em PM das habilidades aumenta em +1" — a condição existia na
+  // lista e podia ser marcada na ficha, mas o efeito nunca era aplicado em lugar nenhum.
+  if(condicoesAtivas(f).includes('Alquebrado')) custo += 1;
   return Math.max(1, custo);
 }
 // CD de resistência de uma magia específica (considera bônus de esotéricos arcanos por escola)
@@ -740,12 +761,20 @@ function renderCropperFoto(){
   overlay.appendChild(sheet);
   return overlay;
 }
+// PV/PM temporário também entram no log — os ajustes de PV/PM normais já registravam, mas
+// esses dois passavam batido, deixando um buraco no histórico ("de onde veio esse PM temp?").
 function ajustarPVTemp(f, delta){
-  f.pvtemp = Math.max(0, (parseInt(f.pvtemp)||0)+delta);
+  const atual = parseInt(f.pvtemp)||0;
+  const novo = Math.max(0, atual+delta);
+  if(novo!==atual) registrarLog(f, (delta>0?'+':'')+delta+' PV temporário ('+atual+' → '+novo+')');
+  f.pvtemp = novo;
   salvarPerfis(); render();
 }
 function ajustarPMTemp(f, delta){
-  f.pmtemp = Math.max(0, (parseInt(f.pmtemp)||0)+delta);
+  const atual = parseInt(f.pmtemp)||0;
+  const novo = Math.max(0, atual+delta);
+  if(novo!==atual) registrarLog(f, (delta>0?'+':'')+delta+' PM temporário ('+atual+' → '+novo+')');
+  f.pmtemp = novo;
   salvarPerfis(); render();
 }
 

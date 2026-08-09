@@ -1244,6 +1244,11 @@ function renderPersonagemFicha(){
       el('div',{},
         el('label',{},'Deslocamento'),
         el('div',{class:'valor-fixo'}, deslocamentoEfetivo(f)+'m'+(deslocamentoEfetivo(f)!==(parseInt(f.deslocamento)||9) ? ' (base '+(parseInt(f.deslocamento)||9)+'m)' : '')),
+        // Deslocamentos alternativos da raça (escalada/natação/voo) — antes ficavam só no texto
+        // do traço racial, sem lugar nenhum pra consultar rápido durante a sessão.
+        ...deslocamentosAlternativos(f).map(d=>
+          el('div',{class:'meta', style:'color:var(--gold);margin-top:2px;'}, d.tipo+': '+d.valor+'m'+(d.obs?' ('+d.obs+')':''))
+        ),
       ),
       renderCampoDivindade(f),
     )
@@ -1779,6 +1784,29 @@ function renderPainelLocais(f){
   });
 }
 
+// Liga uma arma de disparo à munição correspondente na mochila. Arco usa flecha, besta usa
+// virote — sem isso, o jogador tinha que ir na Mochila procurar e editar a quantidade na mão.
+const MUNICAO_POR_ARMA = [
+  {padraoArma:/arco/i, itemMunicao:'Flechas (20)'},
+  {padraoArma:/besta/i, itemMunicao:'Virotes (20)'},
+];
+function municaoDaArma(f, arma){
+  const regra = MUNICAO_POR_ARMA.find(r=> r.padraoArma.test(arma.nome||''));
+  if(!regra) return null;
+  const idx = (f.equip||[]).findIndex(row=> row.tipo==='geral' && row.item.replace(' (recebido do Mestre)','')===regra.itemMunicao);
+  if(idx<0) return null;
+  return {nome: regra.itemMunicao.replace(' (20)',''), qtd: parseInt(f.equip[idx].qtd)||0, idx};
+}
+function gastarMunicao(f, idx){
+  const row = f.equip[idx];
+  if(!row) return;
+  const atual = parseInt(row.qtd)||0;
+  if(atual<=0) return;
+  row.qtd = String(atual-1);
+  registrarLog(f, 'Disparou (−1 '+row.item.replace(' (20)','')+', restam '+row.qtd+')');
+  salvarPerfis(); render();
+}
+
 function renderItensEquipados(){
   const f = fichaAtual();
   const temAlgo = (f.armas.length>0) || ((f.esotericos||[]).length>0);
@@ -1806,6 +1834,16 @@ function renderItensEquipados(){
       if(semProf) card.appendChild(el('div',{class:'meta', style:'color:var(--red-bright);'}, '⚠ Sem proficiência — já aplicado o –5 acima'));
       if(efetivo.nota) card.appendChild(el('div',{class:'meta', style:'color:var(--gold);'}, efetivo.nota));
       if(a.superior && a.melhoriasTxt) card.appendChild(el('div',{class:'meta', style:'color:var(--gold);'}, '⭐ '+a.melhoriasTxt));
+      // Munição — pra arma de disparo, mostra quanto tem na mochila e deixa gastar sem precisar
+      // ir procurar lá. Antes só dava pra acompanhar indo na Mochila e editando a quantidade.
+      const municao = municaoDaArma(f, a);
+      if(municao){
+        card.appendChild(el('div',{class:'row', style:'align-items:center;margin-top:6px;gap:8px;'},
+          el('div',{class:'meta', style:'flex:1;'+(municao.qtd<=0?'color:var(--red-bright);':'color:var(--gold);')},
+            '🏹 '+municao.nome+': '+municao.qtd+(municao.qtd<=0?' — acabou!':'')),
+          municao.qtd>0 ? el('button',{class:'btn ghost', style:'width:auto;padding:5px 10px;font-size:0.7rem;flex-shrink:0;', onclick:()=>gastarMunicao(f, municao.idx)}, 'Disparar (−1)') : null
+        ));
+      }
       corpo.push(card);
     });
 
@@ -2680,40 +2718,97 @@ function renderPericias(){
   if(lista.length===0){
     wrap.appendChild(el('div',{class:'empty'},'Nenhuma perícia encontrada.'));
   }
-  lista.forEach(p=>{
-    const isTreinada = treinadas.has(p.nome);
-    const aberto = state._periciaAberta === p.nome;
-    const valor = periciaValor(f, p);
-    const nomeEl = el('div',{class:'pericia-nome'}, p.nome+' ');
-    if(isTreinada) nomeEl.appendChild(el('span',{class:'pericia-estrela'},'★'));
-    const row = el('div',{class:'pericia-row'+(isTreinada?' treinada':''), onclick:()=>{ state._periciaAberta = aberto ? null : p.nome; render(); }},
-      el('div',{class:'pericia-total'}, (valor>=0?'+':'')+valor),
-      el('div',{},
-        nomeEl,
-        el('div',{class:'pericia-attr'}, p.attr + (p.treinada?' · só treinada':'') + (p.armadura?' · penalidade':''))
-      ),
-      el('div',{style:'font-size:0.8rem;color:var(--ink-soft);'}, aberto?'▲':'▼')
-    );
 
-    const wrapRow = el('div',{}, row);
-    if(aberto){
-      const bonusPoder = bonusPericiaDePoderes(f, p.nome);
-      const bonusDivindade = bonusPericiaDeDivindade(f, p.nome);
-      const bonusOrigem = bonusPericiaDeOrigem(f, p.nome);
-      const bonusClasseEspecifica = bonusPericiaDeClasse(f, p.nome);
-      const bonusCondicoes = bonusCondicoesPericia(f, p);
-      const racaObjDetalhe = getRacaObj(f);
-      const usaSabEmAdestramentoDetalhe = p.nome==='Adestramento' && listaPoderesConcedidos(f).some(pc=>pc && pc.nome==='Compreender os Ermos');
-      const attrExibido = usaSabEmAdestramentoDetalhe ? 'Sabedoria (Compreender os Ermos)' : (p.nome==='Atletismo' && racaObjDetalhe && racaObjDetalhe.atletismoUsaDestreza) ? 'Destreza (traço racial)' : p.attr;
-      const attrValExibido = usaSabEmAdestramentoDetalhe ? (parseInt(f.sab)||0) : (p.nome==='Atletismo' && racaObjDetalhe && racaObjDetalhe.atletismoUsaDestreza) ? (parseInt(f.des)||0) : (parseInt(f[p.attr.toLowerCase()])||0);
-      const detalhe = el('div',{class:'tip', style:'margin-top:-4px;margin-bottom:8px;'},
-        el('div',{}, el('b',{},'Cálculo: '), '1/2 nível ('+Math.floor(nivel/2)+') + '+attrExibido+' ('+attrValExibido+')'+(isTreinada?' + treino ('+bonusTreinoPericia(nivel)+')':'')+(bonusPoder?' + poderes ('+bonusPoder+')':'')+(bonusPericiaDeRaca(f,p.nome)?' + raça ('+bonusPericiaDeRaca(f,p.nome)+')':'')+(bonusDivindade?' + divindade ('+bonusDivindade+')':'')+(bonusOrigem?' + origem ('+bonusOrigem+')':'')+(bonusClasseEspecifica?' + poder de classe ('+bonusClasseEspecifica+')':'')+(bonusCondicoes?' + condições ('+bonusCondicoes+')':'')+(p.nome==='Furtividade'&&bonusFurtividadeTamanho(f)?' + tamanho ('+bonusFurtividadeTamanho(f)+')':'')+(p.armadura && penalidadeTotal(f)?' + penalidade de armadura ('+penalidadeTotal(f)+')':'')+' = '+valor),
-        el('div',{class:'desc', style:'margin-top:6px;'}, p.resumo),
-        el('div',{style:'margin-top:6px;'}, el('b',{},'Principais usos:'), ...p.usos.map(u=> el('div',{style:'margin-top:2px;'}, '• '+u)))
+  // Agrupa por atributo-chave (Força, Destreza...) — com 30 perícias numa lista plana, achar
+  // uma específica exigia ler nome por nome. Dentro de cada grupo, ordena da melhor pra pior,
+  // já que a barra do "termômetro" (abaixo) fica visualmente mais coerente assim.
+  const grupos = {};
+  lista.forEach(p=>{
+    if(!grupos[p.attr]) grupos[p.attr] = [];
+    grupos[p.attr].push(p);
+  });
+  // Menor e maior valor da lista inteira, pra calcular o tamanho relativo de cada barra
+  const valores = lista.map(p=> periciaValor(f, p));
+  const menorValor = Math.min(...valores, 0);
+  const maiorValor = Math.max(...valores, 1);
+  const faixaValores = Math.max(1, maiorValor - menorValor);
+
+  Object.keys(grupos).forEach(attr=>{
+    const doGrupo = grupos[attr].slice().sort((a,b)=> periciaValor(f,b) - periciaValor(f,a));
+    wrap.appendChild(el('div',{class:'pericia-grupo-cab'},
+      el('span',{class:'grupo-nome'}, NOME_ATRIBUTO[attr.toLowerCase().slice(0,3)] || attr),
+      el('span',{class:'grupo-cont'}, doGrupo.length+(doGrupo.length===1?' perícia':' perícias'))
+    ));
+
+    doGrupo.forEach(p=>{
+      const isTreinada = treinadas.has(p.nome);
+      const aberto = state._periciaAberta === p.nome;
+      const valor = periciaValor(f, p);
+      // Largura proporcional ao valor dentro da faixa do personagem (não um valor absoluto —
+      // assim a barra continua legível tanto no nível 1 quanto no nível 20). Mínimo de 8% pra
+      // até a pior perícia ter alguma presença visual.
+      const pctBarra = Math.max(8, Math.round(((valor - menorValor) / faixaValores) * 92));
+      const faixaCor = valor >= menorValor + faixaValores*0.66 ? 'forte' : valor >= menorValor + faixaValores*0.33 ? 'media' : 'fraca';
+      const nomeEl = el('div',{class:'pericia-nome'}, p.nome+' ');
+      if(isTreinada) nomeEl.appendChild(el('span',{class:'pericia-estrela'},'★'));
+      const row = el('div',{class:'pericia-row'+(isTreinada?' treinada':'')+(aberto?' aberta':''), onclick:()=>{ state._periciaAberta = aberto ? null : p.nome; render(); }},
+        el('div',{class:'pericia-termometro '+faixaCor, style:'width:'+pctBarra+'%;'}),
+        el('div',{class:'pericia-total'}, (valor>=0?'+':'')+valor),
+        el('div',{},
+          nomeEl,
+          el('div',{class:'pericia-attr'}, p.attr + (p.treinada?' · só treinada':'') + (p.armadura?' · penalidade':''))
+        ),
+        el('div',{style:'font-size:0.8rem;color:var(--ink-soft);'}, aberto?'▲':'▼')
       );
-      wrapRow.appendChild(detalhe);
-    }
-    wrap.appendChild(wrapRow);
+
+      const wrapRow = el('div',{}, row);
+      if(aberto){
+        const bonusPoder = bonusPericiaDePoderes(f, p.nome);
+        const bonusDivindade = bonusPericiaDeDivindade(f, p.nome);
+        const bonusOrigem = bonusPericiaDeOrigem(f, p.nome);
+        const bonusClasseEspecifica = bonusPericiaDeClasse(f, p.nome);
+        const bonusCondicoes = bonusCondicoesPericia(f, p);
+        const bonusRaca = bonusPericiaDeRaca(f, p.nome);
+        const bonusTormentaP = bonusPericiaDeTormenta(f, p.nome);
+        const bonusItens = bonusPericiaDeItensVestidos(f, p.nome);
+        const racaObjDetalhe = getRacaObj(f);
+        const usaSabEmAdestramentoDetalhe = p.nome==='Adestramento' && listaPoderesConcedidos(f).some(pc=>pc && pc.nome==='Compreender os Ermos');
+        const attrExibido = usaSabEmAdestramentoDetalhe ? 'Sabedoria (Compreender os Ermos)' : (p.nome==='Atletismo' && racaObjDetalhe && racaObjDetalhe.atletismoUsaDestreza) ? 'Destreza (traço racial)' : p.attr;
+        const attrValExibido = usaSabEmAdestramentoDetalhe ? (parseInt(f.sab)||0) : (p.nome==='Atletismo' && racaObjDetalhe && racaObjDetalhe.atletismoUsaDestreza) ? (parseInt(f.des)||0) : atributoEfetivo(f, p.attr.toLowerCase().slice(0,3));
+
+        // Cada parcela do cálculo vira uma linha própria (rótulo à esquerda, valor à direita)
+        // em vez do texto corrido comprido de antes — bem mais fácil de conferir de onde vem
+        // cada pedaço do total.
+        const parcelas = [
+          ['½ nível', Math.floor(nivel/2)],
+          [attrExibido, attrValExibido],
+        ];
+        if(isTreinada) parcelas.push(['Treino', bonusTreinoPericia(nivel)]);
+        if(bonusPoder) parcelas.push(['Poderes', bonusPoder]);
+        if(bonusRaca) parcelas.push(['Raça', bonusRaca]);
+        if(bonusTormentaP) parcelas.push(['Poderes da Tormenta', bonusTormentaP]);
+        if(bonusItens) parcelas.push(['Itens vestidos', bonusItens]);
+        if(bonusDivindade) parcelas.push(['Divindade', bonusDivindade]);
+        if(bonusOrigem) parcelas.push(['Origem', bonusOrigem]);
+        if(bonusClasseEspecifica) parcelas.push(['Poder de classe', bonusClasseEspecifica]);
+        if(bonusCondicoes) parcelas.push(['Condições', bonusCondicoes]);
+        if(p.nome==='Furtividade' && bonusFurtividadeTamanho(f)) parcelas.push(['Tamanho', bonusFurtividadeTamanho(f)]);
+        if(p.armadura && penalidadeTotal(f)) parcelas.push(['Penalidade de armadura', penalidadeTotal(f)]);
+
+        const detalhe = el('div',{class:'pericia-detalhe'},
+          ...parcelas.map(([rotulo, val])=>
+            el('div',{class:'calc-linha'}, el('span',{}, rotulo), el('span',{}, (val>=0?'+':'')+val))
+          ),
+          el('div',{class:'calc-linha total'}, el('span',{},'Total'), el('span',{}, (valor>=0?'+':'')+valor)),
+          el('div',{class:'desc', style:'margin-top:8px;'}, p.resumo),
+          el('div',{class:'usos'}, el('b',{},'Principais usos'),
+            el('ul',{}, ...p.usos.map(u=> el('li',{}, u)))
+          )
+        );
+        wrapRow.appendChild(detalhe);
+      }
+      wrap.appendChild(wrapRow);
+    });
   });
   return wrap;
 }
