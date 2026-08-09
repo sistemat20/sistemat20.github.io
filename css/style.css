@@ -571,6 +571,10 @@
 }
 .pericia-row:nth-child(even){ background:rgba(124,31,31,0.035); }
 .pericia-termometro{
+  /* grid-area cobrindo a linha inteira + position:absolute — sem isso, o termômetro era tratado
+     como o primeiro ITEM do grid e "roubava" a coluna do número, esticando a caixa dele e
+     desalinhando o nome/atributo (foi exatamente o que quebrou o layout num teste real). */
+  grid-area:1 / 1 / 2 / 4;
   position:absolute; left:0; top:0; bottom:0; border-radius:0 6px 6px 0;
   opacity:0.28; pointer-events:none; transition:width 250ms ease;
 }
@@ -582,14 +586,17 @@
 .pericia-termometro.fraca{ background:linear-gradient(90deg, rgba(120,100,60,0.45), transparent); }
 .pericia-termometro.media{ background:linear-gradient(90deg, rgba(166,129,47,0.6), transparent); }
 .pericia-termometro.forte{ background:linear-gradient(90deg, var(--gold-deep), transparent); }
-/* Tudo que não é a barra precisa ficar por cima dela */
-.pericia-row > *{ position:relative; }
+/* Tudo que não é a barra precisa ficar por cima dela — o :not() é importante, senão essa regra
+   sobrescreveria o position:absolute do próprio termômetro. */
+.pericia-row > *:not(.pericia-termometro){ position:relative; }
 .pericia-row.aberta{ background:rgba(166,129,47,0.07); border-bottom:none; }
 .pericia-row .pericia-total{
-  font-family:'Cinzel',serif; font-weight:800; font-size:var(--fs-base); color:var(--red-deep);
-  text-align:center; background:var(--card); border:1.5px solid var(--line); border-radius:4px; padding:2px 0;
+  /* Era --red-deep (vermelho bem escuro) sobre fundo escuro — contraste ruim, difícil de ler.
+     Trocado por --ink com o dourado reservado pra destacar as treinadas. */
+  font-family:'Cinzel',serif; font-weight:800; font-size:var(--fs-base); color:var(--ink);
+  text-align:center; background:var(--card-2); border:1.5px solid var(--line); border-radius:4px; padding:3px 0;
 }
-.pericia-row.treinada .pericia-total{ border-color:var(--gold); border-width:2px; }
+.pericia-row.treinada .pericia-total{ border-color:var(--gold); border-width:2px; color:var(--gold); }
 .pericia-row .pericia-nome{ font-weight:600; font-size:var(--fs-sm); }
 .pericia-row .pericia-attr{ font-size:var(--fs-2xs); color:var(--ink-soft); text-transform:uppercase; }
 .pericia-row .pericia-estrela{ color:var(--gold); }

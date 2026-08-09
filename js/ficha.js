@@ -2747,12 +2747,17 @@ function renderPericias(){
       // Largura proporcional ao valor dentro da faixa do personagem (não um valor absoluto —
       // assim a barra continua legível tanto no nível 1 quanto no nível 20). Mínimo de 8% pra
       // até a pior perícia ter alguma presença visual.
-      const pctBarra = Math.max(8, Math.round(((valor - menorValor) / faixaValores) * 92));
-      const faixaCor = valor >= menorValor + faixaValores*0.66 ? 'forte' : valor >= menorValor + faixaValores*0.33 ? 'media' : 'fraca';
+      // Barra só nas perícias que MERECEM destaque (treinadas, ou entre as de valor mais alto)
+      // — numa ficha real só existem 3-4 valores distintos, então uma barra em cada linha
+      // deixava quase todas do mesmo tamanho e não informava nada. Assim a barra vira um
+      // marcador de "olha aqui", que é o que ela realmente consegue comunicar.
+      const ehDestaque = isTreinada || valor >= menorValor + faixaValores*0.66;
+      const pctBarra = Math.max(30, Math.round(((valor - menorValor) / faixaValores) * 92));
+      const faixaCor = isTreinada ? 'forte' : 'media';
       const nomeEl = el('div',{class:'pericia-nome'}, p.nome+' ');
       if(isTreinada) nomeEl.appendChild(el('span',{class:'pericia-estrela'},'★'));
       const row = el('div',{class:'pericia-row'+(isTreinada?' treinada':'')+(aberto?' aberta':''), onclick:()=>{ state._periciaAberta = aberto ? null : p.nome; render(); }},
-        el('div',{class:'pericia-termometro '+faixaCor, style:'width:'+pctBarra+'%;'}),
+        ehDestaque ? el('div',{class:'pericia-termometro '+faixaCor, style:'width:'+pctBarra+'%;'}) : null,
         el('div',{class:'pericia-total'}, (valor>=0?'+':'')+valor),
         el('div',{},
           nomeEl,
