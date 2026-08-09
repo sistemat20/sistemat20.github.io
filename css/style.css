@@ -395,12 +395,17 @@
 .perfis-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:18px; max-width:680px; width:100%; }
 .perfil-card{ display:flex; flex-direction:column; align-items:center; gap:8px; cursor:pointer; background:none; border:none; padding:0; }
 .perfil-avatar{
-  width:100px; height:100px; border-radius:8px; display:flex; align-items:center; justify-content:center;
-  font-family:'Cinzel',serif; font-weight:800; font-size:2rem; color:#fff; border:3px solid transparent;
-  transition:border-color .15s, transform .15s;
+  width:100px; height:100px; border-radius:var(--radius-md); display:flex; align-items:center; justify-content:center;
+  font-family:'Cinzel',serif; font-weight:800; font-size:2rem; color:#fff;
+  /* Mesmo tratamento do retrato na Ficha (moldura dourada dupla + sombra interna), adaptado pro
+     formato quadrado — a tela de Perfis é a PRIMEIRA coisa que o jogador vê ao abrir o app, e
+     antes disso era só um quadrado chapado sem nenhum acabamento. */
+  border:3px solid var(--gold-deep);
+  box-shadow: 0 0 0 2px var(--bg-2), 0 0 0 4px var(--gold-deep), inset 0 0 14px rgba(0,0,0,0.45), 0 3px 8px var(--shadow);
+  transition:border-color .15s, transform .15s, box-shadow .2s;
 }
 .perfil-card:active .perfil-avatar{ transform:scale(0.96); }
-.perfil-card:hover .perfil-avatar, .perfil-card:focus .perfil-avatar{ border-color:var(--gold); }
+.perfil-card:hover .perfil-avatar, .perfil-card:focus .perfil-avatar{ border-color:var(--red-bright); box-shadow: 0 0 0 2px var(--bg-2), 0 0 0 4px var(--red-bright), inset 0 0 14px rgba(0,0,0,0.45), 0 6px 14px rgba(0,0,0,0.35), 0 0 12px rgba(224,69,58,0.3); }
 .perfil-nome{ font-size:0.85rem; font-weight:600; color:var(--ink-soft); text-align:center; max-width:110px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .perfil-sub{ font-size:0.68rem; color:var(--ink-soft); opacity:0.8; text-align:center; }
 .perfil-add .perfil-avatar{ background:var(--card); border:2px dashed var(--line); color:var(--red); font-size:2.4rem; }
@@ -595,9 +600,20 @@
 }
 
 /* Barra lateral decorativa para separar seções principais (Ataques/Defesa/Perícias) */
+/* Divisor de seção — linha dourada que desvanece nas pontas com um losango no meio, tipo
+   ornamento de página de livro. Antes era um tracejado vermelho chapado. */
 .secao-divisor{
-  height:6px; margin:16px 0; background:linear-gradient(90deg, var(--red) 0%, var(--red) 70%, transparent 70%, transparent 100%);
-  background-size:14px 6px; opacity:0.5; border-radius:3px;
+  height:14px; margin:18px 0; position:relative; opacity:0.75;
+  display:flex; align-items:center; justify-content:center;
+}
+.secao-divisor::before{
+  content:''; position:absolute; left:0; right:0; top:50%; height:1px;
+  background:linear-gradient(90deg, transparent, var(--gold-deep) 25%, var(--gold-deep) 75%, transparent);
+}
+.secao-divisor::after{
+  content:''; position:relative; width:7px; height:7px;
+  background:var(--gold); transform:rotate(45deg);
+  box-shadow:0 0 0 3px var(--bg), 0 0 6px rgba(216,189,116,0.5);
 }
 
 /* ===== Trilha de Progressão (Novato/Veterano/Campeão/Lenda) — aba Evolução ===== */
@@ -649,11 +665,13 @@
   font-family:'Cinzel',serif; font-size:var(--fs-2xs); text-transform:uppercase; letter-spacing:0.08em;
   color:var(--gold); margin-top:2px;
 }
-.stat-tracker.pv .stat-nums .stat-atual{ color:var(--pv-accent); }
-.stat-tracker.pm .stat-nums .stat-atual{ color:var(--pm-accent); }
+/* Brilho suave na cor do próprio recurso — são os números mais olhados da ficha durante um
+   combate, e antes ficavam com o mesmo peso visual de qualquer outro texto. */
+.stat-tracker.pv .stat-nums .stat-atual{ color:var(--pv-accent); text-shadow:0 0 10px rgba(240,168,168,0.35); }
+.stat-tracker.pm .stat-nums .stat-atual{ color:var(--pm-accent); text-shadow:0 0 10px rgba(156,199,232,0.35); }
 .stat-hint{ display:flex; justify-content:space-between; padding:0 4px; margin-top:4px; opacity:0.45; pointer-events:none; }
 .stat-hint span{ font-family:'Cinzel',serif; font-weight:800; font-size:var(--fs-sm); color:var(--gold); }
-.stat-bar{ height:7px; border-radius:4px; background:rgba(255,255,255,0.08); margin-top:6px; overflow:hidden; box-shadow:inset 0 1px 2px rgba(0,0,0,0.4); }
+.stat-bar{ height:9px; border-radius:5px; background:rgba(255,255,255,0.08); margin-top:6px; overflow:hidden; box-shadow:inset 0 1px 3px rgba(0,0,0,0.55), inset 0 -1px 0 rgba(255,255,255,0.06); }
 .iniciativa-timeline{ display:flex; gap:8px; overflow-x:auto; padding:4px 2px 10px; margin-bottom:8px; -webkit-overflow-scrolling:touch; }
 .iniciativa-chip{
   flex-shrink:0; width:64px; display:flex; flex-direction:column; align-items:center; gap:2px;
@@ -663,7 +681,15 @@
 .iniciativa-chip-icone{ font-size:1.2rem; }
 .iniciativa-chip-nome{ font-size:var(--fs-2xs); font-family:'Cinzel',serif; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:56px; }
 .iniciativa-chip-num{ font-size:var(--fs-2xs); font-weight:800; color:var(--gold); }
-.stat-bar-fill{ height:100%; border-radius:4px; transition:width 200ms ease, background 200ms ease; }
+/* Preenchimento com brilho no topo (como líquido dentro de um tubo de vidro) em vez de um
+   gradiente chapado da esquerda pra direita — o ::after desenha essa "luz" na metade de cima. */
+.stat-bar-fill{ height:100%; border-radius:5px; transition:width 200ms ease, background 200ms ease; position:relative; }
+.stat-bar-fill::after{
+  content:''; position:absolute; left:0; right:0; top:0; height:45%;
+  border-radius:5px 5px 0 0;
+  background:linear-gradient(180deg, rgba(255,255,255,0.35), rgba(255,255,255,0));
+  pointer-events:none;
+}
 .stat-bar-fill.saudavel{ background:linear-gradient(90deg, #4a8a3a, #7fc45f); }
 .stat-bar-fill.atencao{ background:linear-gradient(90deg, #b8862e, #e0b04a); }
 .stat-bar-fill.critico{ background:linear-gradient(90deg, #8a2020, #e0453a); box-shadow:0 0 8px rgba(224,69,58,0.6); animation: pulso-critico 1.4s ease-in-out infinite; }

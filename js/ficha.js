@@ -481,9 +481,19 @@ function renderFichaScreen(){
     el('div',{style:'display:flex;justify-content:space-between;align-items:center;gap:10px;'},
       el('button',{class:'btn ghost', style:'width:auto;flex-shrink:0;padding:6px 12px;background:transparent;border-color:var(--ink);color:var(--ink);', onclick:()=>{ pararAtualizacaoAutomaticaJogador(); state.screen='perfis'; state.perfilAtualId=null; render(); }}, '← Perfis'),
       el('h1',{class:'display', style:'font-size:1.1rem;margin:0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;text-align:center;'}, f.nome || 'Personagem'),
-      el('button',{class:'menu-trigger', style:'flex-shrink:0;', onclick:()=>{ state._menuAberto=true; render(); }},
-        el('span',{}, secaoAtual[2]), el('span',{},'Menu')
-      )
+      (()=>{
+        // Selo de cera no próprio botão de Menu quando tem pendência — antes só aparecia DENTRO
+        // do menu, ou seja, a pessoa precisava abrir pra descobrir que tinha algo pendente.
+        // Reaproveita a mesma peça visual usada no card do personagem em Perfis.
+        const temPendencia = detectarPendencias(f).length > 0;
+        const btnMenu = el('button',{class:'menu-trigger', style:'flex-shrink:0;position:relative;', onclick:()=>{ state._menuAberto=true; render(); }},
+          el('span',{}, secaoAtual[2]), el('span',{},'Menu')
+        );
+        if(temPendencia){
+          btnMenu.appendChild(el('span',{class:'selo-cera', style:'top:-8px;left:auto;right:-8px;width:20px;height:20px;font-size:0.62rem;', title:detectarPendencias(f).length+' pendência(s)'}, '!'));
+        }
+        return btnMenu;
+      })()
     ),
     el('div',{class:'sub', style:'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'}, (f.raca||'—')+' · '+classeDisplay(f)+' · Nível total '+nivelTotal(f))
   ));
@@ -1564,10 +1574,16 @@ function renderPersonagemNotas(){
     }
     const rowDescanso = el('div',{class:'option-grid', style:'margin-top:8px;'});
     Object.keys(QUALIDADE_DESCANSO).forEach(qualidade=>{
-      const previaTxt = f.raca==='Golem' ? '+'+nivelTotal(f)+' PV/PM (sempre)' : '+'+Math.floor(nivelTotal(f)*QUALIDADE_DESCANSO[qualidade])+' PV/PM';
+      const valorRecup = f.raca==='Golem' ? nivelTotal(f) : Math.floor(nivelTotal(f)*QUALIDADE_DESCANSO[qualidade]);
       rowDescanso.appendChild(el('button',{class:'option-card', onclick:()=>aplicarDescanso(f, qualidade)},
         el('div',{class:'opt-nome'}, qualidade),
-        el('div',{class:'opt-sub'}, previaTxt)
+        // PV em vermelho e PM em azul, as mesmas cores dos cards de Vida/Mana na Ficha
+        el('div',{class:'opt-sub'},
+          el('span',{style:'color:var(--pv-accent);'}, '+'+valorRecup+' PV'),
+          ' · ',
+          el('span',{style:'color:var(--pm-accent);'}, '+'+valorRecup+' PM'),
+          f.raca==='Golem' ? ' (sempre)' : ''
+        )
       ));
     });
     corpo.push(rowDescanso);
@@ -2806,9 +2822,13 @@ function renderPopupUsarMagia(f){
   if(!fluxo.catalisadorEscolhido) fluxo.catalisadorEscolhido = null;
   const cdMostrada = cdBase!=null ? cdBase + (fluxo.magiaPungenteAtiva?2:0) + (f._liturgiaMagicaAtiva?2:0) + (fluxo.catalisadorEscolhido && CATALISADORES_CD_ESCOLA[fluxo.catalisadorEscolhido]===s.e ? 2 : 0) : null;
   sheet.appendChild(el('div',{class:'tip', style:'margin:6px 14px;'+(passouLimite?'border:1px solid var(--red-bright);':'')},
-    'Custo base: '+custoBase+' PM · Você tem: '+(parseInt(f.pmatual)||0)+' PM'
-    + (cdMostrada!=null ? ' · CD pra resistir: '+cdMostrada : '')
-    + ' · Limite por magia: '+limite+' PM ('+(ehNivelDeClasse?'seu nível na classe conjuradora':'seu nível')
+    // Números de PM na cor do recurso (mesmo azul dos cards de Mana na Ficha) — antes era tudo
+    // texto genérico aqui, perdendo a associação visual rápida "azul = mana" que já existe lá.
+    'Custo base: ', el('b',{style:'color:var(--pm-accent);'}, custoBase+' PM'),
+    ' · Você tem: ', el('b',{style:'color:var(--pm-accent);'}, (parseInt(f.pmatual)||0)+' PM'),
+    (cdMostrada!=null ? ' · CD pra resistir: '+cdMostrada : ''),
+    ' · Limite por magia: ', el('b',{style:'color:var(--pm-accent);'}, limite+' PM'),
+    ' ('+(ehNivelDeClasse?'seu nível na classe conjuradora':'seu nível')
     + ((s.trad!=='Divina'&&limitePMExtraArcana(f)>0)?', +'+limitePMExtraArcana(f)+' de item':'')
     + (limitePMExtraPorEscola(f, s.e)>0?', +'+limitePMExtraPorEscola(f, s.e)+' de item ('+s.e+')':'')
     + (poderesAtivos(f).includes('Magia Ilimitada')?', +'+(valorAtributoChaveMagia(f)||0)+' de Magia Ilimitada':'')
