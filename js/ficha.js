@@ -5,10 +5,69 @@
 const MENU_SECOES = [
   ['personagem','Personagem','🧙'],
   ['magias','Magias','📖'],
-  ['pericias','Perícias','🎯'],
   ['itens','Itens','🎒'],
   ['guia','Evolução','📈'],
 ];
+
+// Personagem e Perícias viraram um card só que desliza — em vez de precisar ir no menu, é só
+// arrastar pro lado. A animação do arraste em si acontece TODA fora do ciclo de render() (só
+// manipula style.transform direto no elemento) — importante porque esse app reconstrói a tela
+// inteira a cada atualização (inclusive o sincronismo automático a cada 12s), e se o arraste
+// passasse por lá, uma atualização caindo no meio do gesto trocaria o elemento por baixo do dedo
+// da pessoa. Só quando o gesto termina (solta o dedo) é que a troca de aba vira de verdade
+// (state.tab muda e um render() só acontece então).
+function renderPersonagemComSwipeParaPericias(){
+  const wrap = el('div',{style:'overflow:hidden;position:relative;'});
+  const naPericias = state.tab==='pericias';
+
+  const pontos = el('div',{style:'display:flex;justify-content:center;gap:6px;padding:8px 0 2px;'},
+    el('div',{style:'width:7px;height:7px;border-radius:50%;transition:all 200ms;background:'+(!naPericias?'var(--gold)':'var(--line)')+';'+(!naPericias?'width:20px;border-radius:4px;':'')}),
+    el('div',{style:'width:7px;height:7px;border-radius:50%;transition:all 200ms;background:'+(naPericias?'var(--gold)':'var(--line)')+';'+(naPericias?'width:20px;border-radius:4px;':'')})
+  );
+  wrap.appendChild(pontos);
+
+  const track = el('div',{style:'display:flex;width:200%;transition:transform 220ms ease;transform:translateX('+(naPericias?'-50%':'0')+');'});
+  track.appendChild(el('div',{style:'width:50%;flex-shrink:0;'}, renderPersonagemScreen()));
+  track.appendChild(el('div',{style:'width:50%;flex-shrink:0;'}, renderPericias()));
+  wrap.appendChild(track);
+  wrap.appendChild(el('div',{class:'meta', style:'text-align:center;padding:4px 0 8px;opacity:0.6;'}, naPericias ? '› arraste pra voltar' : '‹ arraste pra ver Perícias ›'));
+
+  let inicioX = null, deslocamentoAtual = 0;
+  const larguraContainer = ()=> wrap.offsetWidth || 380;
+  wrap.addEventListener('touchstart', (e)=>{
+    if(e.touches.length!==1) return;
+    inicioX = e.touches[0].clientX;
+    deslocamentoAtual = 0;
+    state._arrastandoPersonagemPericias = true;
+    track.style.transition = 'none';
+  }, {passive:true});
+  wrap.addEventListener('touchmove', (e)=>{
+    if(inicioX===null) return;
+    deslocamentoAtual = e.touches[0].clientX - inicioX;
+    const basePercent = naPericias ? -50 : 0;
+    const deltaPercent = (deslocamentoAtual / larguraContainer()) * 50;
+    const novoPercent = Math.max(-50, Math.min(0, basePercent + deltaPercent));
+    track.style.transform = 'translateX('+novoPercent+'%)';
+  }, {passive:true});
+  const finalizarGesto = ()=>{
+    if(inicioX===null) return;
+    track.style.transition = 'transform 220ms ease';
+    const limiar = larguraContainer() * 0.18;
+    let novaAba = state.tab;
+    if(deslocamentoAtual < -limiar && !naPericias) novaAba = 'pericias';
+    else if(deslocamentoAtual > limiar && naPericias) novaAba = 'personagem';
+    track.style.transform = 'translateX('+(novaAba==='pericias'?'-50%':'0')+')';
+    inicioX = null; deslocamentoAtual = 0;
+    state._arrastandoPersonagemPericias = false;
+    if(novaAba !== state.tab){
+      setTimeout(()=>{ state.tab = novaAba; render(); }, 220);
+    }
+  };
+  wrap.addEventListener('touchend', finalizarGesto, {passive:true});
+  wrap.addEventListener('touchcancel', finalizarGesto, {passive:true});
+
+  return wrap;
+}
 
 function renderMenuOverlay(){
   const overlay = el('div',{class:'menu-overlay', onclick:(e)=>{ if(e.target===e.currentTarget){ state._menuAberto=false; render(); } }});
@@ -505,10 +564,9 @@ function renderFichaScreen(){
   }
 
   const main = el('main',{});
-  if(state.tab === 'personagem') main.appendChild(renderPersonagemScreen());
+  if(state.tab === 'personagem' || state.tab === 'pericias') main.appendChild(renderPersonagemComSwipeParaPericias());
   if(state.tab === 'itens') main.appendChild(renderItensCompleto());
   if(state.tab === 'magias') main.appendChild(renderMagias());
-  if(state.tab === 'pericias') main.appendChild(renderPericias());
   if(state.tab === 'guia') main.appendChild(renderGuia());
   wrap.appendChild(main);
 
@@ -1255,6 +1313,8 @@ function renderPersonagemFicha(){
   ));
 
   wrap.appendChild(renderPainelCondicoes(f));
+  const painelLembretes = renderPainelLembretesMecanicos(f);
+  if(painelLembretes) wrap.appendChild(painelLembretes);
   // Manobras de Combate foi movido pra Notas (agora colapsável, junto com Proficiências,
   // Poderes, Habilidades Iniciais e Descanso).
   wrap.appendChild(renderItensEquipados());
@@ -1294,6 +1354,48 @@ function renderPainelManobrasColapsavel(f){
 
 // Painel de condições ativas — toque pra ligar/desligar. Mostra só o nome nas escolhidas de
 // cara; toda a lista só aparece quando o jogador toca em "Gerenciar condições".
+// Central de Lembretes Mecânicos — coisas que o personagem TEM, mas que o sistema não tem como
+// calcular em nenhum número da ficha (resistência a veneno, redução de dano por tipo, etc). Sem
+// isso, era fácil esquecer que um efeito desses existe, já que não aparece em lugar nenhum.
+// Cada entrada é opcional: "poder" (checa nomesPoderesConhecidos) ou "item" (checa se tem
+// equipado, entre esotéricos ou geral vestido).
+const LEMBRETES_MECANICOS = [
+  {poder:'Natureza Venenosa', texto:'+5 de resistência a veneno; pode envenenar sua arma (1d12 de dano).'},
+  {poder:'Sangue Frio', texto:'Sofre +1 de dano por dado de dano de frio.'},
+  {poder:'Ossos Frágeis', texto:'Sofre +1 de dano por dado de dano de impacto.'},
+  {poder:'Cria da Tormenta', texto:'+5 de resistência contra efeitos da Tormenta.'},
+  {poder:'Conhecimento das Rochas', texto:'+2 em Percepção e Sobrevivência enquanto estiver no subterrâneo.'},
+  {poder:'Tradição de Heredrimm', texto:'Machados, martelos, marretas e picaretas são armas simples pra você; +1 no dano com elas.'},
+  {item:'Costela de lich', texto:'Suas magias causam +1d6 de dano de trevas extra. Enquanto empunhada, você NÃO recupera PV por cura mágica.'},
+  {item:'Ankh Solar', texto:'Magias com teste de resistência ganham o aprimoramento: quem falha também não recupera PV por 1 rodada (+2 PM).'},
+  {item:'Tomo do Rancor', texto:'Magias de dano ganham o aprimoramento: +2d8+2 de dano extra, escolha o tipo (+2 PM).'},
+];
+function lembretesAtivos(f){
+  const nomesPoderes = nomesPoderesConhecidos(f);
+  // Traços FIXOS da raça (tipo Natureza Venenosa da Medusa) nunca são "escolhidos" — ficam só na
+  // definição da raça, nunca copiados pra dentro da ficha do personagem. nomesPoderesConhecidos
+  // não pega isso, por isso soma aqui separado.
+  const racaObjLembrete = getRacaObj(f);
+  const nomesTracoRaca = racaObjLembrete ? (racaObjLembrete.poderes||[]).map(p=>p[0]) : [];
+  const nomesItens = new Set([
+    ...(f.esotericos||[]).filter(e=>e.equipado!==false).map(e=>e.nome),
+    ...itensVestidosAtivos(f).map(fonte=>fonte.nome),
+  ]);
+  return LEMBRETES_MECANICOS.filter(l=> (l.poder && (nomesPoderes.includes(l.poder) || nomesTracoRaca.includes(l.poder))) || (l.item && nomesItens.has(l.item)) );
+}
+function renderPainelLembretesMecanicos(f){
+  const ativos = lembretesAtivos(f);
+  if(ativos.length===0) return null;
+  return renderSecaoNotasColapsavel('lembretes-mecanicos', '📌', 'Lembretes pra Mesa',
+    ativos.length+' item(ns) — o sistema não calcula isso sozinho', ()=>{
+    const corpo = [el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Esse personagem tem poder(es)/item(ns) com efeito que a ficha não tem como somar em nenhum número (resistência a tipo de dano, veneno, etc). Fica aqui só pra não esquecer na mesa.')];
+    ativos.forEach(l=>{
+      corpo.push(el('div',{class:'power-item'}, el('b',{}, l.poder||l.item), l.texto));
+    });
+    return corpo;
+  }, true);
+}
+
 function renderPainelCondicoes(f){
   const ativas = condicoesAtivas(f);
   return renderSecaoNotasColapsavel('condicoes-ativas', '☣️', 'Condições Ativas',
@@ -1422,7 +1524,11 @@ function renderPersonagemNotas(){
     return entradasPoderes.map((entrada, idx)=>{
       const limite = tipoLimiteUso(entrada.desc);
       const usado = limite ? poderFoiUsado(f, entrada.chaveBase) : false;
+      const ehAutomatizado = PODERES_AUTOMATIZADOS.has(entrada.chaveBase);
       return renderItemColapsavel('poder-'+idx+'-'+entrada.nome, entrada.nome+(usado?' (usado)':''), entrada.fonte, [
+        el('div',{class:'meta', style:'margin-bottom:4px;'+(ehAutomatizado?'color:var(--gold);':'')},
+          ehAutomatizado ? '⚡ Já calculado na ficha automaticamente' : '📖 Só referência — acompanhe o efeito na mesa'
+        ),
         el('div',{class:'desc'}, entrada.desc),
         limite ? el('button',{class:'btn ghost', style:'margin-top:8px;'+(usado?'opacity:0.6;':''), onclick:(e)=>{ e.stopPropagation(); alternarUsoPoder(f, entrada.chaveBase); }}, usado ? '↺ Marcar como disponível de novo' : '✓ Marcar como usado ('+limite+')') : null
       ]);
@@ -1448,12 +1554,20 @@ function renderPersonagemNotas(){
   // ---- Descanso ----
   wrap.appendChild(renderSecaoNotasColapsavel('descanso', '🌙', 'Descanso',
     '+'+Math.floor(nivelTotal(f)*Math.max(...Object.values(QUALIDADE_DESCANSO)))+' PV/PM (no melhor caso)', ()=>{
-    const corpo = [el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Uma noite de sono (8h+) recupera PV e PM iguais ao seu nível ('+nivelTotal(f)+') vezes a qualidade do descanso, e reinicia poderes de uso "por cena" e "por dia" (pág. 106 do livro).')];
+    const corpo = [el('div',{class:'tip', style:'font-size:0.78rem;'},
+      f.raca==='Golem'
+        ? 'Golem (Criatura Artificial): fica inerte por 8h em vez de dormir. Recupera PV e PM normalmente, mas sempre no ritmo Normal (nível '+nivelTotal(f)+') — não é afetado por condições boas ou ruins de descanso.'
+        : 'Uma noite de sono (8h+) recupera PV e PM iguais ao seu nível ('+nivelTotal(f)+') vezes a qualidade do descanso, e reinicia poderes de uso "por cena" e "por dia" (pág. 106 do livro).'
+    )];
+    if(f._descansoBonusPendente && (f._descansoBonusPendente.pv>0 || f._descansoBonusPendente.pm>0)){
+      corpo.push(el('div',{class:'meta', style:'color:var(--gold);margin-top:4px;'}, '🍲 Bônus guardado de comida: +'+f._descansoBonusPendente.pv+' PV/nível e +'+f._descansoBonusPendente.pm+' PM/nível no próximo descanso.'));
+    }
     const rowDescanso = el('div',{class:'option-grid', style:'margin-top:8px;'});
     Object.keys(QUALIDADE_DESCANSO).forEach(qualidade=>{
+      const previaTxt = f.raca==='Golem' ? '+'+nivelTotal(f)+' PV/PM (sempre)' : '+'+Math.floor(nivelTotal(f)*QUALIDADE_DESCANSO[qualidade])+' PV/PM';
       rowDescanso.appendChild(el('button',{class:'option-card', onclick:()=>aplicarDescanso(f, qualidade)},
         el('div',{class:'opt-nome'}, qualidade),
-        el('div',{class:'opt-sub'}, '+'+Math.floor(nivelTotal(f)*QUALIDADE_DESCANSO[qualidade])+' PV/PM')
+        el('div',{class:'opt-sub'}, previaTxt)
       ));
     });
     corpo.push(rowDescanso);
@@ -1703,16 +1817,38 @@ function renderItensEquipados(){
 
 // "Usar" um item consumível da mochila — desconta 1 da quantidade, e se chegar a 0, remove o
 // item sozinho (com um aviso, pra não sumir sem explicação).
+// Itens que prometem "bônus na próxima noite de sono" — sem isso, usar o item só descontava a
+// quantidade e o bônus nunca chegava a valer nada quando o descanso de verdade acontecia.
+const ITENS_BONUS_PROXIMO_DESCANSO = {
+  'Prato do aventureiro': {pv:1, pm:0},
+  'Sopa de peixe': {pv:0, pm:1},
+  'Gorlogg Ensopado': {pv:1, pm:1},
+};
 function usarItemMochila(f, idx){
   const row = f.equip[idx];
   if(!row) return;
   const atual = parseInt(row.qtd)||0;
+  const nomeSemSufixo = row.item.replace(' (recebido do Mestre)','');
+  const bonusDescanso = ITENS_BONUS_PROXIMO_DESCANSO[nomeSemSufixo];
+  let mensagemExtra = '';
+  if(bonusDescanso){
+    if(!f._descansoBonusPendente) f._descansoBonusPendente = {pv:0, pm:0};
+    f._descansoBonusPendente.pv += bonusDescanso.pv;
+    f._descansoBonusPendente.pm += bonusDescanso.pm;
+    mensagemExtra = ' Bônus guardado pro próximo descanso.';
+  }
+  // Gorad quente (achado numa auditoria): diferente dos outros alimentos, dá PM temporário NA
+  // HORA (não "na próxima noite de sono") — nunca tinha sido conectado.
+  if(nomeSemSufixo==='Gorad quente'){
+    f.pmtemp = (parseInt(f.pmtemp)||0) + 2;
+    mensagemExtra = ' +2 PM temporários.';
+  }
   if(atual <= 1){
     f.equip.splice(idx,1);
-    flashMsg('✨ Usou o último '+row.item+' — removido da mochila.');
+    flashMsg('✨ Usou o último '+row.item+' — removido da mochila.'+mensagemExtra);
   } else {
     row.qtd = String(atual-1);
-    flashMsg('✨ Usou 1 '+row.item+' ('+row.qtd+' restante'+(atual-1>1?'s':'')+').');
+    flashMsg('✨ Usou 1 '+row.item+' ('+row.qtd+' restante'+(atual-1>1?'s':'')+').'+mensagemExtra);
   }
   salvarPerfis(); render();
 }
@@ -2547,9 +2683,15 @@ function renderPericias(){
     if(aberto){
       const bonusPoder = bonusPericiaDePoderes(f, p.nome);
       const bonusDivindade = bonusPericiaDeDivindade(f, p.nome);
+      const bonusOrigem = bonusPericiaDeOrigem(f, p.nome);
+      const bonusClasseEspecifica = bonusPericiaDeClasse(f, p.nome);
       const bonusCondicoes = bonusCondicoesPericia(f, p);
+      const racaObjDetalhe = getRacaObj(f);
+      const usaSabEmAdestramentoDetalhe = p.nome==='Adestramento' && listaPoderesConcedidos(f).some(pc=>pc && pc.nome==='Compreender os Ermos');
+      const attrExibido = usaSabEmAdestramentoDetalhe ? 'Sabedoria (Compreender os Ermos)' : (p.nome==='Atletismo' && racaObjDetalhe && racaObjDetalhe.atletismoUsaDestreza) ? 'Destreza (traço racial)' : p.attr;
+      const attrValExibido = usaSabEmAdestramentoDetalhe ? (parseInt(f.sab)||0) : (p.nome==='Atletismo' && racaObjDetalhe && racaObjDetalhe.atletismoUsaDestreza) ? (parseInt(f.des)||0) : (parseInt(f[p.attr.toLowerCase()])||0);
       const detalhe = el('div',{class:'tip', style:'margin-top:-4px;margin-bottom:8px;'},
-        el('div',{}, el('b',{},'Cálculo: '), '1/2 nível ('+Math.floor(nivel/2)+') + '+p.attr+' ('+(parseInt(f[p.attr.toLowerCase()])||0)+')'+(isTreinada?' + treino ('+bonusTreinoPericia(nivel)+')':'')+(bonusPoder?' + poderes ('+bonusPoder+')':'')+(bonusPericiaDeRaca(f,p.nome)?' + raça ('+bonusPericiaDeRaca(f,p.nome)+')':'')+(bonusDivindade?' + divindade ('+bonusDivindade+')':'')+(bonusCondicoes?' + condições ('+bonusCondicoes+')':'')+(p.nome==='Furtividade'&&bonusFurtividadeTamanho(f)?' + tamanho ('+bonusFurtividadeTamanho(f)+')':'')+(p.armadura && penalidadeTotal(f)?' + penalidade de armadura ('+penalidadeTotal(f)+')':'')+' = '+valor),
+        el('div',{}, el('b',{},'Cálculo: '), '1/2 nível ('+Math.floor(nivel/2)+') + '+attrExibido+' ('+attrValExibido+')'+(isTreinada?' + treino ('+bonusTreinoPericia(nivel)+')':'')+(bonusPoder?' + poderes ('+bonusPoder+')':'')+(bonusPericiaDeRaca(f,p.nome)?' + raça ('+bonusPericiaDeRaca(f,p.nome)+')':'')+(bonusDivindade?' + divindade ('+bonusDivindade+')':'')+(bonusOrigem?' + origem ('+bonusOrigem+')':'')+(bonusClasseEspecifica?' + poder de classe ('+bonusClasseEspecifica+')':'')+(bonusCondicoes?' + condições ('+bonusCondicoes+')':'')+(p.nome==='Furtividade'&&bonusFurtividadeTamanho(f)?' + tamanho ('+bonusFurtividadeTamanho(f)+')':'')+(p.armadura && penalidadeTotal(f)?' + penalidade de armadura ('+penalidadeTotal(f)+')':'')+' = '+valor),
         el('div',{class:'desc', style:'margin-top:6px;'}, p.resumo),
         el('div',{style:'margin-top:6px;'}, el('b',{},'Principais usos:'), ...p.usos.map(u=> el('div',{style:'margin-top:2px;'}, '• '+u)))
       );
@@ -2632,6 +2774,21 @@ function abrirUsarMagia(s){
   state._usarMagiaPopup = {magia:s, aprimSelecionados:[], aprimExpandido:null, custoTotal:String(custoBase)};
   render();
 }
+// Catalisadores mágicos que dão bônus a uma magia específica no momento de lançar — achados
+// numa auditoria, eram só texto. Os que aumentam CD numa escola específica (Musgo púrpura,
+// Ossos de monstro, Saco de sal) entram como número de verdade na CD mostrada; os de dano extra
+// (Baga-de-fogo, Líquen lilás, Terra de cemitério) o app não tem onde somar um total de dano em
+// lugar nenhum, então só entram como lembrete no log ao usar.
+const CATALISADORES_CD_ESCOLA = {
+  'Musgo púrpura': 'Ilusão',
+  'Ossos de monstro': 'Necromancia',
+  'Saco de sal': 'Abjuração',
+};
+const CATALISADORES_DANO_LEMBRETE = {
+  'Baga-de-fogo': '+1d6 de dano de fogo',
+  'Líquen lilás': '+1d6 de dano de frio',
+  'Terra de cemitério': '+1d6 de dano de trevas',
+};
 function renderPopupUsarMagia(f){
   const fluxo = state._usarMagiaPopup;
   const s = fluxo.magia;
@@ -2642,13 +2799,66 @@ function renderPopupUsarMagia(f){
   sheet.appendChild(el('div',{class:'wizard-title', style:'padding:6px 14px 0;'}, '✨ Usar: '+s.n));
   const totalAtual = parseInt(fluxo.custoTotal)||0;
   const passouLimite = totalAtual > limite;
+  const nivelBaseLimite = nivelParaLimitePM(f);
+  const ehNivelDeClasse = nivelBaseLimite !== nivelTotal(f);
+  const cdBase = cdMagiaEspecifica(f, s);
+  if(!fluxo.magiaPungenteAtiva) fluxo.magiaPungenteAtiva = false;
+  if(!fluxo.catalisadorEscolhido) fluxo.catalisadorEscolhido = null;
+  const cdMostrada = cdBase!=null ? cdBase + (fluxo.magiaPungenteAtiva?2:0) + (f._liturgiaMagicaAtiva?2:0) + (fluxo.catalisadorEscolhido && CATALISADORES_CD_ESCOLA[fluxo.catalisadorEscolhido]===s.e ? 2 : 0) : null;
   sheet.appendChild(el('div',{class:'tip', style:'margin:6px 14px;'+(passouLimite?'border:1px solid var(--red-bright);':'')},
-    'Custo base: '+custoBase+' PM · Você tem: '+(parseInt(f.pmatual)||0)+' PM · Limite por magia: '+limite+' PM (seu nível'
+    'Custo base: '+custoBase+' PM · Você tem: '+(parseInt(f.pmatual)||0)+' PM'
+    + (cdMostrada!=null ? ' · CD pra resistir: '+cdMostrada : '')
+    + ' · Limite por magia: '+limite+' PM ('+(ehNivelDeClasse?'seu nível na classe conjuradora':'seu nível')
     + ((s.trad!=='Divina'&&limitePMExtraArcana(f)>0)?', +'+limitePMExtraArcana(f)+' de item':'')
+    + (limitePMExtraPorEscola(f, s.e)>0?', +'+limitePMExtraPorEscola(f, s.e)+' de item ('+s.e+')':'')
     + (poderesAtivos(f).includes('Magia Ilimitada')?', +'+(valorAtributoChaveMagia(f)||0)+' de Magia Ilimitada':'')
     + ')'
     + (passouLimite ? ' ⚠ o total atual passa do limite!' : '')
   ));
+
+  // Magia Pungente (Arcanista) — "pode pagar 1 PM pra aumentar em +2 a CD". Achado numa
+  // auditoria; só aparece pra quem realmente tem o poder.
+  if(nomesPoderesConhecidos(f).includes('Magia Pungente')){
+    sheet.appendChild(el('div',{style:'padding:0 14px;margin-top:8px;'},
+      el('div',{class:'option-card'+(fluxo.magiaPungenteAtiva?' selected':''), style:'cursor:pointer;', onclick:()=>{
+        fluxo.magiaPungenteAtiva = !fluxo.magiaPungenteAtiva;
+        const extra = fluxo.magiaPungenteAtiva ? 1 : -1;
+        fluxo.custoTotal = String((parseInt(fluxo.custoTotal)||0) + extra);
+        render();
+      }},
+        el('span',{}, fluxo.magiaPungenteAtiva?'✓ ':'○ '), el('b',{},'Magia Pungente'), ' — +1 PM pra +2 na CD'
+      )
+    ));
+  }
+
+  if(f._liturgiaMagicaAtiva){
+    sheet.appendChild(el('div',{class:'meta', style:'padding:0 14px;margin-top:8px;color:var(--gold);'}, '✓ Liturgia Mágica ativa — +2 CD já incluído acima, desliga sozinha ao confirmar.'));
+  }
+
+  // Catalisadores na mochila que combinam com essa magia (por escola, pros de CD; qualquer
+  // magia, pros de dano — que só entram como lembrete no log, o app não soma dano em lugar
+  // nenhum). Consome o item da mochila ao confirmar o uso.
+  const catalisadoresDisponiveis = (f.equip||[]).filter(row=>{
+    if(row.tipo!=='geral') return false;
+    const nome = row.item.replace(' (recebido do Mestre)','');
+    if(CATALISADORES_CD_ESCOLA[nome]) return CATALISADORES_CD_ESCOLA[nome]===s.e;
+    return !!CATALISADORES_DANO_LEMBRETE[nome];
+  });
+  if(catalisadoresDisponiveis.length>0){
+    const catWrap = el('div',{style:'padding:0 14px;margin-top:8px;'}, el('label',{},'Catalisador (opcional — some da mochila ao usar)'));
+    catalisadoresDisponiveis.forEach(row=>{
+      const nome = row.item.replace(' (recebido do Mestre)','');
+      const marcado = fluxo.catalisadorEscolhido===nome;
+      const rotulo = CATALISADORES_CD_ESCOLA[nome] ? '+2 na CD ('+CATALISADORES_CD_ESCOLA[nome]+')' : CATALISADORES_DANO_LEMBRETE[nome];
+      catWrap.appendChild(el('div',{class:'option-card'+(marcado?' selected':''), style:'margin-top:4px;cursor:pointer;', onclick:()=>{
+        fluxo.catalisadorEscolhido = marcado ? null : nome;
+        render();
+      }},
+        el('span',{}, marcado?'✓ ':'○ '), el('b',{},nome), ' — '+rotulo
+      ));
+    });
+    sheet.appendChild(catWrap);
+  }
 
   if(s.aprim && s.aprim.length>0){
     const aprimWrap = el('div',{style:'padding:0 14px;'}, el('label',{},'Aprimoramentos (opcional — toque no ⓘ pra ver o que cada um faz)'));
@@ -2689,10 +2899,25 @@ function renderPopupUsarMagia(f){
     const pmAtual = parseInt(f.pmatual)||0;
     if(total > pmAtual){ flashMsg('Você não tem '+total+' PM disponíveis (tem '+pmAtual+').'); return; }
     f.pmatual = pmAtual - total;
+    // Consome o catalisador escolhido da mochila, se tiver
+    let catalisadorTxt = '';
+    if(fluxo.catalisadorEscolhido){
+      const idxCat = f.equip.findIndex(row=> row.tipo==='geral' && row.item.replace(' (recebido do Mestre)','')===fluxo.catalisadorEscolhido);
+      if(idxCat>=0){
+        const rowCat = f.equip[idxCat];
+        const qtdCat = parseInt(rowCat.qtd)||1;
+        if(qtdCat<=1) f.equip.splice(idxCat,1); else rowCat.qtd = String(qtdCat-1);
+        const rotuloCat = CATALISADORES_CD_ESCOLA[fluxo.catalisadorEscolhido] ? '+2 CD' : CATALISADORES_DANO_LEMBRETE[fluxo.catalisadorEscolhido];
+        catalisadorTxt = ' + '+fluxo.catalisadorEscolhido+' ('+rotuloCat+')';
+      }
+    }
     const aprimTxt = fluxo.aprimSelecionados.length>0 ? ' com '+fluxo.aprimSelecionados.length+' aprimoramento(s)' : '';
-    registrarLog(f, 'Usou "'+s.n+'"'+aprimTxt+' (-'+total+' PM)');
+    const pungenteTxt = fluxo.magiaPungenteAtiva ? ' + Magia Pungente (+2 CD)' : '';
+    const liturgiaTxt = f._liturgiaMagicaAtiva ? ' + Liturgia Mágica (+2 CD)' : '';
+    f._liturgiaMagicaAtiva = false; // é "a próxima habilidade" -- consome sozinha depois de usada
+    registrarLog(f, 'Usou "'+s.n+'"'+aprimTxt+pungenteTxt+liturgiaTxt+catalisadorTxt+' (-'+total+' PM)');
     salvarPerfis();
-    flashMsg('✨ "'+s.n+'" usada! -'+total+' PM.');
+    flashMsg('✨ "'+s.n+'" usada! -'+total+' PM.'+(catalisadorTxt?' Catalisador consumido.':''));
     state._usarMagiaPopup = null;
     render();
   }}, '✓ Confirmar uso'));
@@ -2714,6 +2939,20 @@ function renderPersonagemMagias(){
     ));
   } else {
     magPanel.appendChild(el('div',{class:'tip'}, el('b',{},'Sem classe conjuradora'), 'Esse personagem ainda não tem uma classe que lança magias.'));
+  }
+
+  // Liturgia Mágica (Clérigo): gasta ação de movimento na mesa pra ativar; a CD da PRÓXIMA
+  // habilidade (não uma fixa) sobe +2. Como o app não acompanha turno a turno, vira um
+  // interruptor manual — o jogador liga depois de fazer a ação na mesa, e o popup de Usar Magia
+  // consome sozinho (desliga automaticamente) na próxima vez que usar uma magia.
+  if(nomesPoderesConhecidos(f).includes('Liturgia Mágica')){
+    magPanel.appendChild(el('div',{class:'row', style:'align-items:center;margin-top:8px;padding:8px;border-radius:var(--radius-sm);background:'+(f._liturgiaMagicaAtiva?'rgba(216,189,116,0.12)':'transparent')+';border:1px solid '+(f._liturgiaMagicaAtiva?'var(--gold)':'var(--line)')+';'},
+      el('div',{style:'flex:1;'},
+        el('div',{style:'font-weight:700;'+(f._liturgiaMagicaAtiva?'color:var(--gold);':'')}, f._liturgiaMagicaAtiva ? '✓ Liturgia Mágica ativa' : 'Liturgia Mágica'),
+        el('div',{class:'meta'}, 'Fez a ação na mesa? Liga aqui — a próxima magia usada já ganha +2 CD sozinha.')
+      ),
+      el('button',{class:'btn ghost', style:'width:auto;flex-shrink:0;', onclick:()=>{ f._liturgiaMagicaAtiva = !f._liturgiaMagicaAtiva; salvarPerfis(); render(); }}, f._liturgiaMagicaAtiva ? 'Desligar' : 'Ligar')
+    ));
   }
 
   const ccArc = (f.classesNiveis||[]).find(c=>c.classe==='Arcanista');
@@ -2884,6 +3123,23 @@ function renderMagias(){
 }
 
 // ---- GUIA DE EVOLUÇÃO ----
+// Poderes cujo efeito mecânico o sistema realmente CALCULA em algum número da ficha (PV, PM,
+// Defesa, carga, uma perícia, limite de PM por magia) — não inclui poderes que só concedem uma
+// ação/reação em combate (isso o app não simula turno a turno) nem os que só afetam dano (o app
+// não soma/mostra total de dano em lugar nenhum). Serve só pra dar um sinal visual pro jogador
+// saber se pode confiar no número da ficha ou se precisa acompanhar aquele efeito na mão.
+const PODERES_AUTOMATIZADOS = new Set([
+  'Vitalidade','Vontade de Ferro','Costas Largas','Atlético','Encouraçado','Esquiva',
+  'Estilo de Arma e Escudo','Estilo de Uma Arma','Inventário Organizado','Magia Ilimitada',
+  'Investigador','Saque Rápido','Finta Aprimorada','Sentidos Aguçados',
+  'Pele de Ferro','Pele de Aço','Braços Calejados','Poder Mágico',
+  'Coração Heroico','Mochileiro','Esse Cheiro...','Estoico',
+  'Astúcia da Serpente','Golpista Divino','Mente Analítica','Mente Vazia','Talento Artístico',
+  'Conhecimento Enciclopédico','Compreender os Ermos',
+  'Pernas do Mar','Etiqueta','Pajem','Força dos Penhascos','Liberdade da Pradaria',
+  'Tranquilidade dos Lagos','Gatuno','Sombra','Elo com a Natureza',
+  'Especialista em Escola','Fortalecimento Arcano',
+]);
 function renderGuia(){
   const f = fichaAtual();
   const g = state.guia;

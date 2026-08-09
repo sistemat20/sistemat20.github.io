@@ -70,12 +70,35 @@ function bonusCdArcana(f, escola){
       if(ef.tipo==='cd_arcana_escola' && e.escolaFoco===escola) total += ef.valor;
     });
   });
+  // Especialista em Escola e Fortalecimento Arcano (poderes de classe do Arcanista, achados
+  // numa auditoria) — nunca tinham sido conectados; bonusCdArcana só olhava pra itens antes.
+  (f.poderesClasse||[]).forEach(p=>{
+    if(p.nome==='Especialista em Escola' && p.sub===escola) total += 2;
+    if(p.nome==='Fortalecimento Arcano') total += circuloMaximoDisponivel(f)>=4 ? 2 : 1;
+  });
+  // Linhagem Feérica, herança aprimorada (Feiticeiro, achada na mesma auditoria): "+2 na CD pra
+  // resistir a suas magias de encantamento e ilusão".
+  if(f.arcanistaLinhagem==='Linhagem Feérica' && (f.poderesClasse||[]).some(p=>p.nome==='Herança Aprimorada') && (escola==='Encantamento' || escola==='Ilusão')){
+    total += 2;
+  }
   return total;
 }
 function limitePMExtraArcana(f){
   let total = 0;
   esotericosEquipados(f).forEach(e=>{
     (e.efeito||[]).forEach(ef=>{ if(ef.tipo==='limite_pm_arcana') total += ef.valor; });
+  });
+  return total;
+}
+// Alguns esotéricos (Bolsa de pó, Tomo de Guerra) só dão o PM extra quando a magia é de uma
+// escola específica (encantamento/ilusão, evocação) — diferente do bônus geral acima, que vale
+// pra qualquer magia arcana.
+function limitePMExtraPorEscola(f, escola){
+  let total = 0;
+  esotericosEquipados(f).forEach(e=>{
+    (e.efeito||[]).forEach(ef=>{
+      if(ef.tipo==='limite_pm_escola' && ef.escolas && ef.escolas.includes(escola)) total += ef.valor;
+    });
   });
   return total;
 }
@@ -103,11 +126,21 @@ function cdMagiaEspecifica(f, magia){
 // usado em lugar nenhum do app ainda, então corrigir não quebra nada). Magia Ilimitada (poder
 // geral, qualquer conjurador) soma o atributo-chave por cima — esse sim vale pra QUALQUER
 // tradição (diferente do bônus de item, que é só arcana).
+// Nível "que conta" pro limite de PM de uma magia — regra confirmada contra a wiki oficial:
+// magia vinda de uma CLASSE usa o nível NESSA classe (importante em multiclasse: um
+// Guerreiro 5/Arcanista 3 usa nível 3, não 8); magia vinda só de raça/origem (sem nenhuma
+// classe conjuradora) usa o nível total do personagem mesmo, que é o próprio fallback natural
+// aqui já que não tem "classeConj" nesse caso.
+function nivelParaLimitePM(f){
+  const classeConj = (f.classesNiveis||[]).find(c=> CLASSES[c.classe] && CLASSES[c.classe].tradicao);
+  return classeConj ? classeConj.nivel : nivelTotal(f);
+}
 function limitePMPorMagia(f, magia){
   const ehArcanaOuUniversal = magia.trad==='Arcana' || magia.trad==='Universal';
   const bonusItens = ehArcanaOuUniversal ? limitePMExtraArcana(f) : 0;
+  const bonusEscola = limitePMExtraPorEscola(f, magia.e);
   const bonusMagiaIlimitada = poderesAtivos(f).includes('Magia Ilimitada') ? (valorAtributoChaveMagia(f)||0) : 0;
-  return nivelTotal(f) + bonusItens + bonusMagiaIlimitada;
+  return nivelParaLimitePM(f) + bonusItens + bonusEscola + bonusMagiaIlimitada;
 }
 
 // Atributo-chave de magia do personagem (baseado na 1ª classe conjuradora que ele tiver)
@@ -202,6 +235,9 @@ function bonusPericiaDeRaca(f, periciaNome){
   // pela raça — por isso ficam separadas da tabela acima, guardadas na própria ficha.
   if(racaObj.nome==='Lefou' && (f.deformidadeEscolhas||[]).some(esc=> (typeof esc==='string') ? esc===periciaNome : (esc.tipo==='pericia' && esc.valor===periciaNome))) total += 2;
   if(racaObj.nome==='Kliren' && f.vanguardistaOficio===periciaNome) total += 2;
+  // Reptiliano (Trog, achado numa auditoria): "+5 Furtividade sem armadura pesada" — condicional,
+  // por isso fica fora da tabela fixa acima (que é só bônus incondicional).
+  if(racaObj.nome==='Trog' && periciaNome==='Furtividade' && !usaArmaduraPesada(f)) total += 5;
   return total;
 }
 
@@ -227,6 +263,44 @@ const PODER_CONCEDIDO_TREINA_PERICIA_ESCOLHA = {
 function listaPoderesConcedidos(f){
   if(Array.isArray(f.poderesConcedidos) && f.poderesConcedidos.length>0) return f.poderesConcedidos;
   return f.poderConcedido ? [f.poderConcedido] : [];
+}
+// Bônus de perícia de poderes ÚNICOS de origem (achado numa auditoria — "Esse Cheiro..." dá +2
+// Fortitude e nunca tinha sido conectado; deixa a tabela pronta pra caso apareça mais algum).
+const PODER_ORIGEM_BONUS_PERICIA = {
+  'Esse Cheiro...': [['Fortitude',2]],
+};
+function bonusPericiaDeOrigem(f, periciaNome){
+  if(!f.origemPoder) return 0;
+  const regras = PODER_ORIGEM_BONUS_PERICIA[f.origemPoder.nome];
+  if(!regras) return 0;
+  let total = 0;
+  regras.forEach(([alvo, valor])=>{ if(alvo===periciaNome) total += valor; });
+  return total;
+}
+// Bônus de perícia de poderes de CLASSE que são incondicionais (sempre valem, não dependem de
+// situação específica tipo "só pra interrogar" ou "só contra devotos") — achados numa
+// auditoria. Poderes condicionais a um contexto estreito (Envolto em Mistério, Autoridade
+// Eclesiástica, Escapista, etc.) ficam de fora de propósito: aplicar esse bônus sempre, e não só
+// na situação certa, deixaria a perícia mostrando um número maior do que realmente vale a
+// maior parte do tempo.
+const PODER_CLASSE_BONUS_PERICIA = {
+  'Pernas do Mar': [['Acrobacia',2],['Atletismo',2]],
+  'Etiqueta': [['Diplomacia',2],['Nobreza',2]],
+  'Pajem': [['Diplomacia',2]],
+  'Força dos Penhascos': [['Fortitude',2]],
+  'Liberdade da Pradaria': [['Reflexos',2]],
+  'Tranquilidade dos Lagos': [['Vontade',2]],
+  'Gatuno': [['Atletismo',2]],
+  'Sombra': [['Furtividade',2]],
+};
+function bonusPericiaDeClasse(f, periciaNome){
+  let total = 0;
+  nomesPoderesConhecidos(f).forEach(nome=>{
+    const regras = PODER_CLASSE_BONUS_PERICIA[nome];
+    if(!regras) return;
+    regras.forEach(([alvo,valor])=>{ if(alvo===periciaNome) total += valor; });
+  });
+  return total;
 }
 function bonusPericiaDeDivindade(f, periciaNome){
   let total = 0;
@@ -314,7 +388,11 @@ function periciaValor(f, p){
   const metade = Math.floor(nivel/2);
   const racaObjPericia = getRacaObj(f);
   const usaDesEmAtletismo = p.nome==='Atletismo' && racaObjPericia && racaObjPericia.atletismoUsaDestreza;
-  const attrKey = usaDesEmAtletismo ? 'des' : (p.attr||'').toLowerCase().slice(0,3); // 'For'->'for','Des'->'des', etc.
+  // Compreender os Ermos (poder concedido, devoto de Allihanna): "pode usar Sabedoria para
+  // Adestramento (em vez de Carisma)" — achado numa auditoria comparando com o livro; a tabela
+  // de bônus desse poder só tinha o +2 Sobrevivência, faltava essa troca de atributo-chave.
+  const usaSabEmAdestramento = p.nome==='Adestramento' && listaPoderesConcedidos(f).some(pc=>pc && pc.nome==='Compreender os Ermos');
+  const attrKey = usaDesEmAtletismo ? 'des' : usaSabEmAdestramento ? 'sab' : (p.attr||'').toLowerCase().slice(0,3); // 'For'->'for','Des'->'des', etc.
   const attrVal = atributoEfetivo(f, attrKey);
   const treinada = periciasTreinadasComDivindade(f).has(p.nome);
   const treino = treinada ? bonusTreinoPericia(nivel) : 0;
@@ -323,22 +401,44 @@ function periciaValor(f, p){
   const itensVestidos = bonusPericiaDeItensVestidos(f, p.nome);
   const racaBonus = bonusPericiaDeRaca(f, p.nome);
   const divindadeBonus = bonusPericiaDeDivindade(f, p.nome);
+  const origemBonus = bonusPericiaDeOrigem(f, p.nome);
+  const classeBonus = bonusPericiaDeClasse(f, p.nome);
   const condicoesBonus = bonusCondicoesPericia(f, p);
   const tamanhoBonus = (p.nome==='Furtividade') ? bonusFurtividadeTamanho(f) : 0;
   const penalidade = p.armadura ? penalidadeTotal(f) : 0; // penalidadeTotal já é negativa ou zero
   // Sem proficiência com a armadura/escudo equipado: a penalidade vale para TODA perícia de Força/Destreza
   // (não só as 3 marcadas com ‡), mesmo que a perícia normalmente não sofresse penalidade de armadura.
   const penalidadeExtra = (!p.armadura && (p.attr==='For' || p.attr==='Des')) ? penalidadeNaoProficienciaArmadura(f) : 0;
-  return metade + attrVal + treino + poderes + tormentaBonus + itensVestidos + racaBonus + divindadeBonus + condicoesBonus + tamanhoBonus + penalidade + penalidadeExtra;
+  return metade + attrVal + treino + poderes + tormentaBonus + itensVestidos + racaBonus + divindadeBonus + origemBonus + classeBonus + condicoesBonus + tamanhoBonus + penalidade + penalidadeExtra;
 }
 
 function bonusDefesaPoderes(f){
   const nomes = poderesAtivos(f);
   let bonus = 0;
   if(nomes.includes('Esquiva')) bonus += 2;
-  if(nomes.includes('Encouraçado') && f.armadura && f.armadura.equipado!==false && f.armadura.cat==='Pesada') bonus += 2;
+  if(nomes.includes('Encouraçado') && f.armadura && f.armadura.equipado!==false && f.armadura.cat==='Pesada'){
+    bonus += 2;
+    // "Esse bônus aumenta em +2 para cada outro poder que você possua que tenha Encouraçado
+    // como pré-requisito" (livro, pág. 125) — Inexpugnável e Fanático são os dois que pedem
+    // Encouraçado hoje. Empilhava só o +2 fixo antes, sem considerar esses dois.
+    ['Inexpugnável','Fanático'].forEach(nome=>{ if(nomes.includes(nome)) bonus += 2; });
+  }
   if(nomes.includes('Estilo de Uma Arma') && usandoUmaArmaSoNaMao(f)) bonus += 2;
-  if(nomes.includes('Pele de Ferro') && !usaArmaduraPesada(f)) bonus += 4;
+  // Pele de Ferro (poder de classe do Bárbaro — NUNCA existiu como poder geral, só de classe,
+  // achado numa auditoria: a checagem antiga usava poderesAtivos, que só pega poder de classe se
+  // foi TROCADO por um slot geral — pra um Bárbaro que pegou normal, nunca funcionava). Pele de
+  // Aço (upgrade do mesmo poder, 8º nível) aumenta pra +8 em vez de +4 — também nunca conectado.
+  const nomesConhecidos = nomesPoderesConhecidos(f);
+  if(nomesConhecidos.includes('Pele de Ferro') && !usaArmaduraPesada(f)){
+    bonus += nomesConhecidos.includes('Pele de Aço') ? 8 : 4;
+  }
+  // Braços Calejados (poder de classe do Lutador, achado na mesma auditoria): "se você não
+  // estiver usando armadura, soma sua Força na Defesa, limitado pelo seu nível" — sem armadura
+  // NENHUMA (não só "sem pesada"), e o bônus não pode passar do nível do personagem.
+  const semArmaduraNenhuma = !f.armadura || f.armadura.equipado===false;
+  if(nomesConhecidos.includes('Braços Calejados') && semArmaduraNenhuma){
+    bonus += Math.min(parseInt(f.for)||0, nivelTotal(f));
+  }
   return bonus;
 }
 // "Estilo de Uma Arma": empunhando 1 arma corpo a corpo de 1 mão e nada na outra (sem 2ª arma, sem escudo)
@@ -467,7 +567,7 @@ function renderPopupVisualizarMapa(){
     el('div',{class:'wizard-title', style:'margin:0;'}, fluxo.nome),
     el('button',{class:'remove-x', onclick:()=>{ state._visualizarMapaPopup=null; render(); }},'✕')
   ));
-  sheet.appendChild(el('img',{src:fluxo.url, style:'width:100%;display:block;'}));
+  sheet.appendChild(el('img',{src:fluxo.url, style:'width:100%;display:block;border-bottom-left-radius:var(--radius-lg);border-bottom-right-radius:var(--radius-lg);'}));
   overlay.appendChild(sheet);
   return overlay;
 }
@@ -737,13 +837,21 @@ function limiteCarga(f){
   const for_ = parseInt(f.for)||0;
   const base = for_>=0 ? 10 + 2*for_ : 10 - for_;
   const bonusCostasLargas = poderesAtivos(f).includes('Costas Largas') ? 5 : 0;
+  // Inventário Organizado: "soma Inteligência no limite de carga" — poder nunca tinha sido
+  // conectado em lugar nenhum (achado numa varredura geral procurando por esse mesmo padrão de
+  // bônus esquecido). A outra parte do poder ("itens muito leves ocupam 1/4 de espaço") fica de
+  // fora — exigiria categorizar o peso de cada item do catálogo, que o sistema não tem hoje.
+  const bonusInventarioOrganizado = poderesAtivos(f).includes('Inventário Organizado') ? (parseInt(f.int)||0) : 0;
   // Mochila de aventureiro: "+2 espaços de capacidade" — só vale depois que o jogador faz o
   // "Upgrade" de verdade (botão dentro do item, na mochila) — não é automático só por ter o
   // item guardado. f.mochilaAventureiroUpgrade é uma marca NO PERSONAGEM (não por unidade de
   // mochila), então comprar/guardar várias mochilas não soma o bônus várias vezes — só existe
   // "aplicado" ou "não aplicado", uma vez só pra sempre.
   const bonusMochila = f.mochilaAventureiroUpgrade ? 2 : 0;
-  return base + bonusCostasLargas + bonusMochila;
+  // Mochileiro (poder único de origem, achado numa auditoria): "Seu limite de carga aumenta em
+  // 5 espaços." Nunca tinha sido conectado.
+  const bonusMochileiro = (f.origemPoder && f.origemPoder.nome==='Mochileiro') ? 5 : 0;
+  return base + bonusCostasLargas + bonusInventarioOrganizado + bonusMochila + bonusMochileiro;
 }
 function cargaMaxima(f){ return limiteCarga(f)*2; }
 function cargaUsada(f){
@@ -797,7 +905,15 @@ function pvMaxEfetivo(f){
   // Duro como Pedra (Anão): +3 PV no 1º nível, +1 a cada nível seguinte = nível + 2
   const bonusDuroComoPedra = (f.raca==='Anão') ? nivelTotal(f)+2 : 0;
   const bonusItens = bonusRecursoDeItensVestidos(f, 'pv');
-  return base + bonusVitalidade + bonusDuroComoPedra + bonusItens;
+  // Linhagem Dracônica (Feiticeiro, achado numa auditoria): "soma seu Carisma em seus pontos de
+  // vida iniciais" na herança básica, DOBRA na herança superior. arcanistaLinhagem nunca tinha
+  // sido lido em cálculo nenhum antes disso.
+  let bonusLinhagemDraconica = 0;
+  if(f.arcanistaLinhagem==='Linhagem Dracônica'){
+    const temHerancaSuperior = (f.poderesClasse||[]).some(p=>p.nome==='Herança Superior');
+    bonusLinhagemDraconica = (parseInt(f.car)||0) * (temHerancaSuperior ? 2 : 1);
+  }
+  return base + bonusVitalidade + bonusDuroComoPedra + bonusLinhagemDraconica + bonusItens;
 }
 function pmMaxEfetivo(f){
   const base = parseInt(f.pmmax)||0;
@@ -805,18 +921,44 @@ function pmMaxEfetivo(f){
   const bonusVontadeFerro = nomes.includes('Vontade de Ferro') ? Math.floor(nivelTotal(f)/2) : 0;
   // Sangue Mágico (Elfo): +1 PM por nível
   const bonusSangueMagico = (f.raca==='Elfo') ? nivelTotal(f) : 0;
-  // Arcanista soma o atributo-chave (definido pelo Caminho escolhido) no total de PM — regra do
-  // livro, pág. 65 ("Habilidades de Classe", Arcanista): "você soma seu atributo-chave no seu
-  // total de PM". É UMA soma só (não por nível, diferente de como Constituição entra no PV) —
-  // recalculada na hora a partir do atributo atual, então se o atributo mudar depois (ou tiver
-  // penalidade de Poder da Tormenta, no caso de Feiticeiro com Carisma) o total de PM já reflete
-  // isso sozinho. Faltava inteiramente no sistema — Bruxo/Mago usam Inteligência, Feiticeiro usa
-  // Carisma.
-  let bonusAtributoArcano = 0;
-  if(f.arcanistaCaminho==='Bruxo' || f.arcanistaCaminho==='Mago') bonusAtributoArcano = atributoEfetivo(f,'int');
-  else if(f.arcanistaCaminho==='Feiticeiro') bonusAtributoArcano = atributoEfetivo(f,'car');
+  // Toda classe conjuradora (Arcanista, Bardo, Clérigo, Druida) soma o atributo-chave no total
+  // de PM — confirmado no livro (pág. 65, 92, 118, 128): o texto "você soma seu atributo-chave
+  // no seu total de PM" aparece igualzinho nas 4. Reaproveita atributoChaveMagia (que já sabe
+  // achar a classe conjuradora certa e, no caso do Arcanista, o atributo do Caminho escolhido)
+  // em vez de checar cada classe na mão. É UMA soma só (não por nível, diferente de como
+  // Constituição entra no PV) — recalculada na hora a partir do atributo atual, então se ele
+  // mudar depois (ou tiver penalidade de Poder da Tormenta) o total de PM já reflete sozinho.
+  // Faltava pra TODAS as 4 classes — a correção anterior tinha coberto só Arcanista.
+  const chaveAtributo = atributoChaveMagia(f);
+  const bonusAtributoConjurador = chaveAtributo ? atributoEfetivo(f, chaveAtributo) : 0;
+  // Poder Mágico (poder de classe do Arcanista, repetível): "+1 PM por nível de arcanista...
+  // quando sobe de nível, os PM que recebe por este poder aumentam de acordo" — achado numa
+  // auditoria, nunca tinha sido conectado. Cada vez que o jogador escolhe esse poder, soma mais
+  // 1x o nível ATUAL na classe Arcanista (escala sozinho ao subir de nível, igual o resto do
+  // sistema já faz — não precisa "travar" o valor no nível em que foi pego).
+  const vezesPoderMagico = (f.poderesClasse||[]).filter(p=>p.nome==='Poder Mágico').length;
+  const nivelArcanista = (f.classesNiveis||[]).find(c=>c.classe==='Arcanista');
+  const bonusPoderMagico = vezesPoderMagico * (nivelArcanista ? nivelArcanista.nivel : 0);
+  // Coração Heroico (poder único de origem, achado numa auditoria): "+3 PM. Quando atinge um
+  // novo patamar (5º, 11º e 17º níveis), recebe +3 PM adicionais." Nunca tinha sido conectado.
+  // Escala sozinho com o nível atual (recalculado na hora, igual tudo mais nesse sistema) — não
+  // precisa "travar" o bônus no patamar em que o personagem estava quando pegou o poder.
+  const bonusCoracaoHeroico = f.origemPoder && f.origemPoder.nome==='Coração Heroico' ? (()=>{
+    const nv = nivelTotal(f);
+    return 3 + (nv>=5?3:0) + (nv>=11?3:0) + (nv>=17?3:0);
+  })() : 0;
+  // Elo com a Natureza (poder de classe do Caçador, achado numa auditoria): "soma sua Sabedoria
+  // em seu total de pontos de mana" — nunca tinha sido conectado.
+  const bonusEloComANatureza = nomesPoderesConhecidos(f).includes('Elo com a Natureza') ? (parseInt(f.sab)||0) : 0;
+  // Linhagem Rubra, herança superior (Feiticeiro, achado na mesma auditoria): "+4 PM para cada
+  // poder da Tormenta que tiver". Só na herança superior (a básica/aprimorada dessa linhagem não
+  // mexem em PM).
+  let bonusLinhagemRubra = 0;
+  if(f.arcanistaLinhagem==='Linhagem Rubra' && (f.poderesClasse||[]).some(p=>p.nome==='Herança Superior')){
+    bonusLinhagemRubra = 4 * qtdPoderesTormenta(f);
+  }
   const bonusItens = bonusRecursoDeItensVestidos(f, 'pm');
-  return base + bonusVontadeFerro + bonusSangueMagico + bonusAtributoArcano + bonusItens;
+  return base + bonusVontadeFerro + bonusSangueMagico + bonusAtributoConjurador + bonusPoderMagico + bonusCoracaoHeroico + bonusEloComANatureza + bonusLinhagemRubra + bonusItens;
 }
 
 // ---- Pendências ----
@@ -1194,14 +1336,45 @@ const QUALIDADE_DESCANSO = {
 };
 function aplicarDescanso(f, qualidade){
   const nivel = nivelTotal(f);
-  const mult = QUALIDADE_DESCANSO[qualidade] || 1;
-  const recuperacao = Math.floor(nivel*mult);
-  f.pvatual = Math.min(pvMaxEfetivo(f), (parseInt(f.pvatual)||0)+recuperacao);
-  f.pmatual = Math.min(pmMaxEfetivo(f), (parseInt(f.pmatual)||0)+recuperacao);
+  // Estoico (poder único de origem, achado na mesma auditoria): "Sua condição de descanso é uma
+  // categoria acima do padrão pela situação" — nunca tinha sido conectado. Sobe uma categoria
+  // (Ruim->Normal->Confortável->Luxuosa; já na Luxuosa não sobe mais, é o teto).
+  const ORDEM_QUALIDADE = ['Ruim','Normal','Confortável','Luxuosa'];
+  let qualidadeEfetiva = qualidade;
+  // Estoico (poder de origem) e Pajem (poder de classe do Cavaleiro, achado na mesma auditoria)
+  // fazem a mesma coisa: sobem a condição de descanso uma categoria.
+  const temUpgradeDescanso = (f.origemPoder && f.origemPoder.nome==='Estoico') || nomesPoderesConhecidos(f).includes('Pajem');
+  if(temUpgradeDescanso){
+    const idx = ORDEM_QUALIDADE.indexOf(qualidade);
+    if(idx>=0 && idx<ORDEM_QUALIDADE.length-1) qualidadeEfetiva = ORDEM_QUALIDADE[idx+1];
+  }
+  // Golem (Criatura Artificial) — texto oficial do livro (pág. 27): "recupera PV e PM por
+  // descanso em condições normais (golens não são afetados por condições boas ou ruins de
+  // descanso)". Ou seja: recupera os DOIS normalmente, só que sempre no ritmo Normal (×1), não
+  // importa se ficou inerte num lugar ruim ou luxuoso.
+  const mult = f.raca==='Golem' ? 1 : (QUALIDADE_DESCANSO[qualidadeEfetiva] || 1);
+  let recuperacao = Math.floor(nivel*mult);
+  // Rato das Ruas (Goblin, achado na mesma auditoria): "recuperação de PV/PM nunca menor que
+  // seu nível" — um piso mínimo, útil principalmente num descanso Ruim (que normalmente seria
+  // só metade do nível). Nunca tinha sido conectado.
+  if(f.raca==='Goblin') recuperacao = Math.max(recuperacao, nivel);
+  // Bônus guardado de itens tipo Prato do Aventureiro/Sopa de peixe/Gorlogg Ensopado (usados
+  // antes de dormir) — "por nível", então multiplica pelo nível igual a recuperação normal.
+  // Golem não se beneficia de itens de alimentação (o mesmo trecho do livro deixa isso claro),
+  // então ignora qualquer bônus de comida guardado.
+  const pendente = f._descansoBonusPendente || {pv:0, pm:0};
+  const bonusPvComida = f.raca==='Golem' ? 0 : pendente.pv * nivel;
+  const bonusPmComida = f.raca==='Golem' ? 0 : pendente.pm * nivel;
+  f.pvatual = Math.min(pvMaxEfetivo(f), (parseInt(f.pvatual)||0)+recuperacao+bonusPvComida);
+  f.pmatual = Math.min(pmMaxEfetivo(f), (parseInt(f.pmatual)||0)+recuperacao+bonusPmComida);
   if((parseInt(f.pvatual)||0) > 0) f.estabilizado = false;
   resetarUsoPoderes(f, ['cena','dia']); // uma noite de sono também encerra a cena atual
+  const tinhaBonusComida = bonusPvComida>0 || bonusPmComida>0;
+  f._descansoBonusPendente = {pv:0, pm:0};
   salvarPerfis(); render();
-  flashMsg('🌙 Descanso '+qualidade.toLowerCase()+': +'+recuperacao+' PV e +'+recuperacao+' PM (nível '+nivel+' × '+mult+').');
+  const subiuPorEstoico = qualidadeEfetiva !== qualidade;
+  flashMsg('🌙 Descanso '+qualidade.toLowerCase()+(subiuPorEstoico?' (elevado pra '+qualidadeEfetiva.toLowerCase()+')':'')+': +'+recuperacao+' PV e +'+recuperacao+' PM'+(f.raca==='Golem'?' (Golem — sempre no ritmo normal, não importa onde/como)':' (nível '+nivel+' × '+mult+')')
+    + (tinhaBonusComida ? ' + '+bonusPvComida+' PV/'+bonusPmComida+' PM de comida guardada' : '') + '.');
 }
 function novaCena(f){
   resetarUsoPoderes(f, ['cena']);
@@ -1318,8 +1491,13 @@ function slotsVestidosUsados(f){ return itensVestidosTodos(f).length; }
 function bonusPericiaDeItensVestidos(f, periciaNome){
   let total = 0;
   itensVestidosAtivos(f).forEach(fonte=>{
-    if(fonte.catalogo && fonte.catalogo.bonusPericia && fonte.catalogo.bonusPericia.nome===periciaNome){
-      total += fonte.catalogo.bonusPericia.valor;
+    const bp = fonte.catalogo && fonte.catalogo.bonusPericia;
+    if(bp){
+      // Aceita tanto {nome,valor} (a maioria dos itens, um bônus só) quanto uma lista de vários
+      // — precisou generalizar pro Farrapos de ermitão (achado numa auditoria), que tem +2 numa
+      // perícia E –2 em outra ao mesmo tempo, coisa que o formato de objeto único não suportava.
+      const lista = Array.isArray(bp) ? bp : [bp];
+      lista.forEach(item=>{ if(item.nome===periciaNome) total += item.valor; });
     }
     // Efeito que o próprio jogador definiu num item personalizado (fora do catálogo) — mesma
     // ideia do bônus de item de catálogo acima, só que guardado direto na linha do item em vez
@@ -1584,7 +1762,7 @@ function iniciarAtualizacaoAutomaticaJogador(){
   _intervalAtualizacaoJogador = setInterval(async ()=>{
     if(state.screen !== 'ficha' || usandoStorageDoClaude()){ return; }
     const digitando = document.activeElement && ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName);
-    if(digitando) return;
+    if(digitando || state._arrastandoPersonagemPericias) return;
     const mudou = await mesclarPresentesDoServidor();
     if(mudou){ salvarNoLocalStorage(state.perfis); render(); }
   }, 12000);

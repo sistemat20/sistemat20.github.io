@@ -139,7 +139,7 @@ I("Capa pesada","T$ 15",1,"+1 em Fortitude","Vestuário", true, {nome:"Fortitude
 I("Casaco longo","T$ 20",1,"+5 Fortitude contra frio; –2 de penalidade de armadura","Vestuário", true),
 I("Chapéu arcano","T$ 50",1,"+1 PM se tiver Caminho do Arcanista","Vestuário", true, null, false, 1, {recurso:'pm', valor:1, condicao:'arcanista'}),
 I("Enfeite de elmo","T$ 15",1,"+2 de resistência a medo","Vestuário", true),
-I("Farrapos de ermitão","T$ 1",1,"+2 Adestramento; –2 Diplomacia","Vestuário", true),
+I("Farrapos de ermitão","T$ 1",1,"+2 Adestramento; –2 Diplomacia","Vestuário", true, [{nome:"Adestramento",valor:2},{nome:"Diplomacia",valor:-2}]),
 I("Gorro de ervas","T$ 75",1,"+1 em Vontade","Vestuário", true, {nome:"Vontade", valor:1}),
 I("Luva de pelica","T$ 5",1,"+1 em Ladinagem","Vestuário", true, {nome:"Ladinagem", valor:1}),
 I("Manopla","T$ 10",1,"torna ataques desarmados letais","Vestuário", true),
@@ -261,7 +261,7 @@ function EI(n,preco,esp,desc,maos,efeito){
   return {n,preco,esp,desc,cat:"Esotérico",esoterico:true,maos:maos||1,efeito:efeito||null};
 }
 const ITENS_ESOTERICOS = [
-EI("Bolsa de pó","T$ 300",1,"Ao lançar magia de encantamento ou ilusão, +2 PM para gastar em aprimoramentos.",1,null),
+EI("Bolsa de pó","T$ 300",1,"Ao lançar magia de encantamento ou ilusão, +2 PM para gastar em aprimoramentos.",1,[{tipo:'limite_pm_escola',escolas:['Encantamento','Ilusão'],valor:2}]),
 EI("Cajado arcano","T$ 1.000",2,"+1 no limite de PM que pode gastar em magias arcanas e +1 na CD para resistir a elas. Precisa de 2 mãos; pode ser usado como arma (bordão).",2,[{tipo:'limite_pm_arcana',valor:1},{tipo:'cd_arcana_geral',valor:1}]),
 EI("Cetro elemental","T$ 750",1,"Ao lançar magia que cause dano do tipo da pedra (ácido/eletricidade/fogo/frio), o dano aumenta em um dado do mesmo tipo.",1,null),
 EI("Costela de lich","T$ 300",1,"Suas magias causam +1d6 de dano de trevas extra. Enquanto empunhada, você não recupera PV por cura mágica.",1,null),
@@ -273,6 +273,6 @@ EI("Tomo hermético","T$ 1.500",1,"+2 na CD para resistir às suas magias arcana
 EI("Varinha arcana","T$ 100",1,"+1 na CD para resistir a todas as suas magias arcanas.",1,[{tipo:'cd_arcana_geral',valor:1}]),
 // Novos Esotéricos (Ameaças de Arton, pág. 397)
 EI("Ankh Solar","T$ 1.000",1,"Também serve como arma leve simples corpo a corpo (dano 1d6, crítico 19, corte). Suas magias com teste de resistência ganham o aprimoramento +2 PM: quem falha no teste também não recupera PV por 1 rodada.",1,null),
-EI("Tomo de Guerra","T$ 300",1,"Ao lançar magia de evocação, +1 PM extra pra gastar em aprimoramentos.",1,null),
+EI("Tomo de Guerra","T$ 300",1,"Ao lançar magia de evocação, +1 PM extra pra gastar em aprimoramentos.",1,[{tipo:'limite_pm_escola',escolas:['Evocação'],valor:1}]),
 EI("Tomo do Rancor","T$ 750",1,"Suas magias de dano ganham o aprimoramento +2 PM: causam +2d8+2 de dano extra (corte, impacto ou perfuração, à sua escolha).",1,null),
 ];
