@@ -591,12 +591,12 @@
 .pericia-row > *:not(.pericia-termometro){ position:relative; }
 .pericia-row.aberta{ background:rgba(166,129,47,0.07); border-bottom:none; }
 .pericia-row .pericia-total{
-  /* Era --red-deep (vermelho bem escuro) sobre fundo escuro — contraste ruim, difícil de ler.
-     Trocado por --ink com o dourado reservado pra destacar as treinadas. */
-  font-family:'Cinzel',serif; font-weight:800; font-size:var(--fs-base); color:var(--ink);
-  text-align:center; background:var(--card-2); border:1.5px solid var(--line); border-radius:4px; padding:3px 0;
+  /* Sem caixa/borda em volta — a estrela ao lado do nome já identifica as treinadas, então o
+     quadrado destacado era redundante e deixava a linha pesada. */
+  font-family:'Cinzel',serif; font-weight:800; font-size:var(--fs-md); color:var(--ink);
+  text-align:center;
 }
-.pericia-row.treinada .pericia-total{ border-color:var(--gold); border-width:2px; color:var(--gold); }
+.pericia-row.treinada .pericia-total{ color:var(--gold); }
 .pericia-row .pericia-nome{ font-weight:600; font-size:var(--fs-sm); }
 .pericia-row .pericia-attr{ font-size:var(--fs-2xs); color:var(--ink-soft); text-transform:uppercase; }
 .pericia-row .pericia-estrela{ color:var(--gold); }

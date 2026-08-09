@@ -2719,9 +2719,10 @@ function renderPericias(){
     wrap.appendChild(el('div',{class:'empty'},'Nenhuma perícia encontrada.'));
   }
 
-  // Agrupa por atributo-chave (Força, Destreza...) — com 30 perícias numa lista plana, achar
-  // uma específica exigia ler nome por nome. Dentro de cada grupo, ordena da melhor pra pior,
-  // já que a barra do "termômetro" (abaixo) fica visualmente mais coerente assim.
+  // Agrupa por atributo-chave, na ORDEM OFICIAL da ficha (Força, Destreza, Constituição,
+  // Inteligência, Sabedoria, Carisma) — não na ordem em que aparecem no catálogo. Dentro de
+  // cada grupo, ordem alfabética, que é como se procura uma perícia pelo nome.
+  const ORDEM_ATRIBUTOS = ['For','Des','Con','Int','Sab','Car'];
   const grupos = {};
   lista.forEach(p=>{
     if(!grupos[p.attr]) grupos[p.attr] = [];
@@ -2733,8 +2734,9 @@ function renderPericias(){
   const maiorValor = Math.max(...valores, 1);
   const faixaValores = Math.max(1, maiorValor - menorValor);
 
-  Object.keys(grupos).forEach(attr=>{
-    const doGrupo = grupos[attr].slice().sort((a,b)=> periciaValor(f,b) - periciaValor(f,a));
+  const atributosOrdenados = ORDEM_ATRIBUTOS.filter(a=>grupos[a]).concat(Object.keys(grupos).filter(a=>!ORDEM_ATRIBUTOS.includes(a)));
+  atributosOrdenados.forEach(attr=>{
+    const doGrupo = grupos[attr].slice().sort((a,b)=> a.nome.localeCompare(b.nome, 'pt-BR'));
     wrap.appendChild(el('div',{class:'pericia-grupo-cab'},
       el('span',{class:'grupo-nome'}, NOME_ATRIBUTO[attr.toLowerCase().slice(0,3)] || attr),
       el('span',{class:'grupo-cont'}, doGrupo.length+(doGrupo.length===1?' perícia':' perícias'))
@@ -2744,20 +2746,16 @@ function renderPericias(){
       const isTreinada = treinadas.has(p.nome);
       const aberto = state._periciaAberta === p.nome;
       const valor = periciaValor(f, p);
-      // Largura proporcional ao valor dentro da faixa do personagem (não um valor absoluto —
-      // assim a barra continua legível tanto no nível 1 quanto no nível 20). Mínimo de 8% pra
-      // até a pior perícia ter alguma presença visual.
-      // Barra só nas perícias que MERECEM destaque (treinadas, ou entre as de valor mais alto)
-      // — numa ficha real só existem 3-4 valores distintos, então uma barra em cada linha
-      // deixava quase todas do mesmo tamanho e não informava nada. Assim a barra vira um
-      // marcador de "olha aqui", que é o que ela realmente consegue comunicar.
-      const ehDestaque = isTreinada || valor >= menorValor + faixaValores*0.66;
-      const pctBarra = Math.max(30, Math.round(((valor - menorValor) / faixaValores) * 92));
-      const faixaCor = isTreinada ? 'forte' : 'media';
+      // Termômetro em TODAS as perícias — proporcional ao valor dentro da faixa do próprio
+      // personagem (não um valor absoluto, pra continuar legível do nível 1 ao 20). Mínimo de
+      // 12% pra até a pior ter alguma presença visual. As treinadas ganham o tom mais forte,
+      // já que a estrela ao lado do nome já as identifica.
+      const pctBarra = Math.max(12, Math.round(((valor - menorValor) / faixaValores) * 92));
+      const faixaCor = isTreinada ? 'forte' : valor >= menorValor + faixaValores*0.5 ? 'media' : 'fraca';
       const nomeEl = el('div',{class:'pericia-nome'}, p.nome+' ');
       if(isTreinada) nomeEl.appendChild(el('span',{class:'pericia-estrela'},'★'));
       const row = el('div',{class:'pericia-row'+(isTreinada?' treinada':'')+(aberto?' aberta':''), onclick:()=>{ state._periciaAberta = aberto ? null : p.nome; render(); }},
-        ehDestaque ? el('div',{class:'pericia-termometro '+faixaCor, style:'width:'+pctBarra+'%;'}) : null,
+        el('div',{class:'pericia-termometro '+faixaCor, style:'width:'+pctBarra+'%;'}),
         el('div',{class:'pericia-total'}, (valor>=0?'+':'')+valor),
         el('div',{},
           nomeEl,
