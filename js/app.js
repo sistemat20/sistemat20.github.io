@@ -1499,6 +1499,15 @@ function armaduraContaComoVestido(f){
   const imune = racaObj && racaObj.armaduraNaoContaVestido;
   return !!(f.armadura && f.armadura.equipado!==false && !imune);
 }
+// Tira o sufixo de "item recebido" do nome, pra conseguir achar o item no catálogo. Existem
+// DOIS formatos: "(recebido do Mestre)" e "(recebido de Fulano)" (quando é um jogador que
+// manda pra outro). O código antigo só limpava o primeiro, então item enviado por um jogador
+// chegava com nome que não batia com nada do catálogo e PERDIA as opções (upgrade da Mochila
+// de Aventureiro, descrição, munição, catalisador). Centralizado aqui pra não ter esse tipo de
+// divergência de novo.
+function nomeBaseItem(nomeCompleto){
+  return String(nomeCompleto||'').replace(/\s*\(recebido (do Mestre|de [^)]*)\)/g, '');
+}
 // Lista, em ordem, de todas as "fontes" de item vestido que o personagem tem marcadas —
 // pode passar de 4; quem consome essa lista decide o que fica ativo (os 4 primeiros).
 function itensVestidosTodos(f){
@@ -1760,10 +1769,13 @@ async function mesclarPresentesDoServidor(){
     const equipNovo = fNovo.equip || [];
     if(equipNovo.length > equipAntigo.length){
       const nomesAntigos = equipAntigo.map(e=>e.item);
-      const novosItens = equipNovo.filter(e=> e.item.includes('(recebido do Mestre)') && !nomesAntigos.includes(e.item));
+      // Reconhece os DOIS formatos de presente ("do Mestre" e "de Fulano") — antes só pegava o
+      // do Mestre, então item enviado por um jogador não era detectado como presente novo e
+      // podia se perder numa sincronização.
+      const novosItens = equipNovo.filter(e=> /\(recebido (do Mestre|de [^)]*)\)/.test(e.item) && !nomesAntigos.includes(e.item));
       if(novosItens.length>0){
         novosItens.forEach(it=>{
-          notificarComSom('🎁 '+fAtual.nome+' recebeu: '+it.item.replace(' (recebido do Mestre)','')+'!');
+          notificarComSom('🎁 '+fAtual.nome+' recebeu: '+nomeBaseItem(it.item)+'!');
           fAtual.equip.push(it);
         });
         mudou = true;

@@ -560,35 +560,11 @@
 .defesa-breakdown b{ color:var(--red-deep); font-weight:700; }
 
 /* Perícias: lista compacta em formato de tabela, como a coluna da ficha oficial */
-/* Linha de perícia com "termômetro" — uma barra atrás do conteúdo cujo comprimento acompanha o
-   valor da perícia, pra dar pra ver de relance onde o personagem é bom sem ler nome por nome.
-   overflow:hidden + position:relative são ESSENCIAIS aqui: prendem a barra dentro da própria
-   linha, senão ela vaza pro detalhe expandido logo abaixo e atrapalha a leitura do cálculo. */
 .pericia-row{
   display:grid; grid-template-columns:36px 1fr auto; align-items:center; gap:8px;
   padding:7px 6px; border-bottom:1px solid var(--line); cursor:pointer;
-  position:relative; overflow:hidden;
 }
 .pericia-row:nth-child(even){ background:rgba(124,31,31,0.035); }
-.pericia-termometro{
-  /* grid-area cobrindo a linha inteira + position:absolute — sem isso, o termômetro era tratado
-     como o primeiro ITEM do grid e "roubava" a coluna do número, esticando a caixa dele e
-     desalinhando o nome/atributo (foi exatamente o que quebrou o layout num teste real). */
-  grid-area:1 / 1 / 2 / 4;
-  position:absolute; left:0; top:0; bottom:0; border-radius:0 6px 6px 0;
-  opacity:0.28; pointer-events:none; transition:width 250ms ease;
-}
-.pericia-termometro::after{
-  content:''; position:absolute; left:0; right:0; top:0; height:45%;
-  background:linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0));
-  border-radius:0 6px 0 0;
-}
-.pericia-termometro.fraca{ background:linear-gradient(90deg, rgba(120,100,60,0.45), transparent); }
-.pericia-termometro.media{ background:linear-gradient(90deg, rgba(166,129,47,0.6), transparent); }
-.pericia-termometro.forte{ background:linear-gradient(90deg, var(--gold-deep), transparent); }
-/* Tudo que não é a barra precisa ficar por cima dela — o :not() é importante, senão essa regra
-   sobrescreveria o position:absolute do próprio termômetro. */
-.pericia-row > *:not(.pericia-termometro){ position:relative; }
 .pericia-row.aberta{ background:rgba(166,129,47,0.07); border-bottom:none; }
 .pericia-row .pericia-total{
   /* Sem caixa/borda em volta — a estrela ao lado do nome já identifica as treinadas, então o
@@ -612,8 +588,7 @@
 }
 .pericia-grupo-cab .grupo-cont{ margin-left:auto; font-size:var(--fs-2xs); color:var(--ink-soft); opacity:0.7; }
 
-/* Detalhe do cálculo — fundo próprio e limpo, SEM termômetro atrás (a barra ficaria competindo
-   com a leitura dos números, que é justamente pra que serve abrir a perícia). */
+/* Detalhe do cálculo — fundo próprio e escuro, separando visualmente da linha da perícia */
 .pericia-detalhe{
   background:rgba(0,0,0,0.32); border-left:3px solid var(--gold-deep);
   border-radius:0 var(--radius-sm) var(--radius-sm) 0;

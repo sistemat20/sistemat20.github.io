@@ -1793,7 +1793,7 @@ const MUNICAO_POR_ARMA = [
 function municaoDaArma(f, arma){
   const regra = MUNICAO_POR_ARMA.find(r=> r.padraoArma.test(arma.nome||''));
   if(!regra) return null;
-  const idx = (f.equip||[]).findIndex(row=> row.tipo==='geral' && row.item.replace(' (recebido do Mestre)','')===regra.itemMunicao);
+  const idx = (f.equip||[]).findIndex(row=> row.tipo==='geral' && nomeBaseItem(row.item)===regra.itemMunicao);
   if(idx<0) return null;
   return {nome: regra.itemMunicao.replace(' (20)',''), qtd: parseInt(f.equip[idx].qtd)||0, idx};
 }
@@ -1882,7 +1882,7 @@ function usarItemMochila(f, idx){
   const row = f.equip[idx];
   if(!row) return;
   const atual = parseInt(row.qtd)||0;
-  const nomeSemSufixo = row.item.replace(' (recebido do Mestre)','');
+  const nomeSemSufixo = nomeBaseItem(row.item);
   const bonusDescanso = ITENS_BONUS_PROXIMO_DESCANSO[nomeSemSufixo];
   let mensagemExtra = '';
   if(bonusDescanso){
@@ -2275,7 +2275,7 @@ function renderPersonagemMochila(){
       const rotulo = {arma:'Arma', armadura:'Armadura', escudo:'Escudo', esoterico:'Esotérico', geral:'Item'}[row.tipo] || 'Item';
       const corpo = [];
       if(row.tipo==='geral'){
-        const nomeSemSufixo = row.item.replace(' (recebido do Mestre)','');
+        const nomeSemSufixo = nomeBaseItem(row.item);
         const itemCatalogo = ITENS_GERAIS.find(i=>i.n===nomeSemSufixo);
         const reconhecidoAutomatico = (itemCatalogo && itemCatalogo.vestivel) || ACESSORIOS_VESTIVEIS.has(nomeSemSufixo);
         const ehVestivel = reconhecidoAutomatico || row.marcadoVestivel;
@@ -2328,7 +2328,7 @@ function renderPersonagemMochila(){
         // saber o que ele é antes de decidir equipar). Faltava completamente antes — a mochila
         // só mostrava quantidade/espaço, sem dizer o que o item de fato fazia.
         let descCatalogo = null;
-        const nomeSemSufixo = row.item.replace(' (recebido do Mestre)','');
+        const nomeSemSufixo = nomeBaseItem(row.item);
         if(row.tipo==='arma'){
           const w = ARMAS.find(x=>x.n===nomeSemSufixo);
           if(w) descCatalogo = 'Dano '+w.dano+' · Crítico '+w.critico+' · Alcance '+w.alcance+' · '+w.tipo+(w.maos>=2?' · 2 mãos':'');
@@ -2355,7 +2355,7 @@ function renderPersonagemMochila(){
           )
         );
       }
-      const ehMochilaAventureiroUpgradeAtiva = row.tipo==='geral' && row.item.replace(' (recebido do Mestre)','')==='Mochila de aventureiro' && f.mochilaAventureiroUpgrade;
+      const ehMochilaAventureiroUpgradeAtiva = row.tipo==='geral' && nomeBaseItem(row.item)==='Mochila de aventureiro' && f.mochilaAventureiroUpgrade;
       const tituloExibido = ehMochilaAventureiroUpgradeAtiva ? row.item+' ⭐ (Upgrade)' : row.item;
       eqPanel.appendChild(renderItemColapsavel('mochila-'+idx, tituloExibido, rotulo+' · Qtd '+row.qtd+' · Esp '+row.carga, corpo, ehMochilaAventureiroUpgradeAtiva ? 'var(--gold)' : null));
     });
@@ -2728,11 +2728,6 @@ function renderPericias(){
     if(!grupos[p.attr]) grupos[p.attr] = [];
     grupos[p.attr].push(p);
   });
-  // Menor e maior valor da lista inteira, pra calcular o tamanho relativo de cada barra
-  const valores = lista.map(p=> periciaValor(f, p));
-  const menorValor = Math.min(...valores, 0);
-  const maiorValor = Math.max(...valores, 1);
-  const faixaValores = Math.max(1, maiorValor - menorValor);
 
   const atributosOrdenados = ORDEM_ATRIBUTOS.filter(a=>grupos[a]).concat(Object.keys(grupos).filter(a=>!ORDEM_ATRIBUTOS.includes(a)));
   atributosOrdenados.forEach(attr=>{
@@ -2746,16 +2741,9 @@ function renderPericias(){
       const isTreinada = treinadas.has(p.nome);
       const aberto = state._periciaAberta === p.nome;
       const valor = periciaValor(f, p);
-      // Termômetro em TODAS as perícias — proporcional ao valor dentro da faixa do próprio
-      // personagem (não um valor absoluto, pra continuar legível do nível 1 ao 20). Mínimo de
-      // 12% pra até a pior ter alguma presença visual. As treinadas ganham o tom mais forte,
-      // já que a estrela ao lado do nome já as identifica.
-      const pctBarra = Math.max(12, Math.round(((valor - menorValor) / faixaValores) * 92));
-      const faixaCor = isTreinada ? 'forte' : valor >= menorValor + faixaValores*0.5 ? 'media' : 'fraca';
       const nomeEl = el('div',{class:'pericia-nome'}, p.nome+' ');
       if(isTreinada) nomeEl.appendChild(el('span',{class:'pericia-estrela'},'★'));
       const row = el('div',{class:'pericia-row'+(isTreinada?' treinada':'')+(aberto?' aberta':''), onclick:()=>{ state._periciaAberta = aberto ? null : p.nome; render(); }},
-        el('div',{class:'pericia-termometro '+faixaCor, style:'width:'+pctBarra+'%;'}),
         el('div',{class:'pericia-total'}, (valor>=0?'+':'')+valor),
         el('div',{},
           nomeEl,
@@ -2958,14 +2946,14 @@ function renderPopupUsarMagia(f){
   // nenhum). Consome o item da mochila ao confirmar o uso.
   const catalisadoresDisponiveis = (f.equip||[]).filter(row=>{
     if(row.tipo!=='geral') return false;
-    const nome = row.item.replace(' (recebido do Mestre)','');
+    const nome = nomeBaseItem(row.item);
     if(CATALISADORES_CD_ESCOLA[nome]) return CATALISADORES_CD_ESCOLA[nome]===s.e;
     return !!CATALISADORES_DANO_LEMBRETE[nome];
   });
   if(catalisadoresDisponiveis.length>0){
     const catWrap = el('div',{style:'padding:0 14px;margin-top:8px;'}, el('label',{},'Catalisador (opcional — some da mochila ao usar)'));
     catalisadoresDisponiveis.forEach(row=>{
-      const nome = row.item.replace(' (recebido do Mestre)','');
+      const nome = nomeBaseItem(row.item);
       const marcado = fluxo.catalisadorEscolhido===nome;
       const rotulo = CATALISADORES_CD_ESCOLA[nome] ? '+2 na CD ('+CATALISADORES_CD_ESCOLA[nome]+')' : CATALISADORES_DANO_LEMBRETE[nome];
       catWrap.appendChild(el('div',{class:'option-card'+(marcado?' selected':''), style:'margin-top:4px;cursor:pointer;', onclick:()=>{
@@ -3020,7 +3008,7 @@ function renderPopupUsarMagia(f){
     // Consome o catalisador escolhido da mochila, se tiver
     let catalisadorTxt = '';
     if(fluxo.catalisadorEscolhido){
-      const idxCat = f.equip.findIndex(row=> row.tipo==='geral' && row.item.replace(' (recebido do Mestre)','')===fluxo.catalisadorEscolhido);
+      const idxCat = f.equip.findIndex(row=> row.tipo==='geral' && nomeBaseItem(row.item)===fluxo.catalisadorEscolhido);
       if(idxCat>=0){
         const rowCat = f.equip[idxCat];
         const qtdCat = parseInt(rowCat.qtd)||1;
