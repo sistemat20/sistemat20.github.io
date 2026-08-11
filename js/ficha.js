@@ -2068,6 +2068,7 @@ function renderPopupMoeda(f){
   const campo = state._moedaPopup.campo;
   const rotulo = {tc:'TC (cobre)', ts:'T$ (padrão)', to:'TO (ouro)'}[campo];
   if(!state._moedaPopup.receberValor) state._moedaPopup.receberValor = '';
+  if(!state._moedaPopup.gastarValor) state._moedaPopup.gastarValor = '';
   const overlay = el('div',{class:'menu-overlay', onclick:(e)=>{ if(e.target===e.currentTarget){ state._moedaPopup=null; render(); } }});
   const sheet = el('div',{class:'menu-sheet'});
   sheet.appendChild(el('div',{class:'wizard-title', style:'padding:6px 14px 0;'}, rotulo));
@@ -2087,6 +2088,26 @@ function renderPopupMoeda(f){
     }}, '✓ Receber')
   );
   sheet.appendChild(conteudo);
+  // Gastar/retirar — pra comprar algo, pagar uma taxa, perder dinheiro etc, sem precisar passar
+  // pelo fluxo de "Enviar" (que exige escolher outro jogador como destinatário, não serve pra
+  // um gasto simples). Achado reportado: faltava essa opção.
+  const conteudoGastar = el('div',{style:'padding:0 14px;margin-top:10px;'},
+    el('label',{},'Quantidade a gastar'),
+    el('input',{type:'number', value:state._moedaPopup.gastarValor, oninput:(e)=>{state._moedaPopup.gastarValor=e.target.value;}}),
+    el('button',{class:'btn ghost', style:'margin-top:8px;', onclick:()=>{
+      const valor = parseInt(state._moedaPopup.gastarValor);
+      if(!valor || valor<=0){ flashMsg('Digita uma quantidade válida primeiro.'); return; }
+      const atual = parseInt(f[campo])||0;
+      if(valor > atual){ flashMsg('Você não tem '+valor+' '+rotulo+' (tem só '+atual+').'); return; }
+      f[campo] = atual - valor;
+      registrarLog(f, 'Gastou '+valor+' '+rotulo);
+      salvarPerfis();
+      flashMsg('💸 −'+valor+' '+rotulo+'.');
+      state._moedaPopup = null;
+      render();
+    }}, '💸 Gastar')
+  );
+  sheet.appendChild(conteudoGastar);
   sheet.appendChild(el('div',{class:'secao-divisor', style:'margin:14px;'}));
   sheet.appendChild(el('div',{style:'padding:0 14px;'},
     el('button',{class:'btn ghost', onclick:()=>{ state._moedaPopup=null; abrirEnviarDinheiro(campo); }}, '📤 Enviar dinheiro')

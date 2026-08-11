@@ -2002,19 +2002,25 @@ async function mesclarPresentesDoServidor(){
     if(!fNovo) return;
     const equipAntigo = fAtual.equip || [];
     const equipNovo = fNovo.equip || [];
-    if(equipNovo.length > equipAntigo.length){
-      const nomesAntigos = equipAntigo.map(e=>e.item);
-      // Reconhece os DOIS formatos de presente ("do Mestre" e "de Fulano") — antes só pegava o
-      // do Mestre, então item enviado por um jogador não era detectado como presente novo e
-      // podia se perder numa sincronização.
-      const novosItens = equipNovo.filter(e=> /\(recebido (do Mestre|de [^)]*)\)/.test(e.item) && !nomesAntigos.includes(e.item));
-      if(novosItens.length>0){
-        novosItens.forEach(it=>{
-          notificarComSom('🎁 '+fAtual.nome+' recebeu: '+nomeBaseItem(it.item)+'!');
-          fAtual.equip.push(it);
-        });
-        mudou = true;
-      }
+    // Foto de TUDO que o servidor já mandou alguma vez pra esse personagem — precisa só CRESCER,
+    // nunca "esquecer" um item, mesmo depois que o jogador exclui ele da mochila. Comparar contra
+    // a lista local (fAtual.equip) tinha um bug: excluir um item de presente fazia a lista local
+    // encolher, e o código achava que era um presente NOVO chegando (o servidor ainda não sabe
+    // da exclusão) — devolvendo o item que tinha acabado de ser apagado.
+    if(!state._itensVistosDoServidor) state._itensVistosDoServidor = {};
+    if(!state._itensVistosDoServidor[fAtual.id]) state._itensVistosDoServidor[fAtual.id] = new Set(equipAntigo.map(e=>e.item));
+    const vistos = state._itensVistosDoServidor[fAtual.id];
+    // Reconhece os DOIS formatos de presente ("do Mestre" e "de Fulano") — antes só pegava o do
+    // Mestre, então item enviado por um jogador não era detectado como presente novo e podia se
+    // perder numa sincronização.
+    const novosItens = equipNovo.filter(e=> /\(recebido (do Mestre|de [^)]*)\)/.test(e.item) && !vistos.has(e.item));
+    if(novosItens.length>0){
+      novosItens.forEach(it=>{
+        notificarComSom('🎁 '+fAtual.nome+' recebeu: '+nomeBaseItem(it.item)+'!');
+        fAtual.equip.push(it);
+        vistos.add(it.item);
+      });
+      mudou = true;
     }
     if(!state._ultimoServidorMoeda) state._ultimoServidorMoeda = {};
     if(!state._ultimoServidorMoeda[fAtual.id]) state._ultimoServidorMoeda[fAtual.id] = {ts:fNovo.ts, tc:fNovo.tc, to:fNovo.to};
