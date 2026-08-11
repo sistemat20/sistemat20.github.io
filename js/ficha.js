@@ -842,7 +842,7 @@ function equiparEsotericoDaMochila(idx){
     efeito: [...efeitoBase, ...efeitoExtra], escolaFoco:null, equipado:true,
     superior:!!row.superior, efeitoExtra:efeitoExtra, melhoriasTxt:row.melhoriasTxt||null
   });
-  f.equip.splice(idx,1);
+  removerItemMochila(f, idx);
   salvarPerfis();
   flashMsg('"'+(row.superior?row.item:it.n)+'" equipado.');
   render();
@@ -905,7 +905,7 @@ function equiparDaMochila(idx){
       armaMontada.superior = true;
     }
     f.armas.push(armaMontada);
-    f.equip.splice(idx,1);
+    removerItemMochila(f, idx);
     registrarLog(f, 'Equipou a arma: '+armaMontada.nome);
     flashMsg('"'+armaMontada.nome+'" equipada — adicionada aos seus ataques.');
   } else if(row.tipo==='armadura'){
@@ -916,7 +916,7 @@ function equiparDaMochila(idx){
     const bonusPen = row.superior ? (row.bonusPenExtra||0) : 0;
     f.armadura = {nome: row.superior?row.item:a.n, refBase:a.n, def:a.def+bonusDef, pen:a.pen+bonusPen, cat:a.cat, esp:a.esp, equipado:true,
       superior:!!row.superior, bonusDefExtra:row.bonusDefExtra||0, bonusPenExtra:row.bonusPenExtra||0, melhoriasTxt:row.melhoriasTxt||null};
-    f.equip.splice(idx,1);
+    removerItemMochila(f, idx);
     registrarLog(f, 'Equipou a armadura: '+f.armadura.nome);
     flashMsg('"'+f.armadura.nome+'" equipada — sua Defesa foi atualizada.');
   } else if(row.tipo==='escudo'){
@@ -928,7 +928,7 @@ function equiparDaMochila(idx){
     const bonusPenEsc = row.superior ? (row.bonusPenExtra||0) : 0;
     f.escudo = {nome: row.superior?row.item:a.n, refBase:a.n, def:a.def+bonusDefEsc, pen:a.pen+bonusPenEsc, cat:a.cat, esp:a.esp, equipado:true,
       superior:!!row.superior, bonusDefExtra:row.bonusDefExtra||0, bonusPenExtra:row.bonusPenExtra||0, melhoriasTxt:row.melhoriasTxt||null};
-    f.equip.splice(idx,1);
+    removerItemMochila(f, idx);
     registrarLog(f, 'Equipou o escudo: '+f.escudo.nome);
     flashMsg('"'+f.escudo.nome+'" equipado — sua Defesa foi atualizada.');
   }
@@ -1995,7 +1995,7 @@ function usarItemMochila(f, idx){
     mensagemExtra = ' +2 PM temporários.';
   }
   if(atual <= 1){
-    f.equip.splice(idx,1);
+    removerItemMochila(f, idx);
     flashMsg('✨ Usou o último '+row.item+' — removido da mochila.'+mensagemExtra);
   } else {
     row.qtd = String(atual-1);
@@ -2042,7 +2042,7 @@ function renderPopupEnviarItem(f){
         const itemEnviado = Object.assign({}, row, {item: row.item+' (recebido de '+(f.nome||'alguém')+')'});
         const resultado = await enviarItemParaOutroPersonagem(p.id, itemEnviado);
         if(resultado.ok){
-          f.equip.splice(fluxo.idx,1);
+          removerItemMochila(f, fluxo.idx);
           await mestreAtualizarPersonagem(f); // grava só a ficha do remetente, sem tocar na do destino
           flashMsg('📤 "'+row.item+'" enviado pra '+(resultado.nomeDestino||p.nome)+'!');
           state._enviarItemFluxo = null;
@@ -2437,7 +2437,7 @@ function renderPersonagemMochila(){
             (/^\d+$/.test(String(row.qtd).trim()) && parseInt(row.qtd)>0) ? el('button',{class:'btn', onclick:()=> usarItemMochila(f, idx)}, 'Usar (−1) ✨') : null,
             ehVestivel ? el('button',{class:'btn ghost', onclick:()=>{ row.vestido=!row.vestido; salvarPerfis(); render(); }}, row.vestido?'Guardar':'Vestir') : null,
             el('button',{class:'btn ghost', onclick:()=>abrirEnviarItem(idx)}, 'Enviar 📤'),
-            el('button',{class:'btn ghost', onclick:()=>{ if(!confirm('Remover "'+row.item+'" da mochila? Não tem como desfazer.')) return; registrarLog(f, 'Removeu da mochila: '+row.item); f.equip.splice(idx,1); salvarPerfis(); render(); }}, 'Remover 🗑️')
+            el('button',{class:'btn ghost', onclick:()=>{ if(!confirm('Remover "'+row.item+'" da mochila? Não tem como desfazer.')) return; registrarLog(f, 'Removeu da mochila: '+row.item); removerItemMochila(f, idx); salvarPerfis(); render(); }}, 'Remover 🗑️')
           )
         );
       } else {
@@ -2469,13 +2469,17 @@ function renderPersonagemMochila(){
           el('div',{class:'row', style:'margin-top:8px;'},
             podeEquipar ? el('button',{class:'btn ghost', onclick:()=> row.tipo==='esoterico' ? equiparEsotericoDaMochila(idx) : equiparDaMochila(idx)}, 'Equipar') : null,
             el('button',{class:'btn ghost', onclick:()=>abrirEnviarItem(idx)}, 'Enviar 📤'),
-            el('button',{class:'btn ghost', onclick:()=>{ if(!confirm('Remover "'+row.item+'" da mochila? Não tem como desfazer.')) return; registrarLog(f, 'Removeu da mochila: '+row.item); f.equip.splice(idx,1); salvarPerfis(); render(); }}, 'Remover 🗑️')
+            el('button',{class:'btn ghost', onclick:()=>{ if(!confirm('Remover "'+row.item+'" da mochila? Não tem como desfazer.')) return; registrarLog(f, 'Removeu da mochila: '+row.item); removerItemMochila(f, idx); salvarPerfis(); render(); }}, 'Remover 🗑️')
           )
         );
       }
       const ehMochilaAventureiroUpgradeAtiva = row.tipo==='geral' && nomeBaseItem(row.item)==='Mochila de aventureiro' && f.mochilaAventureiroUpgrade;
       const tituloExibido = ehMochilaAventureiroUpgradeAtiva ? row.item+' ⭐ (Upgrade)' : row.item;
-      eqPanel.appendChild(renderItemColapsavel('mochila-'+idx, tituloExibido, rotulo+' · Qtd '+row.qtd+' · Esp '+row.carga, corpo, ehMochilaAventureiroUpgradeAtiva ? 'var(--gold)' : null));
+      // Inventário Organizado reduz item de meio espaço (0.5) pra 1/4 (0.125) — mostra o valor
+      // JÁ reduzido aqui (com notinha), senão o número exibido não bateria com o total somado.
+      const cargaExibida = (poderesAtivos(f).includes('Inventário Organizado') && parseFloat(row.carga)===0.5)
+        ? '0.125 (Inventário Organizado)' : row.carga;
+      eqPanel.appendChild(renderItemColapsavel('mochila-'+idx, tituloExibido, rotulo+' · Qtd '+row.qtd+' · Esp '+cargaExibida, corpo, ehMochilaAventureiroUpgradeAtiva ? 'var(--gold)' : null));
     });
   }
   eqPanel.appendChild(el('button',{class:'btn ghost', style:'margin-top:10px;', onclick:()=>{
@@ -3218,7 +3222,7 @@ function renderPopupUsarMagia(f){
       if(idxCat>=0){
         const rowCat = f.equip[idxCat];
         const qtdCat = parseInt(rowCat.qtd)||1;
-        if(qtdCat<=1) f.equip.splice(idxCat,1); else rowCat.qtd = String(qtdCat-1);
+        if(qtdCat<=1) removerItemMochila(f, idxCat); else rowCat.qtd = String(qtdCat-1);
         const rotuloCat = CATALISADORES_CD_ESCOLA[fluxo.catalisadorEscolhido] ? '+2 CD' : CATALISADORES_DANO_LEMBRETE[fluxo.catalisadorEscolhido];
         catalisadorTxt = ' + '+fluxo.catalisadorEscolhido+' ('+rotuloCat+')';
       }

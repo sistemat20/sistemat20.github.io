@@ -983,8 +983,14 @@ function cargaUsada(f){
   const armaduraAcoplada = racaObj && racaObj.armaduraNaoContaCarga;
   if(f.armadura && !armaduraAcoplada) total += (parseFloat(f.armadura.esp)||0);
   if(f.escudo) total += (parseFloat(f.escudo.esp)||0);
+  // Inventário Organizado, segunda parte (achado numa auditoria — só a "+Int no limite" tinha
+  // sido conectada antes): "itens muito leves ou pequenos, que normalmente ocupam meio espaço,
+  // em vez disso ocupam 1/4 de espaço". Só vale pra item com carga EXATAMENTE 0.5 — os de outros
+  // pesos (1, 2, etc.) não mudam.
+  const temInventarioOrganizado = poderesAtivos(f).includes('Inventário Organizado');
   (f.equip||[]).forEach(it=>{
-    const porUnidade = parseFloat(it.carga)||0;
+    let porUnidade = parseFloat(it.carga)||0;
+    if(temInventarioOrganizado && porUnidade===0.5) porUnidade = 0.125;
     const qtd = parseFloat(it.qtd)||1;
     total += porUnidade * qtd;
   });
@@ -1639,6 +1645,23 @@ function armaduraContaComoVestido(f){
 function nomeBaseItem(nomeCompleto){
   return String(nomeCompleto||'').replace(/\s*\(recebido (do Mestre|de [^)]*)\)/g, '');
 }
+// Remove um item da mochila (usa em vez de f.equip.splice direto). Se for um item de presente
+// (marcado "recebido do Mestre"/"recebido de X"), registra a exclusão numa lista PERSISTENTE na
+// própria ficha (f._itensExcluidosDePresente) — sem isso, o item voltava sozinho: as funções que
+// mesclam dados do servidor (tanto no salvamento normal quanto quando o Mestre atualiza a ficha
+// de alguém) comparam "o servidor tem X, o local não tem" pra detectar presente novo chegando, e
+// como o servidor demora a saber da exclusão, elas achavam (por engano) que era um presente novo
+// e devolviam o item que acabou de ser apagado. Guardar a exclusão NA FICHA (não só na memória
+// da sessão) garante que qualquer uma dessas funções, hoje ou no futuro, respeita a exclusão.
+function removerItemMochila(f, idx){
+  const row = f.equip[idx];
+  if(!row) return;
+  if(/\(recebido (do Mestre|de [^)]*)\)/.test(row.item)){
+    if(!f._itensExcluidosDePresente) f._itensExcluidosDePresente = [];
+    if(!f._itensExcluidosDePresente.includes(row.item)) f._itensExcluidosDePresente.push(row.item);
+  }
+  f.equip.splice(idx,1);
+}
 // Lista, em ordem, de todas as "fontes" de item vestido que o personagem tem marcadas —
 // pode passar de 4; quem consome essa lista decide o que fica ativo (os 4 primeiros).
 function itensVestidosTodos(f){
@@ -2010,10 +2033,14 @@ async function mesclarPresentesDoServidor(){
     if(!state._itensVistosDoServidor) state._itensVistosDoServidor = {};
     if(!state._itensVistosDoServidor[fAtual.id]) state._itensVistosDoServidor[fAtual.id] = new Set(equipAntigo.map(e=>e.item));
     const vistos = state._itensVistosDoServidor[fAtual.id];
+    // Lista persistente NA FICHA de itens de presente já excluídos de propósito — sem isso, um
+    // item excluído voltava assim que o servidor (desatualizado) mandava a versão antiga de
+    // novo. Complementa o Set em memória acima (que se perde ao recarregar a página).
+    const excluidosDePresente = fAtual._itensExcluidosDePresente || [];
     // Reconhece os DOIS formatos de presente ("do Mestre" e "de Fulano") — antes só pegava o do
     // Mestre, então item enviado por um jogador não era detectado como presente novo e podia se
     // perder numa sincronização.
-    const novosItens = equipNovo.filter(e=> /\(recebido (do Mestre|de [^)]*)\)/.test(e.item) && !vistos.has(e.item));
+    const novosItens = equipNovo.filter(e=> /\(recebido (do Mestre|de [^)]*)\)/.test(e.item) && !vistos.has(e.item) && !excluidosDePresente.includes(e.item));
     if(novosItens.length>0){
       novosItens.forEach(it=>{
         notificarComSom('🎁 '+fAtual.nome+' recebeu: '+nomeBaseItem(it.item)+'!');

@@ -195,7 +195,13 @@ function mesclarSemPerderDados(personagemLocal, personagemServidor){
     // jogador tirou um item do meio pra enviar pra outra pessoa; a lista local encolhe, mas não
     // "por trás", então comparar por índice comparava a coisa errada).
     const nomesLocais = equipLocal.map(e=>e.item);
-    const presentesNovos = equipServidor.filter(e=> /\(recebido (do Mestre|de .+)\)/.test(e.item) && !nomesLocais.includes(e.item));
+    // Lista persistente de itens de presente já excluídos de propósito (guardada na própria
+    // ficha) — sem isso, remover/usar/equipar um item de presente e depois salvar (ou o Mestre
+    // atualizar a ficha) fazia o item voltar: essa função via "servidor tem X, local não tem X"
+    // e concluía (errado) que era presente novo chegando, quando na really era o item que tinha
+    // acabado de ser removido de propósito.
+    const excluidosDePresente = personagemLocal._itensExcluidosDePresente || [];
+    const presentesNovos = equipServidor.filter(e=> /\(recebido (do Mestre|de .+)\)/.test(e.item) && !nomesLocais.includes(e.item) && !excluidosDePresente.includes(e.item));
     if(presentesNovos.length>0){
       if(!personagemLocal.equip) personagemLocal.equip = [];
       personagemLocal.equip.push(...presentesNovos);
