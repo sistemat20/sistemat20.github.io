@@ -1618,11 +1618,14 @@ function renderPersonagemNotas(){
           el('div',{class:'desc'}, h.desc)
         ]));
       });
-      // Habilidades ganhas em níveis específicos (não da criação) — mostradas separado, com uma
-      // notinha, já que não têm descrição própria guardada (só o texto curto da tabela de
-      // classe). Melhor que sumir de vez.
+      // Habilidades ganhas em níveis específicos (não da criação) — usa o mesmo card clicável
+      // dos outros itens da lista (renderItemColapsavel), não um estilo diferente. Só não têm
+      // descrição própria guardada (só o texto curto da tabela de classe), daí o aviso pra
+      // consultar o livro em vez de um texto explicativo de verdade.
       habilidadesDeNivel.forEach((h, idx)=>{
-        corpo.push(el('div',{class:'power-item'}, el('b',{}, h.nome), ' — '+h.fonte+' (consulte o livro pra descrição completa)'));
+        corpo.push(renderItemColapsavel('habnivel-'+idx+'-'+h.nome, h.nome, h.fonte, [
+          el('div',{class:'desc'}, h.desc || 'Ainda não temos o texto exato dessa habilidade cadastrado — consulte o livro (Cap. 1, tabela de progressão da classe) pra descrição completa.')
+        ]));
       });
     }
     return corpo;
@@ -2852,6 +2855,7 @@ function renderPericias(){
         const bonusDivindade = bonusPericiaDeDivindade(f, p.nome);
         const bonusOrigem = bonusPericiaDeOrigem(f, p.nome);
         const bonusClasseEspecifica = bonusPericiaDeClasse(f, p.nome);
+      const bonusHabilidadeAutomatica = bonusPericiaDeHabilidadeAutomatica(f, p.nome);
         const bonusCondicoes = bonusCondicoesPericia(f, p);
         const bonusRaca = bonusPericiaDeRaca(f, p.nome);
         const bonusTormentaP = bonusPericiaDeTormenta(f, p.nome);
@@ -2876,6 +2880,7 @@ function renderPericias(){
         if(bonusDivindade) parcelas.push(['Divindade', bonusDivindade]);
         if(bonusOrigem) parcelas.push(['Origem', bonusOrigem]);
         if(bonusClasseEspecifica) parcelas.push(['Poder de classe', bonusClasseEspecifica]);
+        if(bonusHabilidadeAutomatica) parcelas.push(['Habilidade de classe', bonusHabilidadeAutomatica]);
         if(bonusCondicoes) parcelas.push(['Condições', bonusCondicoes]);
         if(p.nome==='Furtividade' && bonusFurtividadeTamanho(f)) parcelas.push(['Tamanho', bonusFurtividadeTamanho(f)]);
         if(p.armadura && penalidadeTotal(f)) parcelas.push(['Penalidade de armadura', penalidadeTotal(f)]);
