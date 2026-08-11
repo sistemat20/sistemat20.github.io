@@ -112,13 +112,23 @@ const DESLOCAMENTOS_ALTERNATIVOS = {
   'Sílfide': [{tipo:'Voo', valor:12, obs:'Asas de Borboleta — custa 1 PM por rodada'}],
 };
 function deslocamentosAlternativos(f){
+  const resultado = [];
   const lista = DESLOCAMENTOS_ALTERNATIVOS[f.raca];
-  if(!lista) return [];
-  return lista.map(d=>({
-    tipo: d.tipo,
-    valor: d.igualTerrestre ? deslocamentoEfetivo(f) : d.valor,
-    obs: d.obs,
-  }));
+  if(lista){
+    lista.forEach(d=> resultado.push({
+      tipo: d.tipo,
+      valor: d.igualTerrestre ? deslocamentoEfetivo(f) : d.valor,
+      obs: d.obs,
+    }));
+  }
+  // Anfíbio (poder concedido de Oceano, achado na mesma auditoria): "deslocamento de natação
+  // igual ao terrestre" — mesmo padrão dos deslocamentos alternativos de raça, só que vindo de
+  // um poder concedido em vez de traço racial. Só adiciona se ainda não tiver Natação por outra
+  // fonte (ex: raça Sereia/Tritão), pra não duplicar a linha.
+  if(listaPoderesConcedidos(f).some(pc=>pc && pc.nome==='Anfíbio') && !resultado.some(d=>d.tipo==='Natação')){
+    resultado.push({tipo:'Natação', valor: deslocamentoEfetivo(f), obs:'Anfíbio'});
+  }
+  return resultado;
 }
 
 function custoPMAjustado(f, magia){
@@ -282,6 +292,9 @@ const PODER_CONCEDIDO_BONUS_PERICIA = {
   'Mente Analítica': [['Intuição',2],['Investigação',2],['Vontade',2]],
   'Mente Vazia': [['Iniciativa',2],['Percepção',2],['Vontade',2]],
   'Talento Artístico': [['Acrobacia',2],['Atuação',2],['Diplomacia',2]],
+  // Escamas Dracônicas: "+2 na Defesa e em Fortitude" — a parte de Defesa está em
+  // bonusDefesaPoderes, essa é só a parte de perícia.
+  'Escamas Dracônicas': [['Fortitude',2]],
 };
 // Poderes concedidos por divindade que tornam o personagem treinado em perícia(s) — algumas são
 // fixas (sempre as mesmas), outras exigem escolha do jogador (guardada em f.poderConcedido.sub).
@@ -443,12 +456,19 @@ function periciaValor(f, p){
   const nivel = nivelTotal(f);
   const metade = Math.floor(nivel/2);
   const racaObjPericia = getRacaObj(f);
-  const usaDesEmAtletismo = p.nome==='Atletismo' && racaObjPericia && racaObjPericia.atletismoUsaDestreza;
+  // Acrobático (poder geral, achado na mesma auditoria — mesma troca de atributo que já existia
+  // pra Trog via raça, mas nunca checava esse poder): "usa Destreza em vez de Força em
+  // Atletismo". A parte de "terreno difícil não reduz deslocamento" fica de fora — o app não
+  // rastreia em que tipo de terreno o personagem está agora.
+  const usaDesEmAtletismo = p.nome==='Atletismo' && ((racaObjPericia && racaObjPericia.atletismoUsaDestreza) || nomesPoderesConhecidos(f).includes('Acrobático'));
   // Compreender os Ermos (poder concedido, devoto de Allihanna): "pode usar Sabedoria para
   // Adestramento (em vez de Carisma)" — achado numa auditoria comparando com o livro; a tabela
   // de bônus desse poder só tinha o +2 Sobrevivência, faltava essa troca de atributo-chave.
   const usaSabEmAdestramento = p.nome==='Adestramento' && listaPoderesConcedidos(f).some(pc=>pc && pc.nome==='Compreender os Ermos');
-  const attrKey = usaDesEmAtletismo ? 'des' : usaSabEmAdestramento ? 'sab' : (p.attr||'').toLowerCase().slice(0,3); // 'For'->'for','Des'->'des', etc.
+  // Fé Guerreira (poder concedido de Arsenal, achado na mesma auditoria): "usa Sabedoria para
+  // Guerra em vez de Inteligência" — mesmo padrão de troca já usado acima pra Adestramento.
+  const usaSabEmGuerra = p.nome==='Guerra' && listaPoderesConcedidos(f).some(pc=>pc && pc.nome==='Fé Guerreira');
+  const attrKey = usaDesEmAtletismo ? 'des' : usaSabEmAdestramento ? 'sab' : usaSabEmGuerra ? 'sab' : (p.attr||'').toLowerCase().slice(0,3); // 'For'->'for','Des'->'des', etc.
   const attrVal = atributoEfetivo(f, attrKey);
   const treinada = periciasTreinadasComDivindade(f).has(p.nome);
   const treino = treinada ? bonusTreinoPericia(nivel) : 0;
@@ -523,6 +543,9 @@ function bonusDefesaPoderes(f){
   if(bucaneiroObj && !semLiberdadeMovimento){
     bonus += Math.min(parseInt(f.car)||0, nivelTotal(f));
   }
+  // Escamas Dracônicas (poder concedido — achado na mesma auditoria, dessa vez em Poderes
+  // Concedidos): "+2 na Defesa e em Fortitude".
+  if(listaPoderesConcedidos(f).some(pc=>pc && pc.nome==='Escamas Dracônicas')) bonus += 2;
   return bonus;
 }
 // "Estilo de Uma Arma": empunhando 1 arma corpo a corpo de 1 mão e nada na outra (sem 2ª arma, sem escudo)
@@ -1061,7 +1084,12 @@ function pmMaxEfetivo(f){
   // — precisa da própria checagem.
   const paladinoObj = (f.classesNiveis||[]).find(c=>c.classe==='Paladino');
   const bonusAbencoado = paladinoObj ? (parseInt(f.car)||0) : 0;
-  return base + bonusVontadeFerro + bonusSangueMagico + bonusAtributoConjurador + bonusPoderMagico + bonusCoracaoHeroico + bonusEloComANatureza + bonusLinhagemRubra + bonusAbencoado + bonusItens;
+  // Bênção do Mana (poder concedido de Wynna, achado na mesma auditoria — mas dessa vez em
+  // Poderes Concedidos, não de classe): "+1 PM a cada nível ímpar". Conta 1, 3, 5, 7... até o
+  // nível atual.
+  const bonusBencaoDoMana = listaPoderesConcedidos(f).some(pc=>pc && pc.nome==='Bênção do Mana')
+    ? Math.ceil(nivelTotal(f)/2) : 0;
+  return base + bonusVontadeFerro + bonusSangueMagico + bonusAtributoConjurador + bonusPoderMagico + bonusCoracaoHeroico + bonusEloComANatureza + bonusLinhagemRubra + bonusAbencoado + bonusBencaoDoMana + bonusItens;
 }
 
 // ---- Pendências ----

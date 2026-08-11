@@ -2862,8 +2862,10 @@ function renderPericias(){
         const bonusItens = bonusPericiaDeItensVestidos(f, p.nome);
         const racaObjDetalhe = getRacaObj(f);
         const usaSabEmAdestramentoDetalhe = p.nome==='Adestramento' && listaPoderesConcedidos(f).some(pc=>pc && pc.nome==='Compreender os Ermos');
-        const attrExibido = usaSabEmAdestramentoDetalhe ? 'Sabedoria (Compreender os Ermos)' : (p.nome==='Atletismo' && racaObjDetalhe && racaObjDetalhe.atletismoUsaDestreza) ? 'Destreza (traço racial)' : p.attr;
-        const attrValExibido = usaSabEmAdestramentoDetalhe ? (parseInt(f.sab)||0) : (p.nome==='Atletismo' && racaObjDetalhe && racaObjDetalhe.atletismoUsaDestreza) ? (parseInt(f.des)||0) : atributoEfetivo(f, p.attr.toLowerCase().slice(0,3));
+        const usaSabEmGuerraDetalhe = p.nome==='Guerra' && listaPoderesConcedidos(f).some(pc=>pc && pc.nome==='Fé Guerreira');
+        const usaDesEmAtletismoDetalhe = p.nome==='Atletismo' && ((racaObjDetalhe && racaObjDetalhe.atletismoUsaDestreza) || nomesPoderesConhecidos(f).includes('Acrobático'));
+        const attrExibido = usaSabEmAdestramentoDetalhe ? 'Sabedoria (Compreender os Ermos)' : usaSabEmGuerraDetalhe ? 'Sabedoria (Fé Guerreira)' : usaDesEmAtletismoDetalhe ? 'Destreza (Acrobático/traço racial)' : p.attr;
+        const attrValExibido = usaSabEmAdestramentoDetalhe ? (parseInt(f.sab)||0) : usaSabEmGuerraDetalhe ? (parseInt(f.sab)||0) : usaDesEmAtletismoDetalhe ? (parseInt(f.des)||0) : atributoEfetivo(f, p.attr.toLowerCase().slice(0,3));
 
         // Cada parcela do cálculo vira uma linha própria (rótulo à esquerda, valor à direita)
         // em vez do texto corrido comprido de antes — bem mais fácil de conferir de onde vem

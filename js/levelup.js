@@ -328,7 +328,12 @@ async function aplicarLevelUp(f){
   // + Constituição nos PV (mínimo 1), e o PM por nível é fixo (regra do livro, "Subindo de Nível", pág. 40).
   const racaObjLevelUp = getRacaObj(f);
   const bonusRacaPV = (racaObjLevelUp && racaObjLevelUp.pvBonusPorNivel) ? racaObjLevelUp.pvBonusPorNivel : 0;
-  const ganhoPV = Math.max(1, (ci.pvPorNivel||0) + (parseInt(f.con)||0)) + bonusRacaPV;
+  // Dom da Esperança (poder concedido, achado numa auditoria): "soma Sabedoria aos PV em vez de
+  // Constituição" — troca o atributo usado no ganho de PV por nível. Só afeta level ups feitos
+  // A PARTIR de agora (o PV já ganho em níveis anteriores não é recalculado retroativamente).
+  const usaSabNoPV = listaPoderesConcedidos(f).some(pc=>pc && pc.nome==='Dom da Esperança');
+  const atributoParaPV = usaSabNoPV ? (parseInt(f.sab)||0) : (parseInt(f.con)||0);
+  const ganhoPV = Math.max(1, (ci.pvPorNivel||0) + atributoParaPV) + bonusRacaPV;
   const ganhoPM = ci.pm||0;
   f.pvmax += ganhoPV; f.pvatual += ganhoPV;
   f.pmmax += ganhoPM; f.pmatual += ganhoPM;
