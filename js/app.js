@@ -1056,7 +1056,36 @@ const PENDENCIAS_DEFINICOES = [
     detecta: (f)=> (f.periciasTreinadas||[]).includes('Ofício') || (f.vanguardistaOficio==='Ofício'),
     resumo: 'A perícia Ofício precisa de uma especialidade (armeiro, alquimista, cozinheiro, ferreiro, entalhador... qualquer ofício que faça sentido pro personagem) — sem isso, poderes e itens que pedem um ofício específico como pré-requisito não reconhecem que esse personagem tem a perícia.',
   },
+  {
+    // Achado numa conversa em que a própria Vanessa perguntou "lembrou de verificar isso?" — a
+    // tabela de cada classe (em classes.js) marca com "poder de [classe]" cada nível que dá
+    // direito a escolher um poder de classe (ex: Guerreiro tem isso do 2º nível em diante quase
+    // todo nível). Antes dessa pendência existir, não tinha nada detectando quando o personagem
+    // sobe pra um nível assim mas o slot fica sem escolha nenhuma registrada.
+    tipo: 'poderClasseFaltando',
+    titulo: 'Poder de Classe Não Escolhido',
+    detecta: (f)=> slotsPoderClasseFaltando(f).length>0,
+    resumo: 'Esse personagem já tem nível suficiente pra ter escolhido mais poder(es) de classe do que realmente tem na ficha — geralmente porque o nível foi ajustado direto (sem passar pelo fluxo de Level Up) ou a escolha ficou pra trás numa correção anterior.',
+  },
 ];
+// Conta quantos "slots" de poder de classe a tabela oficial garante até o nível atual em cada
+// classe do personagem, e compara com quantos poderes de classe ele realmente tem escolhidos
+// (não importa se foi trocado por um slot de poder geral depois — a escolha em si já resolve o
+// slot). Retorna a lista de {classe, faltando} pra cada classe que estiver devendo.
+function slotsPoderClasseFaltando(f){
+  const resultado = [];
+  (f.classesNiveis||[]).forEach(c=>{
+    const classeObj = CLASSES[c.classe];
+    if(!classeObj || !classeObj.tabela) return;
+    const termoBusca = 'poder de '+c.classe.toLowerCase();
+    const slotsGarantidos = classeObj.tabela.filter(t=> t.nivel<=c.nivel && (t.hab||'').toLowerCase().includes(termoBusca)).length;
+    const escolhidos = (f.poderesClasse||[]).filter(p=>p.classe===c.classe).length;
+    if(escolhidos < slotsGarantidos){
+      resultado.push({classe:c.classe, faltando: slotsGarantidos-escolhidos});
+    }
+  });
+  return resultado;
+}
 // Varre TODAS as fontes onde um poder pode estar guardado (origem, raça, poderes de classe) e
 // acha quem tem "escolha" obrigatória (arma, escola, atributo...) na definição do poder mas não
 // tem a sub-escolha preenchida na ficha — geralmente porque a ficha foi criada ANTES da gente

@@ -408,6 +408,45 @@ function renderPopupPendencias(f){
       });
     }
 
+    if(p.tipo==='poderClasseFaltando'){
+      const faltando = slotsPoderClasseFaltando(f);
+      faltando.forEach(item=>{
+        const chave = 'poderClasseFaltando:'+item.classe;
+        const resolvendoEsse = state._pendenciaResolvendo === chave;
+        const miniCard = el('div',{class:'panel', style:'margin-top:8px;'},
+          el('div',{class:'meta'}, item.classe+' — faltam '+item.faltando+' poder(es) de classe')
+        );
+        if(!resolvendoEsse){
+          miniCard.appendChild(el('button',{class:'btn ghost', style:'margin-top:6px;', onclick:()=>{ state._pendenciaResolvendo=chave; render(); }}, 'Escolher'));
+        } else {
+          const nomesConhecidos = nomesPoderesConhecidos(f);
+          const disponiveis = (PODERES_CLASSE_COMPLETO[item.classe]||[]).filter(pd=>{
+            if(nomesConhecidos.includes(pd.nome)) return false; // já tem esse poder
+            if(pd.nivelMin && pd.nivelMin > (f.classesNiveis.find(c=>c.classe===item.classe)||{}).nivel) return false;
+            return true;
+          });
+          const grid = el('div',{class:'option-grid'});
+          disponiveis.forEach(pd=>{
+            grid.appendChild(el('button',{class:'option-card', onclick:()=>{
+              // Escreve no primeiro nível "vazio" — não precisa ser exato, o importante é
+              // contar como uma escolha feita; a contagem de slots já garante que não passa do
+              // que a tabela permite.
+              const nivelAtualDaClasse = (f.classesNiveis.find(c=>c.classe===item.classe)||{}).nivel || 1;
+              if(!f.poderesClasse) f.poderesClasse = [];
+              f.poderesClasse.push({nome:pd.nome, classe:item.classe, nivel:nivelAtualDaClasse, sub:null});
+              registrarLog(f, 'Pendência resolvida: escolheu "'+pd.nome+'" ('+item.classe+')');
+              salvarPerfis();
+              state._pendenciaResolvendo=null;
+              render();
+            }}, el('div',{class:'opt-nome'}, pd.nome), el('div',{class:'opt-sub'}, pd.desc)));
+          });
+          card.appendChild(grid);
+          card.appendChild(el('button',{class:'btn ghost', style:'margin-top:4px;', onclick:()=>{ state._pendenciaResolvendo=null; render(); }}, 'Cancelar'));
+        }
+        card.appendChild(miniCard);
+      });
+    }
+
     if(p.tipo==='escolasMagia'){
       if(!resolvendo){
         card.appendChild(el('button',{class:'btn', onclick:()=>{ state._pendenciaResolvendo='escolasMagia'; state._pendEscolas=[]; render(); }}, 'Resolver agora'));
@@ -534,6 +573,9 @@ function renderFichaScreen(){
   if(state._efeitoItemPopup){
     wrap.appendChild(renderPopupEfeitoItemCustom(fichaAtual()));
   }
+  if(state._golpePessoalPopup){
+    wrap.appendChild(renderPopupGolpePessoal(fichaAtual()));
+  }
   if(state._visualizarMapaPopup){
     wrap.appendChild(renderPopupVisualizarMapa());
   }
@@ -543,7 +585,7 @@ function renderFichaScreen(){
   if(state._logAberto){
     wrap.appendChild(renderPopupLog(fichaAtual()));
   }
-  const semMenuAberto = !state._menuAberto && !state._divindadeFluxo && !state._cropperFoto && !(state.levelUp&&state.levelUp.aberto) && !state._enviarItemFluxo && !state._enviarDinheiroFluxo && !state._moedaPopup && !state._escolherJogadorRelFluxo && !state._escolherMapaFluxo && !state._perfilJogadorPopup && !state._usarMagiaPopup && !state._efeitoItemPopup && !state._visualizarMapaPopup && !state._pendenciasAberto && !state._logAberto;
+  const semMenuAberto = !state._menuAberto && !state._divindadeFluxo && !state._cropperFoto && !(state.levelUp&&state.levelUp.aberto) && !state._enviarItemFluxo && !state._enviarDinheiroFluxo && !state._moedaPopup && !state._escolherJogadorRelFluxo && !state._escolherMapaFluxo && !state._perfilJogadorPopup && !state._usarMagiaPopup && !state._efeitoItemPopup && !state._golpePessoalPopup && !state._visualizarMapaPopup && !state._pendenciasAberto && !state._logAberto;
   if(estaMorto(f) && semMenuAberto){
     wrap.appendChild(el('div',{class:'aviso-sobrecarga aviso-morte'}, '💀 '+(f.nome||'Personagem')+' morreu.'));
   } else if(estaInconsciente(f) && semMenuAberto){
@@ -1515,7 +1557,7 @@ function renderPersonagemNotas(){
     const pInfo = PODERES_CONCEDIDOS.find(p=>p.nome===f.poderConcedido.nome);
     entradasPoderes.push({nome: f.poderConcedido.nome, chaveBase:f.poderConcedido.nome, fonte:'Devoto de '+f.poderConcedido.deus, desc: pInfo?pInfo.desc:''});
   }
-  (f.poderesClasse||[]).forEach(p=>{
+  (f.poderesClasse||[]).forEach((p,indiceOriginal)=>{
     let desc = '';
     if(p.trocaPorGeral){
       const pInfo = PODERES_GERAIS.find(x=>x.nome===p.nome);
@@ -1531,7 +1573,7 @@ function renderPersonagemNotas(){
         desc = found ? found[1] : '';
       }
     }
-    entradasPoderes.push({nome: p.nome + (p.sub?(' — '+p.sub):''), chaveBase:p.nome, fonte:'Nível '+p.nivel+' de '+p.classe+(p.trocaPorGeral?' (trocado)':''), desc});
+    entradasPoderes.push({nome: p.nome + (p.sub?(' — '+p.sub):''), chaveBase:p.nome, fonte:'Nível '+p.nivel+' de '+p.classe+(p.trocaPorGeral?' (trocado)':''), desc, indicePoderesClasse: indiceOriginal});
   });
   wrap.appendChild(renderSecaoNotasColapsavel('poderes', '⚡', 'Poderes',
     entradasPoderes.length+' poder(es)', ()=>{
@@ -1540,12 +1582,25 @@ function renderPersonagemNotas(){
       const limite = tipoLimiteUso(entrada.desc);
       const usado = limite ? poderFoiUsado(f, entrada.chaveBase) : false;
       const ehAutomatizado = PODERES_AUTOMATIZADOS.has(entrada.chaveBase);
+      const ehGolpePessoal = entrada.chaveBase==='Golpe Pessoal' && entrada.indicePoderesClasse!=null;
+      const golpeRow = ehGolpePessoal ? f.poderesClasse[entrada.indicePoderesClasse] : null;
+      const golpeJaConstruido = golpeRow && golpeRow.golpeConstruido && golpeRow.golpeConstruido.arma;
       return renderItemColapsavel('poder-'+idx+'-'+entrada.nome, entrada.nome+(usado?' (usado)':''), entrada.fonte, [
         el('div',{class:'meta', style:'margin-bottom:4px;'+(ehAutomatizado?'color:var(--gold);':'')},
           ehAutomatizado ? '⚡ Já calculado na ficha automaticamente' : '📖 Só referência — acompanhe o efeito na mesa'
         ),
         el('div',{class:'desc'}, entrada.desc),
-        limite ? el('button',{class:'btn ghost', style:'margin-top:8px;'+(usado?'opacity:0.6;':''), onclick:(e)=>{ e.stopPropagation(); alternarUsoPoder(f, entrada.chaveBase); }}, usado ? '↺ Marcar como disponível de novo' : '✓ Marcar como usado ('+limite+')') : null
+        limite ? el('button',{class:'btn ghost', style:'margin-top:8px;'+(usado?'opacity:0.6;':''), onclick:(e)=>{ e.stopPropagation(); alternarUsoPoder(f, entrada.chaveBase); }}, usado ? '↺ Marcar como disponível de novo' : '✓ Marcar como usado ('+limite+')') : null,
+        ehGolpePessoal ? el('div',{style:'margin-top:8px;'},
+          golpeJaConstruido ? el('div',{class:'tip', style:'margin-bottom:6px;'},
+            el('div',{}, el('b',{}, golpeRow.golpeConstruido.nomeGolpe||'Seu golpe'), ' — ', golpeRow.golpeConstruido.arma, ' · ', el('b',{style:'color:var(--gold);'}, calcularCustoGolpePessoal(golpeRow.golpeConstruido.escolhas)+' PM')),
+            el('div',{style:'margin-top:4px;'}, Object.keys(golpeRow.golpeConstruido.escolhas||{}).filter(n=>golpeRow.golpeConstruido.escolhas[n]>0).map(n=> n+(golpeRow.golpeConstruido.escolhas[n]>1?' ×'+golpeRow.golpeConstruido.escolhas[n]:'')).join(', '))
+          ) : null,
+          el('div',{class:'row', style:'gap:6px;'},
+            el('button',{class:'btn ghost', style:'flex:1;', onclick:(e)=>{ e.stopPropagation(); abrirConstrutorGolpePessoal(entrada.indicePoderesClasse); }}, golpeJaConstruido ? '✏️ Reconstruir' : '🔨 Construir Golpe'),
+            golpeJaConstruido ? el('button',{class:'btn ghost', style:'flex:1;', onclick:(e)=>{ e.stopPropagation(); usarGolpePessoal(f, entrada.indicePoderesClasse); }}, '⚔️ Usar (-'+calcularCustoGolpePessoal(golpeRow.golpeConstruido.escolhas)+' PM)') : null
+          )
+        ) : null
       ]);
     });
   }));
@@ -1873,6 +1928,38 @@ function renderItensEquipados(){
 // item sozinho (com um aviso, pra não sumir sem explicação).
 // Itens que prometem "bônus na próxima noite de sono" — sem isso, usar o item só descontava a
 // quantidade e o bônus nunca chegava a valer nada quando o descanso de verdade acontecia.
+// Efeitos do Golpe Pessoal (Guerreiro, pág. 65-66 do livro) — a descrição do poder só falava
+// "escolha efeitos de uma lista no livro" sem trazer a lista de verdade; sem isso não tinha
+// como montar um golpe de fato. Custo negativo = reduz o custo total (mínimo 1 PM no total).
+const EFEITOS_GOLPE_PESSOAL = [
+  {nome:'Amplo', custo:3, desc:'Seu ataque atinge todas as criaturas em alcance curto (incluindo aliados, mas não você mesmo). Um único teste de ataque, comparado com a Defesa de cada criatura.'},
+  {nome:'Atordoante', custo:2, desc:'Uma criatura que sofra dano do ataque fica atordoada por 1 rodada (1x por cena; Fortitude CD For anula).'},
+  {nome:'Brutal', custo:1, repetivel:true, desc:'Fornece um dado extra de dano do mesmo tipo. Pode escolher mais de uma vez.'},
+  {nome:'Conjurador', custo:1, custoVariavel:true, desc:'Escolha uma magia de 1º/2º círculo com alvo criatura ou área. Se acertar, lança a magia como ação livre no alvo/ponto atingido. Custo = custo da magia + 1 PM.'},
+  {nome:'Destruidor', custo:2, desc:'Aumenta o multiplicador de crítico em +1.'},
+  {nome:'Distante', custo:1, desc:'Aumenta o alcance em um passo (corpo a corpo → curto → médio → longo). O resto não muda.'},
+  {nome:'Elemental', custo:2, repetivel:true, desc:'+2d6 de dano de ácido, eletricidade, fogo ou frio. Pode escolher mais vezes pra somar mais +2d6.'},
+  {nome:'Impactante', custo:1, desc:'Empurra o alvo 1,5m para cada 10 pontos de dano causado (arredondado pra baixo).'},
+  {nome:'Letal', custo:2, maxVezes:2, desc:'+2 na margem de ameaça. Escolhido 2x, vira +5 (não +4) — a segunda vez substitui o total, não soma.'},
+  {nome:'Penetrante', custo:1, desc:'Ignora 10 pontos de RD.'},
+  {nome:'Preciso', custo:1, desc:'No teste de ataque, rola dois dados e usa o melhor resultado.'},
+  {nome:'Qualquer Arma', custo:1, desc:'Pode usar esse Golpe Pessoal com qualquer tipo de arma (em vez de travado numa arma específica).'},
+  {nome:'Ricocheteante', custo:1, desc:'A arma volta pra sua mão depois do ataque. Só com armas de arremesso.'},
+  {nome:'Teleguiado', custo:1, desc:'Ignora penalidade por camuflagem ou cobertura leves.'},
+  {nome:'Lento', custo:-2, desc:'Exige ação completa pra usar (em vez do normal).'},
+  {nome:'Perto da Morte', custo:-2, desc:'Só pode ser usado se você estiver com 1/4 dos PV ou menos.'},
+  {nome:'Sacrifício', custo:-2, desc:'Toda vez que usa esse Golpe Pessoal, perde 10 PV.'},
+];
+function calcularCustoGolpePessoal(escolhas){
+  // escolhas: {nomeEfeito: quantidade}
+  let total = 0;
+  Object.keys(escolhas||{}).forEach(nome=>{
+    const ef = EFEITOS_GOLPE_PESSOAL.find(e=>e.nome===nome);
+    if(ef && escolhas[nome]>0) total += ef.custo * escolhas[nome];
+  });
+  return Math.max(1, total); // mínimo 1 PM no total, mesmo com efeitos negativos
+}
+
 const ITENS_BONUS_PROXIMO_DESCANSO = {
   'Prato do aventureiro': {pv:1, pm:0},
   'Sopa de peixe': {pv:0, pm:1},
@@ -2868,6 +2955,90 @@ function renderCardMagia(s, grupoChave, aoAdicionar, aoRemover, fichaCtx, aoUsar
 function extrairCustoPM(custoTexto){
   const m = String(custoTexto||'').match(/(\d+)/);
   return m ? parseInt(m[1]) : 0;
+}
+
+function abrirConstrutorGolpePessoal(indicePoderesClasse){
+  const f = fichaAtual();
+  const row = f.poderesClasse[indicePoderesClasse];
+  if(!row) return;
+  const atual = row.golpeConstruido || {nomeGolpe:'', arma:'', escolhas:{}};
+  state._golpePessoalPopup = {indicePoderesClasse, nomeGolpe:atual.nomeGolpe||'', arma:atual.arma||'', escolhas:Object.assign({}, atual.escolhas||{})};
+  render();
+}
+function renderPopupGolpePessoal(f){
+  const fluxo = state._golpePessoalPopup;
+  const overlay = el('div',{class:'menu-overlay', onclick:(e)=>{ if(e.target===e.currentTarget){ state._golpePessoalPopup=null; render(); } }});
+  const sheet = el('div',{class:'menu-sheet'});
+  sheet.appendChild(el('div',{class:'wizard-title', style:'padding:6px 14px 0;'}, '🔨 Construir Golpe Pessoal'));
+  sheet.appendChild(el('div',{class:'tip', style:'margin:6px 14px;'}, 'Escolha os efeitos — o custo total (mínimo 1 PM) já soma sozinho. Dá pra reconstruir esse golpe quando quiser, não só ao subir de nível (a regra oficial só menciona subir de nível, mas deixar sempre editável evita ficha travada por causa de um pré-requisito de sessão que já passou).'));
+
+  const camposBasicos = el('div',{style:'padding:0 14px;display:flex;flex-direction:column;gap:8px;'},
+    el('div',{},
+      el('label',{},'Nome do golpe (opcional, ajuda a diferenciar se tiver mais de um)'),
+      el('input',{type:'text', placeholder:'ex: Investida do Trovão', value:fluxo.nomeGolpe, oninput:(e)=>{fluxo.nomeGolpe=e.target.value;}})
+    ),
+    el('div',{},
+      el('label',{},'Arma usada (deixa travado nela, a menos que escolha "Qualquer Arma" abaixo)'),
+      el('input',{type:'text', placeholder:'ex: Espada longa', value:fluxo.arma, oninput:(e)=>{fluxo.arma=e.target.value;}})
+    )
+  );
+  sheet.appendChild(camposBasicos);
+
+  const custoTotal = calcularCustoGolpePessoal(fluxo.escolhas);
+  sheet.appendChild(el('div',{class:'tip', style:'margin:8px 14px;text-align:center;font-size:1rem;'}, el('b',{},'Custo total: '), el('span',{style:'color:var(--gold);font-family:Cinzel,serif;font-weight:800;'}, custoTotal+' PM')));
+
+  const listaEfeitos = el('div',{style:'padding:0 14px;display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto;'});
+  EFEITOS_GOLPE_PESSOAL.forEach(ef=>{
+    const qtdAtual = fluxo.escolhas[ef.nome]||0;
+    const marcado = qtdAtual>0;
+    const limiteMax = ef.maxVezes || (ef.repetivel ? 5 : 1);
+    const linha = el('div',{class:'option-card'+(marcado?' selected':''), style:'padding:8px 10px;cursor:pointer;', onclick:()=>{
+      fluxo.escolhas[ef.nome] = marcado ? 0 : 1; // primeiro toque liga/desliga; ajuste fino pelos botões +/-
+      render();
+    }},
+      el('div',{class:'row', style:'align-items:center;'},
+        el('div',{style:'flex:1;'},
+          el('div',{class:'opt-nome'}, (marcado?'✓ ':'○ ')+ef.nome+' ('+(ef.custo>=0?'+':'')+ef.custo+' PM'+(ef.custoVariavel?' + custo da magia':'')+')'),
+          el('div',{class:'opt-sub'}, ef.desc)
+        ),
+        (ef.repetivel || ef.maxVezes) && marcado ? el('div',{class:'row', style:'gap:4px;flex-shrink:0;', onclick:(e)=>e.stopPropagation()},
+          el('button',{class:'btn ghost', style:'width:auto;padding:2px 8px;', onclick:()=>{ fluxo.escolhas[ef.nome]=Math.max(1, qtdAtual-1); render(); }}, '−'),
+          el('span',{style:'min-width:16px;text-align:center;'}, qtdAtual),
+          el('button',{class:'btn ghost', style:'width:auto;padding:2px 8px;', onclick:()=>{ fluxo.escolhas[ef.nome]=Math.min(limiteMax, qtdAtual+1); render(); }}, '+')
+        ) : null
+      )
+    );
+    listaEfeitos.appendChild(linha);
+  });
+  sheet.appendChild(listaEfeitos);
+
+  sheet.appendChild(el('button',{class:'btn', style:'margin:14px 14px 0;width:calc(100% - 28px);', onclick:()=>{
+    if(!fluxo.arma.trim() && !(fluxo.escolhas['Qualquer Arma']>0)){ flashMsg('Diz qual arma esse golpe usa, ou escolhe o efeito "Qualquer Arma".'); return; }
+    const row = f.poderesClasse[fluxo.indicePoderesClasse];
+    if(!row){ state._golpePessoalPopup=null; render(); return; }
+    row.golpeConstruido = {nomeGolpe:fluxo.nomeGolpe.trim(), arma:fluxo.arma.trim()||'Qualquer arma', escolhas:Object.assign({}, fluxo.escolhas)};
+    registrarLog(f, 'Construiu o Golpe Pessoal'+(row.golpeConstruido.nomeGolpe?' "'+row.golpeConstruido.nomeGolpe+'"':'')+' ('+calcularCustoGolpePessoal(fluxo.escolhas)+' PM)');
+    salvarPerfis();
+    flashMsg('🔨 Golpe Pessoal salvo!');
+    state._golpePessoalPopup = null;
+    render();
+  }}, '✓ Salvar Golpe Pessoal'));
+  sheet.appendChild(el('button',{class:'menu-close', style:'margin-top:10px;', onclick:()=>{ state._golpePessoalPopup=null; render(); }}, 'Cancelar'));
+  overlay.appendChild(sheet);
+  return overlay;
+}
+function usarGolpePessoal(f, indicePoderesClasse){
+  const row = f.poderesClasse[indicePoderesClasse];
+  if(!row || !row.golpeConstruido) return;
+  const custo = calcularCustoGolpePessoal(row.golpeConstruido.escolhas);
+  const pmAtual = parseInt(f.pmatual)||0;
+  if(custo > pmAtual){ flashMsg('Você não tem '+custo+' PM disponíveis (tem '+pmAtual+').'); return; }
+  f.pmatual = pmAtual - custo;
+  const nomeExibido = row.golpeConstruido.nomeGolpe || 'Golpe Pessoal';
+  registrarLog(f, 'Usou "'+nomeExibido+'" (-'+custo+' PM)');
+  salvarPerfis();
+  flashMsg('⚔️ "'+nomeExibido+'" usado! -'+custo+' PM.');
+  render();
 }
 
 function abrirUsarMagia(s){
