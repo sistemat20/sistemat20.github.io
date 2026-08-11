@@ -1666,6 +1666,27 @@ function avaliarPrerequisito(f, prereqTexto){
   };
 }
 
+// Extrai habilidades automáticas ganhas em cada nível (tipo "Durão" no 3º de guerreiro,
+// "Ataque Extra" no 6º) que NÃO são a escolha de "poder de classe" — achado numa auditoria: o
+// texto completo de cada nível (historicoNiveis[].ganho) sempre foi guardado, mas só a parte
+// "poder de X" (a escolha) virava algo visível na ficha. O resto (ex: "Durão, poder de
+// guerreiro" → só "poder de guerreiro" virava escolha, "Durão" sumia) nunca aparecia em lugar
+// nenhum. Calculado na hora a partir do historicoNiveis — funciona até pra fichas que já
+// subiram de nível antes dessa correção existir, sem precisar migrar dado nenhum.
+function habilidadesAutomaticasDeNiveis(f){
+  const resultado = [];
+  (f.historicoNiveis||[]).forEach(h=>{
+    if(!h.ganho) return;
+    h.ganho.split(',').forEach(pedaco=>{
+      const texto = pedaco.trim();
+      if(!texto) return;
+      if(/poder de/i.test(texto)) return; // isso já aparece separado, como o poder escolhido
+      if(/^\d+[ºo°]\s*círculo/i.test(texto)) return; // progressão de magia já aparece na aba Magias
+      resultado.push({nome:texto, fonte:'Nível '+h.nivel+' de '+h.classe});
+    });
+  });
+  return resultado;
+}
 function nomesPoderesConhecidos(f){
   const nomes = [];
   if(f.poderGeral) nomes.push(f.poderGeral.sub || f.poderGeral.nome);

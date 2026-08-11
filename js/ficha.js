@@ -1606,16 +1606,23 @@ function renderPersonagemNotas(){
   }));
 
   // ---- Habilidades Iniciais ----
+  const habilidadesDeNivel = habilidadesAutomaticasDeNiveis(f);
   wrap.appendChild(renderSecaoNotasColapsavel('habilidades-iniciais', '🎁', 'Habilidades Iniciais',
-    (f.habilidadesIniciais||[]).length+' registrada(s)', ()=>{
+    ((f.habilidadesIniciais||[]).length+habilidadesDeNivel.length)+' registrada(s)', ()=>{
     const corpo = [el('div',{class:'tip', style:'font-size:0.8rem;'}, 'Habilidades de raça, itens de origem e outras concessões iniciais — não precisam ser anotadas manualmente.')];
-    if(!f.habilidadesIniciais || f.habilidadesIniciais.length===0){
+    if((!f.habilidadesIniciais || f.habilidadesIniciais.length===0) && habilidadesDeNivel.length===0){
       corpo.push(el('div',{class:'empty'},'Nada registrado ainda.'));
     } else {
-      f.habilidadesIniciais.forEach((h, idx)=>{
+      (f.habilidadesIniciais||[]).forEach((h, idx)=>{
         corpo.push(renderItemColapsavel('habinicial-'+idx+'-'+h.nome, h.nome, h.fonte, [
           el('div',{class:'desc'}, h.desc)
         ]));
+      });
+      // Habilidades ganhas em níveis específicos (não da criação) — mostradas separado, com uma
+      // notinha, já que não têm descrição própria guardada (só o texto curto da tabela de
+      // classe). Melhor que sumir de vez.
+      habilidadesDeNivel.forEach((h, idx)=>{
+        corpo.push(el('div',{class:'power-item'}, el('b',{}, h.nome), ' — '+h.fonte+' (consulte o livro pra descrição completa)'));
       });
     }
     return corpo;
