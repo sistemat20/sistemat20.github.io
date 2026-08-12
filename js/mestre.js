@@ -72,7 +72,7 @@ function pararAtualizacaoAutomaticaGradeMestre(){
 const CATEGORIAS_MESTRE = {
   combate: {label:'Combate', abas:[['combate','Combate'],['grade','Grade de Combate'],['preparar','Preparar Encontro'],['grupo','Grupo']]},
   bestiario: {label:'Bestiário', abas:[['bestiario','Bestiário'],['npc','NPC Rápido'],['nomes','Nomes']]},
-  recursos: {label:'Recursos', abas:[['tesouro','Tesouro'],['loja','Loja'],['itens','Itens'],['magicos','Itens Mágicos'],['mapas','Mapas']]},
+  recursos: {label:'Recursos', abas:[['tesouro','Tesouro'],['loja','Loja'],['itens','Itens'],['magicos','Itens Mágicos'],['maldicoes','Maldições'],['mapas','Mapas']]},
 };
 
 // Troca o código de Mestre a qualquer momento, sem perder nada — pega tudo que já tá salvo sob
@@ -174,6 +174,7 @@ function renderMestreScreen(){
   if(state.mestreTab==='loja') main.appendChild(renderMestreLoja());
   if(state.mestreTab==='itens') main.appendChild(renderMestreItens());
   if(state.mestreTab==='magicos') main.appendChild(renderMestreItensMagicos());
+  if(state.mestreTab==='maldicoes') main.appendChild(renderMestreMaldicoes());
   if(state.mestreTab==='mapas') main.appendChild(renderMestreMapas());
   if(state.mestreTab==='nomes') main.appendChild(renderMestreNomes());
   wrap.appendChild(main);
@@ -3128,6 +3129,20 @@ function renderMestreItens(){
 }
 
 // ---- ITENS MÁGICOS (encantos, armas/armaduras específicas, acessórios, artefatos) ----
+// ---- MALDIÇÕES (Ameaças de Arton) — referência completa pro Mestre ----
+// O jogador só vê a parte MECÂNICA (na ficha, aba Condições/Maldições). Aqui, pra quem precisa
+// narrar e decidir como remover, o texto completo — origem, efeito e forma de remoção.
+function renderMestreMaldicoes(){
+  const wrap = el('div',{});
+  wrap.appendChild(el('div',{class:'tip'}, el('b',{},'Sobre isso'), 'Texto completo de cada maldição (Ameaças de Arton, pág. 361-362) — origem, efeito e como remover. O jogador só vê a parte mecânica na ficha dele; isso aqui é pra você narrar e decidir a remoção na mesa.'));
+  MALDICOES_LISTA.forEach(([nome, mecanica])=>{
+    const temEfeito = ['Maldição do Bardo','Toque de Tibar'].includes(nome);
+    wrap.appendChild(renderItemColapsavel('maldicao-mestre-'+nome, nome+(temEfeito?' ⚡':''), '', [
+      el('div',{class:'desc'}, MALDICOES_COMPLETO[nome] || mecanica)
+    ]));
+  });
+  return wrap;
+}
 function renderMestreItensMagicos(){
   if(!state._mestreMagicosFiltro) state._mestreMagicosFiltro = {tipo:'encantosArma', busca:''};
   const itf = state._mestreMagicosFiltro;
@@ -3153,10 +3168,12 @@ function renderMestreItensMagicos(){
     });
   }
   if(itf.tipo==='armasEspecificas'){
+    wrap.appendChild(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Enviar já conecta com a arma base certa (dano, crítico, alcance) — o jogador consegue equipar direto, sem digitar nada.'));
     ARMAS_ESPECIFICAS.filter(a=>buscaOk(a.nome)).slice().sort((a,b)=>a.preco-b.preco).forEach(a=>{
       results.appendChild(renderItemColapsavel('arma-esp-'+a.nome, a.nome, 'T$ '+a.preco, [
         el('div',{class:'meta'}, 'Base: '+a.base),
-        el('div',{class:'desc'}, a.desc)
+        el('div',{class:'desc'}, a.desc),
+        el('button',{class:'btn ghost', style:'margin-top:8px;', onclick:()=> enviarItemAvulsoParaAlvo(a.nome, a.preco)}, 'Enviar pra mochila 📦')
       ]));
     });
   }
@@ -3166,32 +3183,46 @@ function renderMestreItensMagicos(){
     });
   }
   if(itf.tipo==='armadurasEspecificas'){
+    wrap.appendChild(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Enviar já conecta com a armadura/escudo base certo (Defesa, penalidade) — o jogador consegue equipar direto, sem digitar nada.'));
     ARMADURAS_ESPECIFICAS.filter(a=>buscaOk(a.nome)).slice().sort((a,b)=>a.preco-b.preco).forEach(a=>{
       results.appendChild(renderItemColapsavel('armadura-esp-'+a.nome, a.nome, 'T$ '+a.preco, [
         el('div',{class:'meta'}, 'Base: '+a.base),
-        el('div',{class:'desc'}, a.desc)
+        el('div',{class:'desc'}, a.desc),
+        el('button',{class:'btn ghost', style:'margin-top:8px;', onclick:()=> enviarItemAvulsoParaAlvo(a.nome, a.preco)}, 'Enviar pra mochila 📦')
       ]));
     });
   }
   if(itf.tipo==='acessoriosMenores'){
     ACESSORIOS_MENORES.filter(a=>buscaOk(a.nome)).forEach(a=>{
-      results.appendChild(renderItemColapsavel('acessorio-menor-'+a.nome, a.nome, 'T$ '+a.preco, [el('div',{class:'desc'}, a.desc)]));
+      results.appendChild(renderItemColapsavel('acessorio-menor-'+a.nome, a.nome, 'T$ '+a.preco, [
+        el('div',{class:'desc'}, a.desc),
+        el('button',{class:'btn ghost', style:'margin-top:8px;', onclick:()=> enviarItemAvulsoParaAlvo(a.nome, a.preco)}, 'Enviar pra mochila 📦')
+      ]));
     });
   }
   if(itf.tipo==='acessoriosMedios'){
     ACESSORIOS_MEDIOS.filter(a=>buscaOk(a.nome)).forEach(a=>{
-      results.appendChild(renderItemColapsavel('acessorio-medio-'+a.nome, a.nome, 'T$ '+a.preco, [el('div',{class:'desc'}, a.desc)]));
+      results.appendChild(renderItemColapsavel('acessorio-medio-'+a.nome, a.nome, 'T$ '+a.preco, [
+        el('div',{class:'desc'}, a.desc),
+        el('button',{class:'btn ghost', style:'margin-top:8px;', onclick:()=> enviarItemAvulsoParaAlvo(a.nome, a.preco)}, 'Enviar pra mochila 📦')
+      ]));
     });
   }
   if(itf.tipo==='acessoriosMaiores'){
     ACESSORIOS_MAIORES.filter(a=>buscaOk(a.nome)).forEach(a=>{
-      results.appendChild(renderItemColapsavel('acessorio-maior-'+a.nome, a.nome, 'T$ '+a.preco, [el('div',{class:'desc'}, a.desc)]));
+      results.appendChild(renderItemColapsavel('acessorio-maior-'+a.nome, a.nome, 'T$ '+a.preco, [
+        el('div',{class:'desc'}, a.desc),
+        el('button',{class:'btn ghost', style:'margin-top:8px;', onclick:()=> enviarItemAvulsoParaAlvo(a.nome, a.preco)}, 'Enviar pra mochila 📦')
+      ]));
     });
   }
   if(itf.tipo==='artefatos'){
     wrap.appendChild(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Artefatos não têm tabela de sorteio nem preço — são relíquias únicas que só devem entrar na campanha por decisão sua.'));
     ARTEFATOS.filter(a=>buscaOk(a.nome)).forEach(a=>{
-      results.appendChild(renderItemColapsavel('artefato-'+a.nome, a.nome, '', [el('div',{class:'desc'}, a.desc)]));
+      results.appendChild(renderItemColapsavel('artefato-'+a.nome, a.nome, '', [
+        el('div',{class:'desc'}, a.desc),
+        el('button',{class:'btn ghost', style:'margin-top:8px;', onclick:()=> enviarItemAvulsoParaAlvo(a.nome, 0)}, 'Enviar pra mochila 📦')
+      ]));
     });
   }
 

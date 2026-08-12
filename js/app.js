@@ -208,7 +208,7 @@ function valorAtributoChaveMagia(f){
 function cdMagias(f){
   const attr = atributoChaveMagia(f);
   if(attr==null) return null;
-  return 10 + Math.floor(nivelTotal(f)/2) + (parseInt(f[attr])||0);
+  return 10 + Math.floor(nivelTotal(f)/2) + atributoEfetivo(f, attr);
 }
 function classeConjuradora(f){
   return (f.classesNiveis||[]).find(c=> CLASSES[c.classe] && CLASSES[c.classe].tradicao) || null;
@@ -425,6 +425,11 @@ function penalidadeCarismaTormenta(f){
 // Valor de um atributo já considerando penalidades automáticas (hoje só existe a de Carisma
 // pelos Poderes da Tormenta, mas a função fica genérica caso apareça outra parecida no futuro).
 function atributoEfetivo(f, chave){
+  // Maldição do Bardo (Ameaças de Arton, pág. 362): "todos os atributos são tratados como 0
+  // pra efeitos de modificadores de perícias e CD de habilidades" — centralizado aqui porque
+  // atributoEfetivo já é o ponto único que periciaValor e cdMagias (depois de eu ajustar essa
+  // pra usar essa função também) passam antes de aplicar o número na conta.
+  if(maldicoesAtivas(f).includes('Maldição do Bardo')) return 0;
   const base = parseInt(f[chave])||0;
   if(chave==='car') return base - penalidadeCarismaTormenta(f);
   return base;
@@ -914,8 +919,12 @@ function criarStatTrackerSemMax(classeExtra, label, atual, onAjustar){
 function defesaTotal(f){
   const armaduraEquipada = f.armadura && f.armadura.equipado!==false;
   const escudoEquipado = f.escudo && f.escudo.equipado!==false;
-  const armadura = armaduraEquipada ? f.armadura.def : 0;
-  const escudo = escudoEquipado ? (f.escudo.def + bonusEscudoPoderes(f)) : 0;
+  // Toque de Tibar (maldição, Ameaças de Arton pág. 362): "armaduras e escudos têm seu bônus de
+  // Defesa reduzido em –2" — cada peça vestida (armadura E escudo, se tiver os dois) perde 2,
+  // não é um -2 geral na Defesa toda.
+  const penalidadeTibarDef = maldicoesAtivas(f).includes('Toque de Tibar') ? -2 : 0;
+  const armadura = armaduraEquipada ? (f.armadura.def + penalidadeTibarDef) : 0;
+  const escudo = escudoEquipado ? (f.escudo.def + bonusEscudoPoderes(f) + penalidadeTibarDef) : 0;
   // Autoconfiança (habilidade AUTOMÁTICA do Nobre, 1º nível — achada numa auditoria): "pode usar
   // Carisma em vez de Destreza na Defesa". Implementado como o MAIOR dos dois (a redação "pode
   // usar" sugere escolha, e a escolha óbvia é sempre a que for melhor pro personagem).
@@ -1390,6 +1399,35 @@ function alternarCondicao(f, nome){
   salvarPerfis(); render();
 }
 
+// Maldições (Ameaças de Arton, pág. 361-362) — pedido separado das Condições, com sua própria
+// lista. Aqui só o texto MECÂNICO (o que o efeito faz de verdade), sem a parte de origem/lore
+// (isso fica só na versão completa, pro Mestre — ver MALDICOES_COMPLETO). A forma de remover
+// cada maldição também é algo que o Mestre narra/decide, então fica de fora daqui também.
+const MALDICOES_LISTA = [
+  ['Conhecimento Proibido', 'Fica confuso até o fim da cena em que foi amaldiçoado, e perde 1 ponto permanente de Sabedoria ou Carisma por dia (aleatório). Se algum desses atributos chegar a –5, vira um monstro (à escolha do Mestre).'],
+  ['Fúria de Allihanna', 'Animais, devotos de Allihanna e outras criaturas ligadas à natureza recebem +5 em testes e dano contra você, e te consideram hostil. Ambientes naturais viram terreno difícil pra você, com –5 em Acrobacia/Atletismo neles. Descanso em ambiente natural sempre fica 2 níveis pior.'],
+  ['Maldição do Bardo', 'Perde todo o talento: pra efeitos de modificadores de perícias e CD de habilidades, todos os seus atributos são tratados como 0.'],
+  ['Mortuária', 'Recebe vulnerabilidade a dano de trevas (substitui qualquer imunidade ou redução que tivesse) e perde a capacidade de recuperar PV com dano de trevas.'],
+  ['Toque de Tibar', 'Tudo que veste ou empunha vira pirita: armas dão –2 em testes de ataque e rolagens de dano, armaduras/escudos têm o bônus de Defesa reduzido em –2, itens gerais dão –2 em testes que os usem.'],
+];
+// Texto completo (origem + mecânica + remoção), só pra referência do Mestre — o jogador não
+// precisa disso pra jogar, mas o Mestre precisa pra narrar e saber como a maldição é curada.
+const MALDICOES_COMPLETO = {
+  'Conhecimento Proibido': 'Criada especialmente para corromper aqueles que se apropriam de conhecimentos profanos, esta maldição é encontrada protegendo livros e tratados acadêmicos, mas também pode ser proferida por alguém empenhado em resguardar uma fonte de informações ou conhecimentos perigosos. Uma criatura amaldiçoada fica confusa até o fim da cena em que sofreu a maldição e perde 1 ponto permanente de Sabedoria ou Carisma por dia (determinados aleatoriamente a cada dia). Caso algum desses atributos seja reduzido a –5, a vítima se transforma em um monstro à escolha do mestre. Remover a maldição requer um ritual especial, celebrado por um clérigo de Tannah-Toh, que deverá lançar Dispersar as Trevas sobre a criatura amaldiçoada. Esse ritual exige o gasto de T$ 1.000 em incensos e outros ingredientes sagrados.',
+  'Fúria de Allihanna': 'Esta maldição é uma punição contra aqueles que cometem crimes hediondos contra o mundo natural, tais como matar um unicórnio. Ela é encontrada em templos e recantos sagrados de Allihanna, mas também pode se manifestar espontaneamente quando uma ofensa grave é cometida contra os filhos da Deusa da Natureza. O personagem amaldiçoado passa a atrair o ódio do mundo selvagem: animais, devotos de Allihanna e outras criaturas que, a critério do mestre, são ligadas ao mundo natural recebem +5 em testes e rolagens de dano contra ele e são considerados hostis. Além disso, a natureza conspira contra o personagem: ele considera ambientes naturais como terreno difícil e sofre –5 em testes de Acrobacia e Atletismo nesses lugares. Por fim, suas condições de descanso em ambientes naturais sempre são dois níveis abaixo do normal. Remover esta maldição exige o perdão de um clérigo ou druida de Allihanna capaz de lançar magias de 4º círculo. Esse perdão geralmente depende de um serviço ou favor que de alguma forma repare o crime que desencadeou a maldição.',
+  'Maldição do Bardo': 'Em Arton existe um ditado popular: "Matar bardo dá azar". Embora isso seja apenas uma crendice, em ocasiões especiais a morte de um bardo particularmente talentoso ou inspirado pode desencadear esta maldição. Uma criatura afetada pela Maldição do Bardo perde todo seu talento: para efeitos de modificadores de perícias e CD de habilidades, todos seus atributos são tratados como 0. Quebrar esta maldição requer localizar a alma do bardo morto e desafiá-lo para um duelo artístico: três testes opostos de Atuação, em que o personagem amaldiçoado deve vencer pelo menos dois. Tal duelo só pode ser realizado uma vez por aventura.',
+  'Mortuária': 'Esta maldição é causada pelos mortos-vivos conhecidos como mortalhas, mas também pode ser encontrada em tumbas de conjuradores ligados a forças necromânticas ou energia negativa. Uma criatura amaldiçoada pela Mortuária se torna cansada e decrépita, como se sua energia vital estivesse a ponto de se extinguir, e recebe vulnerabilidade a trevas (isso substitui qualquer imunidade ou redução de trevas, bem como a capacidade de recuperar PV com dano de trevas). A remoção desta maldição depende de sua fonte: se for causada por uma mortalha, é necessário destruir a criatura. Se for causada pela violação de uma tumba, é necessário lançar Dispersar as Trevas sobre os restos mortais do ocupante original do lugar, em um ritual de 1 hora que custa T$ 1.000.',
+  'Toque de Tibar': 'Esta maldição pode recair sobre aqueles que cometem crimes contra os dogmas de Tibar, tal como tentar descobrir o segredo da Cunhagem Sagrada ou falsificar moedas. Todos os objetos que a criatura amaldiçoada veste ou empunha se transformam em pirita enquanto estiverem em sua posse; armas impõem uma penalidade de –2 em testes de ataque e rolagens de dano, armaduras e escudos têm seu bônus de Defesa reduzido em –2 e itens gerais impõem uma penalidade de –2 em quaisquer testes em que sejam empregados. Remover esta maldição exige que a vítima repare o crime cometido. Isso pode significar esquecer qualquer informação secreta obtida (por meio de algum efeito como Alterar Memória) ou devolver quaisquer lucros obtidos.',
+};
+function maldicoesAtivas(f){ return f.maldicoesAtivas || []; }
+function alternarMaldicao(f, nome){
+  if(!f.maldicoesAtivas) f.maldicoesAtivas = [];
+  const idx = f.maldicoesAtivas.indexOf(nome);
+  if(idx>=0){ f.maldicoesAtivas.splice(idx,1); registrarLog(f, 'Removeu a maldição: '+nome); }
+  else { f.maldicoesAtivas.push(nome); registrarLog(f, 'Foi amaldiçoado(a): '+nome); }
+  salvarPerfis(); render();
+}
+
 // Efeitos mecânicos automáticos das condições — só as que têm um número claro do livro pra
 // aplicar (perícia, Defesa, deslocamento). Várias condições (Atordoado, Confuso, Paralisado,
 // Enjoado, Envenenado, Agarrado, Em Chamas, Surpreendido...) são mais sobre o que você PODE ou
@@ -1597,7 +1635,10 @@ function testeAtaqueArma(f, arma){
   const bonusFocoArma = armasComPoderEscolhido(f, 'Foco em Arma').includes(nomeArma) ? 2 : 0;
   const bonusRaca = bonusRacaCategoriaArma(f, nomeArma).ataque;
   const bonusArmaLonga = (nomes.includes('Estilo de Arma Longa') && ARMAS_ALONGADAS.has(nomeArma)) ? 2 : 0;
-  return (proficienteComArma(f, arma) ? base : base - 5) + bonusMelhoria + bonusUmaArma + bonusFocoArma + bonusRaca + bonusArmaLonga;
+  // Toque de Tibar (maldição, Ameaças de Arton pág. 362): "armas impõem –2 em testes de ataque e
+  // rolagens de dano" — tudo que você veste ou empunha vira pirita enquanto amaldiçoado.
+  const penalidadeTibar = maldicoesAtivas(f).includes('Toque de Tibar') ? -2 : 0;
+  return (proficienteComArma(f, arma) ? base : base - 5) + bonusMelhoria + bonusUmaArma + bonusFocoArma + bonusRaca + bonusArmaLonga + penalidadeTibar;
 }
 // Bônus de dano = Força somada em armas corpo a corpo e de arremesso (não em armas de disparo,
 // a menos que tenha um poder que mude isso, como Acuidade com Arma ou Estilo de Disparo/Arremesso)
@@ -1626,7 +1667,9 @@ function bonusDanoArma(f, arma){
     // disparo (arco/besta/arma de fogo): não soma atributo, exceto com Estilo de Disparo
     bonusAtributo = estiloDisparo ? (parseInt(f.des)||0) : 0;
   }
-  return bonusAtributo + bonusMelhoria + bonusDuasMaos + bonusArremesso + bonusEspecializacao + bonusRacaDano;
+  // Toque de Tibar (maldição): mesma penalidade de -2 também no dano, não só no ataque.
+  const penalidadeTibarDano = maldicoesAtivas(f).includes('Toque de Tibar') ? -2 : 0;
+  return bonusAtributo + bonusMelhoria + bonusDuasMaos + bonusArremesso + bonusEspecializacao + bonusRacaDano + penalidadeTibarDano;
 }
 
 // ---- Itens Vestidos (limite de 4 simultâneos com benefício ativo — regra do livro, pág. 146) ----

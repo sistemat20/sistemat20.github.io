@@ -576,6 +576,9 @@ function renderFichaScreen(){
   if(state._golpePessoalPopup){
     wrap.appendChild(renderPopupGolpePessoal(fichaAtual()));
   }
+  if(state._itemPersonalizadoPopup){
+    wrap.appendChild(renderPopupItemPersonalizado(fichaAtual()));
+  }
   if(state._visualizarMapaPopup){
     wrap.appendChild(renderPopupVisualizarMapa());
   }
@@ -585,7 +588,7 @@ function renderFichaScreen(){
   if(state._logAberto){
     wrap.appendChild(renderPopupLog(fichaAtual()));
   }
-  const semMenuAberto = !state._menuAberto && !state._divindadeFluxo && !state._cropperFoto && !(state.levelUp&&state.levelUp.aberto) && !state._enviarItemFluxo && !state._enviarDinheiroFluxo && !state._moedaPopup && !state._escolherJogadorRelFluxo && !state._escolherMapaFluxo && !state._perfilJogadorPopup && !state._usarMagiaPopup && !state._efeitoItemPopup && !state._golpePessoalPopup && !state._visualizarMapaPopup && !state._pendenciasAberto && !state._logAberto;
+  const semMenuAberto = !state._menuAberto && !state._divindadeFluxo && !state._cropperFoto && !(state.levelUp&&state.levelUp.aberto) && !state._enviarItemFluxo && !state._enviarDinheiroFluxo && !state._moedaPopup && !state._escolherJogadorRelFluxo && !state._escolherMapaFluxo && !state._perfilJogadorPopup && !state._usarMagiaPopup && !state._efeitoItemPopup && !state._golpePessoalPopup && !state._itemPersonalizadoPopup && !state._visualizarMapaPopup && !state._pendenciasAberto && !state._logAberto;
   if(estaMorto(f) && semMenuAberto){
     wrap.appendChild(el('div',{class:'aviso-sobrecarga aviso-morte'}, '💀 '+(f.nome||'Personagem')+' morreu.'));
   } else if(estaInconsciente(f) && semMenuAberto){
@@ -862,6 +865,50 @@ function addItemGeral(it, vestir){
 // de verdade (dá pra equipar com as estatísticas certas); senão, cai como item genérico comum.
 // `nomeBusca` é o nome "limpo" pra procurar no catálogo (sem sufixo tipo "(recebido do Mestre)"),
 // `nomeExibicao` é o que aparece pro jogador (pode ter o sufixo).
+// Item Personalizado — o jogador escolhe QUALQUER item do jogo (arma, armadura, escudo,
+// esotérico, item geral, acessório, artefato, poção) como "base" e o item novo herda todos os
+// status mecânicos dela automaticamente, com nome e descrição próprios por cima. Reaproveita
+// exatamente o mesmo truque que já existia pra "Espada Baronial" etc (base real + texto
+// customizado) — só que agora QUALQUER item do catálogo serve de base, não só os que eu cadastrei
+// manualmente numa lista fixa. Resolve sem precisar de uma lista de "todo status que existe".
+function catalogoUnificadoParaItemPersonalizado(){
+  const lista = [];
+  ARMAS.forEach(w=> lista.push({nome:w.n, categoria:'arma', dados:w}));
+  ARMADURAS.forEach(a=> lista.push({nome:a.n, categoria:'armadura', dados:a}));
+  ESCUDOS.forEach(a=> lista.push({nome:a.n, categoria:'escudo', dados:a}));
+  ITENS_ESOTERICOS.forEach(e=> lista.push({nome:e.n, categoria:'esoterico', dados:e}));
+  ITENS_GERAIS.forEach(i=> lista.push({nome:i.n, categoria:'geral', dados:i, desc:i.desc}));
+  if(typeof ACESSORIOS_MENORES!=='undefined') ACESSORIOS_MENORES.forEach(a=> lista.push({nome:a.nome, categoria:'geral', dados:a, desc:a.desc}));
+  if(typeof ACESSORIOS_MEDIOS!=='undefined') ACESSORIOS_MEDIOS.forEach(a=> lista.push({nome:a.nome, categoria:'geral', dados:a, desc:a.desc}));
+  if(typeof ACESSORIOS_MAIORES!=='undefined') ACESSORIOS_MAIORES.forEach(a=> lista.push({nome:a.nome, categoria:'geral', dados:a, desc:a.desc}));
+  if(typeof ARTEFATOS!=='undefined') ARTEFATOS.forEach(a=> lista.push({nome:a.nome, categoria:'geral', dados:a, desc:a.desc}));
+  if(typeof POCOES_MAGICAS!=='undefined') POCOES_MAGICAS.forEach(p=> lista.push({nome:p.nome, categoria:'geral', dados:p, desc:'Contém a magia: '+p.magia}));
+  return lista;
+}
+// Monta a entrada de mochila pro Item Personalizado, a partir da base escolhida + nome/desc do
+// jogador. Cada categoria de base vira o tipo certo de item (arma, armadura, escudo, esotérico
+// ou genérico), puxando os status mecânicos reais da base.
+function montarItemPersonalizado(baseEscolhida, nomeCustom, descCustom){
+  const {categoria, dados} = baseEscolhida;
+  const nome = nomeCustom.trim() || baseEscolhida.nome;
+  const desc = descCustom.trim() || baseEscolhida.desc || null;
+  if(categoria==='arma'){
+    return {tipo:'arma', ref:dados.n, item:nome, qtd:'1', carga:String(dados.esp||1), superior:true, bonusTesteExtra:0, bonusDanoExtra:0, melhoriasTxt:desc};
+  }
+  if(categoria==='armadura'){
+    return {tipo:'armadura', ref:dados.n, item:nome, qtd:'1', carga:String(dados.esp||1), superior:true, bonusDefExtra:0, bonusPenExtra:0, melhoriasTxt:desc};
+  }
+  if(categoria==='escudo'){
+    return {tipo:'escudo', ref:dados.n, item:nome, qtd:'1', carga:String(dados.esp||1), superior:true, bonusDefExtra:0, bonusPenExtra:0, melhoriasTxt:desc};
+  }
+  if(categoria==='esoterico'){
+    return {tipo:'esoterico', ref:dados.n, item:nome, qtd:'1', carga:String(dados.esp||1), superior:true, efeitoExtra:[], melhoriasTxt:desc};
+  }
+  // geral (item comum, acessório, artefato, poção) — guarda a descrição DIRETO no item, já que
+  // um nome inventado pelo jogador não bate com nada no catálogo pra buscar depois.
+  return {tipo:'geral', item:nome, qtd:'1', carga:String((dados&&dados.esp)||1), descCustom:desc};
+}
+
 function montarEntradaMochila(nomeExibicao, esp, nomeBusca){
   const busca = nomeBusca || nomeExibicao;
   const armaEsp = (typeof ARMAS_ESPECIFICAS!=='undefined') ? ARMAS_ESPECIFICAS.find(a=>a.nome===busca) : null;
@@ -1455,12 +1502,14 @@ function renderPainelLembretesMecanicos(f){
 
 function renderPainelCondicoes(f){
   const ativas = condicoesAtivas(f);
-  return renderSecaoNotasColapsavel('condicoes-ativas', '☣️', 'Condições Ativas',
-    ativas.length>0 ? ativas.length+' ativa(s)' : 'Nenhuma agora', ()=>{
+  const maldicoes = maldicoesAtivas(f);
+  const totalAtivo = ativas.length + maldicoes.length;
+  return renderSecaoNotasColapsavel('condicoes-ativas', '☣️', 'Condições e Maldições',
+    totalAtivo>0 ? totalAtivo+' ativa(s)' : 'Nenhuma agora', ()=>{
     const corpo = [];
     if(!state._gerenciandoCondicoes){
-      if(ativas.length===0){
-        corpo.push(el('div',{class:'empty'},'Nenhuma condição ativa agora.'));
+      if(totalAtivo===0){
+        corpo.push(el('div',{class:'empty'},'Nenhuma condição ou maldição ativa agora.'));
       } else {
         const row = el('div',{class:'option-grid'});
         ativas.forEach(nome=>{
@@ -1472,30 +1521,65 @@ function renderPainelCondicoes(f){
             temEfeito ? el('div',{class:'opt-sub', style:'color:var(--gold);'}, '⚡ já aplicado nos cálculos') : null
           ));
         });
+        // Maldições ativas — visual levemente diferente (borda roxa) pra não confundir com
+        // condição normal, já que são efeitos mais graves e persistentes.
+        maldicoes.forEach(nome=>{
+          const info = MALDICOES_LISTA.find(c=>c[0]===nome);
+          const temEfeito = ['Maldição do Bardo','Toque de Tibar'].includes(nome);
+          row.appendChild(el('button',{class:'option-card selected', style:'border-color:#9b59b6;', onclick:()=>alternarMaldicao(f,nome)},
+            el('div',{class:'opt-nome'}, '🔮 '+nome+' ✕'),
+            info ? el('div',{class:'opt-sub'}, info[1]) : null,
+            temEfeito ? el('div',{class:'opt-sub', style:'color:var(--gold);'}, '⚡ já aplicado nos cálculos') : null
+          ));
+        });
         corpo.push(row);
       }
-      corpo.push(el('button',{class:'btn ghost', style:'margin-top:10px;', onclick:()=>{ state._gerenciandoCondicoes=true; render(); }}, 'Gerenciar condições'));
+      corpo.push(el('button',{class:'btn ghost', style:'margin-top:10px;', onclick:()=>{ state._gerenciandoCondicoes=true; state._abaCondicoesMaldicoes='condicoes'; render(); }}, 'Gerenciar'));
       if(f.condicoesNota){
         corpo.push(el('div',{class:'meta', style:'margin-top:8px;color:var(--gold);'}, '📝 '+f.condicoesNota));
       }
     } else {
-      corpo.push(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Condições com ⚡ já entram sozinhas no cálculo de Defesa/perícias/deslocamento. As outras são mais sobre o que dá ou não dá pra fazer no turno — combine com o Mestre na hora.'));
-      const row = el('div',{class:'option-grid'});
-      CONDICOES_LISTA.forEach(([nome,desc])=>{
-        const marcado = ativas.includes(nome);
-        const temEfeito = !!CONDICOES_EFEITOS[nome];
-        row.appendChild(el('button',{class:'option-card '+(marcado?'selected':''), onclick:()=>alternarCondicao(f,nome)},
-          el('div',{class:'opt-nome'}, nome+(temEfeito?' ⚡':'')),
-          el('div',{class:'opt-sub'}, desc)
-        ));
-      });
-      corpo.push(row);
-      corpo.push(el('label',{style:'margin-top:10px;'},'Nota livre (ex: "Veneno 2d6/turno", "Sangramento leve")'));
-      corpo.push(el('input',{id:'condicoes-nota', type:'text', value:f.condicoesNota||'', oninput:(e)=>{f.condicoesNota=e.target.value;}, onchange:()=>{salvarPerfis();}}));
+      if(!state._abaCondicoesMaldicoes) state._abaCondicoesMaldicoes = 'condicoes';
+      const tabs = el('div',{class:'tab-grid', style:'margin-bottom:10px;'},
+        el('button',{class: state._abaCondicoesMaldicoes==='condicoes'?'on':'', onclick:()=>{ state._abaCondicoesMaldicoes='condicoes'; render(); }}, 'Condições'),
+        el('button',{class: state._abaCondicoesMaldicoes==='maldicoes'?'on':'', onclick:()=>{ state._abaCondicoesMaldicoes='maldicoes'; render(); }}, '🔮 Maldições')
+      );
+      corpo.push(tabs);
+
+      if(state._abaCondicoesMaldicoes==='condicoes'){
+        corpo.push(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Condições com ⚡ já entram sozinhas no cálculo de Defesa/perícias/deslocamento. As outras são mais sobre o que dá ou não dá pra fazer no turno — combine com o Mestre na hora.'));
+        const row = el('div',{class:'option-grid'});
+        CONDICOES_LISTA.forEach(([nome,desc])=>{
+          const marcado = ativas.includes(nome);
+          const temEfeito = !!CONDICOES_EFEITOS[nome];
+          row.appendChild(el('button',{class:'option-card '+(marcado?'selected':''), onclick:()=>alternarCondicao(f,nome)},
+            el('div',{class:'opt-nome'}, nome+(temEfeito?' ⚡':'')),
+            el('div',{class:'opt-sub'}, desc)
+          ));
+        });
+        corpo.push(row);
+        corpo.push(el('label',{style:'margin-top:10px;'},'Nota livre (ex: "Veneno 2d6/turno", "Sangramento leve")'));
+        corpo.push(el('input',{id:'condicoes-nota', type:'text', value:f.condicoesNota||'', oninput:(e)=>{f.condicoesNota=e.target.value;}, onchange:()=>{salvarPerfis();}}));
+      } else {
+        // Maldições (Ameaças de Arton) — texto aqui é só a parte MECÂNICA (o que muda nos
+        // números). A origem/lore e como remover cada uma ficam de fora de propósito; isso é
+        // coisa que o Mestre narra na mesa, não pro jogador consultar aqui.
+        corpo.push(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Maldições (Ameaças de Arton). ⚡ = já entra sozinho nos cálculos. As outras ficam só de referência — combine o efeito com o Mestre.'));
+        const row = el('div',{class:'option-grid'});
+        MALDICOES_LISTA.forEach(([nome,desc])=>{
+          const marcado = maldicoes.includes(nome);
+          const temEfeito = ['Maldição do Bardo','Toque de Tibar'].includes(nome);
+          row.appendChild(el('button',{class:'option-card '+(marcado?'selected':''), style:'border-color:#9b59b6'+(marcado?';':';opacity:0.85;'), onclick:()=>alternarMaldicao(f,nome)},
+            el('div',{class:'opt-nome'}, nome+(temEfeito?' ⚡':'')),
+            el('div',{class:'opt-sub'}, desc)
+          ));
+        });
+        corpo.push(row);
+      }
       corpo.push(el('button',{class:'btn ghost', style:'margin-top:10px;', onclick:()=>{ state._gerenciandoCondicoes=false; render(); }}, 'Fechar'));
     }
     return corpo;
-  }, ativas.length>0);
+  }, totalAtivo>0);
 }
 
 function renderPersonagemNotas(){
@@ -2067,17 +2151,20 @@ function renderPopupEnviarItem(f){
 function renderPopupMoeda(f){
   const campo = state._moedaPopup.campo;
   const rotulo = {tc:'TC (cobre)', ts:'T$ (padrão)', to:'TO (ouro)'}[campo];
-  if(!state._moedaPopup.receberValor) state._moedaPopup.receberValor = '';
-  if(!state._moedaPopup.gastarValor) state._moedaPopup.gastarValor = '';
+  if(!state._moedaPopup.valor) state._moedaPopup.valor = '';
   const overlay = el('div',{class:'menu-overlay', onclick:(e)=>{ if(e.target===e.currentTarget){ state._moedaPopup=null; render(); } }});
   const sheet = el('div',{class:'menu-sheet'});
   sheet.appendChild(el('div',{class:'wizard-title', style:'padding:6px 14px 0;'}, rotulo));
   sheet.appendChild(el('div',{class:'tip', style:'margin:6px 14px;'}, 'Você tem: '+(parseInt(f[campo])||0)+' '+rotulo));
-  const conteudo = el('div',{style:'padding:0 14px;'},
-    el('label',{},'Quantidade a receber'),
-    el('input',{type:'number', value:state._moedaPopup.receberValor, oninput:(e)=>{state._moedaPopup.receberValor=e.target.value;}}),
-    el('button',{class:'btn', style:'margin-top:8px;', onclick:()=>{
-      const valor = parseInt(state._moedaPopup.receberValor);
+  // Receber e Gastar compartilham o MESMO campo de quantidade — digita um número, escolhe o
+  // botão certo, em vez de dois campos separados um embaixo do outro.
+  sheet.appendChild(el('div',{style:'padding:0 14px;'},
+    el('label',{},'Quantidade'),
+    el('input',{type:'number', value:state._moedaPopup.valor, oninput:(e)=>{state._moedaPopup.valor=e.target.value;}})
+  ));
+  sheet.appendChild(el('div',{class:'row', style:'padding:8px 14px 0;gap:8px;'},
+    el('button',{class:'btn', style:'flex:1;', onclick:()=>{
+      const valor = parseInt(state._moedaPopup.valor);
       if(!valor || valor<=0){ flashMsg('Digita uma quantidade válida primeiro.'); return; }
       f[campo] = (parseInt(f[campo])||0) + valor;
       registrarLog(f, 'Recebeu '+valor+' '+rotulo);
@@ -2085,17 +2172,12 @@ function renderPopupMoeda(f){
       flashMsg('✅ +'+valor+' '+rotulo+'!');
       state._moedaPopup = null;
       render();
-    }}, '✓ Receber')
-  );
-  sheet.appendChild(conteudo);
-  // Gastar/retirar — pra comprar algo, pagar uma taxa, perder dinheiro etc, sem precisar passar
-  // pelo fluxo de "Enviar" (que exige escolher outro jogador como destinatário, não serve pra
-  // um gasto simples). Achado reportado: faltava essa opção.
-  const conteudoGastar = el('div',{style:'padding:0 14px;margin-top:10px;'},
-    el('label',{},'Quantidade a gastar'),
-    el('input',{type:'number', value:state._moedaPopup.gastarValor, oninput:(e)=>{state._moedaPopup.gastarValor=e.target.value;}}),
-    el('button',{class:'btn ghost', style:'margin-top:8px;', onclick:()=>{
-      const valor = parseInt(state._moedaPopup.gastarValor);
+    }}, '✓ Receber'),
+    // Gastar/retirar — pra comprar algo, pagar uma taxa, perder dinheiro etc, sem precisar
+    // passar pelo fluxo de "Enviar" (que exige escolher outro jogador como destinatário, não
+    // serve pra um gasto simples). Achado reportado: faltava essa opção.
+    el('button',{class:'btn ghost', style:'flex:1;', onclick:()=>{
+      const valor = parseInt(state._moedaPopup.valor);
       if(!valor || valor<=0){ flashMsg('Digita uma quantidade válida primeiro.'); return; }
       const atual = parseInt(f[campo])||0;
       if(valor > atual){ flashMsg('Você não tem '+valor+' '+rotulo+' (tem só '+atual+').'); return; }
@@ -2106,8 +2188,7 @@ function renderPopupMoeda(f){
       state._moedaPopup = null;
       render();
     }}, '💸 Gastar')
-  );
-  sheet.appendChild(conteudoGastar);
+  ));
   sheet.appendChild(el('div',{class:'secao-divisor', style:'margin:14px;'}));
   sheet.appendChild(el('div',{style:'padding:0 14px;'},
     el('button',{class:'btn ghost', onclick:()=>{ state._moedaPopup=null; abrirEnviarDinheiro(campo); }}, '📤 Enviar dinheiro')
@@ -2394,7 +2475,21 @@ function renderPersonagemMochila(){
       const corpo = [];
       if(row.tipo==='geral'){
         const nomeSemSufixo = nomeBaseItem(row.item);
-        const itemCatalogo = ITENS_GERAIS.find(i=>i.n===nomeSemSufixo);
+        // Descrição do catálogo — antes só procurava em ITENS_GERAIS. Itens mágicos que caem
+        // como "geral" de propósito (Acessórios, Artefatos, Poções — eles não têm arma/armadura
+        // base pra conectar, então tipo:'geral' está certo) nunca apareciam com descrição
+        // nenhuma, porque a busca não olhava nesses catálogos. Agora tenta em todos.
+        const itemCatalogo = ITENS_GERAIS.find(i=>i.n===nomeSemSufixo)
+          || (typeof ACESSORIOS_MENORES!=='undefined' ? ACESSORIOS_MENORES.find(a=>a.nome===nomeSemSufixo) : null)
+          || (typeof ACESSORIOS_MEDIOS!=='undefined' ? ACESSORIOS_MEDIOS.find(a=>a.nome===nomeSemSufixo) : null)
+          || (typeof ACESSORIOS_MAIORES!=='undefined' ? ACESSORIOS_MAIORES.find(a=>a.nome===nomeSemSufixo) : null)
+          || (typeof ARTEFATOS!=='undefined' ? ARTEFATOS.find(a=>a.nome===nomeSemSufixo) : null)
+          || (typeof POCOES_MAGICAS!=='undefined' ? POCOES_MAGICAS.find(p=>p.nome===nomeSemSufixo) : null);
+        // Os catálogos mágicos usam "nome" em vez de "n" — normaliza pra um texto só
+        // Item Personalizado guarda a descrição DIRETO no item (não dá pra achar por nome no
+        // catálogo, já que o jogador inventou o nome) — checa isso primeiro, antes de tentar
+        // achar por nome nos catálogos.
+        const descItem = row.descCustom || (itemCatalogo ? (itemCatalogo.desc || (itemCatalogo.magia ? 'Contém a magia: '+itemCatalogo.magia : null)) : null);
         const reconhecidoAutomatico = (itemCatalogo && itemCatalogo.vestivel) || ACESSORIOS_VESTIVEIS.has(nomeSemSufixo);
         const ehVestivel = reconhecidoAutomatico || row.marcadoVestivel;
         const ehMochilaAventureiro = nomeSemSufixo === 'Mochila de aventureiro';
@@ -2403,7 +2498,7 @@ function renderPersonagemMochila(){
           // que fazia, só nome/quantidade/espaço). É aqui também que a Mochila de Aventureiro
           // mostra "aumenta sua capacidade de carga em 2 espaços" — o bônus agora é aplicado de
           // verdade (ver limiteCarga), isso só deixa claro pro jogador o que o item faz.
-          itemCatalogo && itemCatalogo.desc ? el('div',{class:'desc'}, itemCatalogo.desc) : null,
+          descItem ? el('div',{class:'desc'}, descItem) : null,
           // Botão de Upgrade — só a Mochila de Aventureiro tem esse fluxo especial. É uma ação
           // deliberada do jogador (não automática só por ter o item guardado), e só pode
           // acontecer uma vez POR PERSONAGEM (não por mochila) — comprar 5 mochilas não dá +10.
@@ -2585,6 +2680,9 @@ function renderItensCompleto(){
   }
 
   if(itf.tipo==='gerais'){
+    // Item Personalizado — sempre visível no topo dessa aba, já que é o lugar mais natural de
+    // "criar algo que não está pronto no catálogo".
+    wrap.appendChild(el('button',{class:'btn ghost', style:'margin-bottom:10px;', onclick:()=>abrirItemPersonalizado()}, '🔧 Criar Item Personalizado'));
     const itensDisponiveis = itensVisiveisJogador();
     const categorias = ['todas', ...new Set(itensDisponiveis.map(i=>i.cat))];
     const sel = el('select',{onchange:(e)=>{itf.categoria=e.target.value; render();}});
@@ -2994,6 +3092,76 @@ function renderCardMagia(s, grupoChave, aoAdicionar, aoRemover, fichaCtx, aoUsar
 function extrairCustoPM(custoTexto){
   const m = String(custoTexto||'').match(/(\d+)/);
   return m ? parseInt(m[1]) : 0;
+}
+
+function abrirItemPersonalizado(){
+  state._itemPersonalizadoPopup = {busca:'', baseEscolhida:null, nome:'', desc:''};
+  render();
+}
+function renderPopupItemPersonalizado(f){
+  const fluxo = state._itemPersonalizadoPopup;
+  const overlay = el('div',{class:'menu-overlay', onclick:(e)=>{ if(e.target===e.currentTarget){ state._itemPersonalizadoPopup=null; render(); } }});
+  const sheet = el('div',{class:'menu-sheet'});
+  sheet.appendChild(el('div',{class:'wizard-title', style:'padding:6px 14px 0;'}, '🔧 Item Personalizado'));
+
+  if(!fluxo.baseEscolhida){
+    // Etapa 1: escolher a base — QUALQUER item do jogo serve (arma, armadura, escudo,
+    // esotérico, item comum, acessório, artefato, poção). O item novo herda os status
+    // mecânicos reais dela; não precisa de uma lista separada de "todo status que existe".
+    sheet.appendChild(el('div',{class:'tip', style:'margin:6px 14px;'}, 'Escolha um item qualquer do jogo pra servir de base — o personalizado herda os status dela (dano, Defesa, efeito...). Depois você dá um nome e descrição próprios.'));
+    sheet.appendChild(el('input',{type:'text', placeholder:'buscar item base...', style:'margin:0 14px;width:calc(100% - 28px);', value:fluxo.busca, oninput:(e)=>{fluxo.busca=e.target.value; render();}}));
+    const lista = el('div',{style:'padding:8px 14px 0;display:flex;flex-direction:column;gap:6px;max-height:400px;overflow-y:auto;'});
+    if(fluxo.busca.trim().length<2){
+      lista.appendChild(el('div',{class:'empty'}, 'Digita pelo menos 2 letras pra buscar.'));
+    } else {
+      const termo = fluxo.busca.toLowerCase();
+      const CATEGORIA_ROTULO = {arma:'Arma', armadura:'Armadura', escudo:'Escudo', esoterico:'Esotérico', geral:'Item'};
+      const resultados = catalogoUnificadoParaItemPersonalizado().filter(i=>i.nome.toLowerCase().includes(termo)).slice(0,30);
+      if(resultados.length===0) lista.appendChild(el('div',{class:'empty'}, 'Nada encontrado.'));
+      resultados.forEach(r=>{
+        lista.appendChild(el('button',{class:'option-card', style:'text-align:left;', onclick:()=>{
+          fluxo.baseEscolhida = r;
+          fluxo.nome = '';
+          fluxo.desc = '';
+          render();
+        }},
+          el('div',{class:'opt-nome'}, r.nome),
+          el('div',{class:'opt-sub'}, CATEGORIA_ROTULO[r.categoria]+(r.desc?' · '+r.desc.slice(0,60)+(r.desc.length>60?'...':''):''))
+        ));
+      });
+    }
+    sheet.appendChild(lista);
+  } else {
+    // Etapa 2: nome e descrição próprios, por cima da base escolhida
+    const CATEGORIA_ROTULO = {arma:'Arma', armadura:'Armadura', escudo:'Escudo', esoterico:'Esotérico', geral:'Item'};
+    sheet.appendChild(el('div',{class:'tip', style:'margin:6px 14px;'},
+      el('b',{}, 'Base escolhida: '), fluxo.baseEscolhida.nome+' ('+CATEGORIA_ROTULO[fluxo.baseEscolhida.categoria]+')',
+      el('div',{style:'margin-top:4px;'}, el('button',{class:'btn ghost', style:'width:auto;padding:3px 10px;font-size:0.7rem;', onclick:()=>{ fluxo.baseEscolhida=null; render(); }}, '← Trocar base'))
+    ));
+    sheet.appendChild(el('div',{style:'padding:0 14px;display:flex;flex-direction:column;gap:8px;'},
+      el('div',{},
+        el('label',{},'Nome do item'),
+        el('input',{type:'text', placeholder:fluxo.baseEscolhida.nome, value:fluxo.nome, oninput:(e)=>{fluxo.nome=e.target.value;}})
+      ),
+      el('div',{},
+        el('label',{},'Descrição / efeito especial (opcional — deixa em branco pra usar a da base)'),
+        el('textarea',{rows:3, placeholder:fluxo.baseEscolhida.desc||'ex: +2 no ataque contra mortos-vivos', value:fluxo.desc, oninput:(e)=>{fluxo.desc=e.target.value;}})
+      )
+    ));
+    sheet.appendChild(el('button',{class:'btn', style:'margin:14px 14px 0;width:calc(100% - 28px);', onclick:()=>{
+      const item = montarItemPersonalizado(fluxo.baseEscolhida, fluxo.nome, fluxo.desc);
+      f.equip.push(item);
+      registrarLog(f, 'Criou item personalizado: '+item.item+' (baseado em '+fluxo.baseEscolhida.nome+')');
+      salvarPerfis();
+      flashMsg('🔧 "'+item.item+'" adicionado à mochila!');
+      state._itemPersonalizadoPopup = null;
+      render();
+    }}, '✓ Adicionar à mochila'));
+  }
+
+  sheet.appendChild(el('button',{class:'menu-close', style:'margin-top:14px;', onclick:()=>{ state._itemPersonalizadoPopup=null; render(); }}, 'Cancelar'));
+  overlay.appendChild(sheet);
+  return overlay;
 }
 
 function abrirConstrutorGolpePessoal(indicePoderesClasse){
