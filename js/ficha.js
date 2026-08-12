@@ -3108,7 +3108,7 @@ function renderPopupItemPersonalizado(f){
     // esotérico, item comum, acessório, artefato, poção). O item novo herda os status
     // mecânicos reais dela; não precisa de uma lista separada de "todo status que existe".
     sheet.appendChild(el('div',{class:'tip', style:'margin:6px 14px;'}, 'Escolha um item qualquer do jogo pra servir de base — o personalizado herda os status dela (dano, Defesa, efeito...). Depois você dá um nome e descrição próprios.'));
-    sheet.appendChild(el('input',{type:'text', placeholder:'buscar item base...', style:'margin:0 14px;width:calc(100% - 28px);', value:fluxo.busca, oninput:(e)=>{fluxo.busca=e.target.value; render();}}));
+    sheet.appendChild(el('input',{id:'item-personalizado-busca', type:'text', placeholder:'buscar item base...', style:'margin:0 14px;width:calc(100% - 28px);', value:fluxo.busca, oninput:(e)=>{fluxo.busca=e.target.value; renderDebounced();}}));
     const lista = el('div',{style:'padding:8px 14px 0;display:flex;flex-direction:column;gap:6px;max-height:400px;overflow-y:auto;'});
     if(fluxo.busca.trim().length<2){
       lista.appendChild(el('div',{class:'empty'}, 'Digita pelo menos 2 letras pra buscar.'));
@@ -3152,11 +3152,11 @@ function renderPopupItemPersonalizado(f){
     sheet.appendChild(el('div',{style:'padding:0 14px;display:flex;flex-direction:column;gap:8px;'},
       el('div',{},
         el('label',{},'Nome do item'),
-        el('input',{type:'text', placeholder:fluxo.baseEscolhida.nome||'ex: Carta antiga', value:fluxo.nome, oninput:(e)=>{fluxo.nome=e.target.value;}})
+        el('input',{id:'item-personalizado-nome', type:'text', placeholder:fluxo.baseEscolhida.nome||'ex: Carta antiga', value:fluxo.nome, oninput:(e)=>{fluxo.nome=e.target.value;}})
       ),
       el('div',{},
         el('label',{},'Descrição / efeito especial (opcional — deixa em branco pra usar a da base)'),
-        el('textarea',{rows:3, placeholder:fluxo.baseEscolhida.desc||'ex: +2 no ataque contra mortos-vivos', value:fluxo.desc, oninput:(e)=>{fluxo.desc=e.target.value;}})
+        el('textarea',{id:'item-personalizado-desc', rows:3, placeholder:fluxo.baseEscolhida.desc||'ex: +2 no ataque contra mortos-vivos', value:fluxo.desc, oninput:(e)=>{fluxo.desc=e.target.value;}})
       )
     ));
     sheet.appendChild(el('button',{class:'btn', style:'margin:14px 14px 0;width:calc(100% - 28px);', onclick:()=>{
@@ -3193,11 +3193,11 @@ function renderPopupGolpePessoal(f){
   const camposBasicos = el('div',{style:'padding:0 14px;display:flex;flex-direction:column;gap:8px;'},
     el('div',{},
       el('label',{},'Nome do golpe (opcional, ajuda a diferenciar se tiver mais de um)'),
-      el('input',{type:'text', placeholder:'ex: Investida do Trovão', value:fluxo.nomeGolpe, oninput:(e)=>{fluxo.nomeGolpe=e.target.value;}})
+      el('input',{id:'golpe-pessoal-nome', type:'text', placeholder:'ex: Investida do Trovão', value:fluxo.nomeGolpe, oninput:(e)=>{fluxo.nomeGolpe=e.target.value;}})
     ),
     el('div',{},
       el('label',{},'Arma usada (deixa travado nela, a menos que escolha "Qualquer Arma" abaixo)'),
-      el('input',{type:'text', placeholder:'ex: Espada longa', value:fluxo.arma, oninput:(e)=>{fluxo.arma=e.target.value;}})
+      el('input',{id:'golpe-pessoal-arma', type:'text', placeholder:'ex: Espada longa', value:fluxo.arma, oninput:(e)=>{fluxo.arma=e.target.value;}})
     )
   );
   sheet.appendChild(camposBasicos);
