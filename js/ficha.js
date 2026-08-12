@@ -890,7 +890,7 @@ function catalogoUnificadoParaItemPersonalizado(){
 // ou genérico), puxando os status mecânicos reais da base.
 function montarItemPersonalizado(baseEscolhida, nomeCustom, descCustom){
   const {categoria, dados} = baseEscolhida;
-  const nome = nomeCustom.trim() || baseEscolhida.nome;
+  const nome = nomeCustom.trim() || baseEscolhida.nome || 'Item personalizado';
   const desc = descCustom.trim() || baseEscolhida.desc || null;
   if(categoria==='arma'){
     return {tipo:'arma', ref:dados.n, item:nome, qtd:'1', carga:String(dados.esp||1), superior:true, bonusTesteExtra:0, bonusDanoExtra:0, melhoriasTxt:desc};
@@ -2577,10 +2577,7 @@ function renderPersonagemMochila(){
       eqPanel.appendChild(renderItemColapsavel('mochila-'+idx, tituloExibido, rotulo+' · Qtd '+row.qtd+' · Esp '+cargaExibida, corpo, ehMochilaAventureiroUpgradeAtiva ? 'var(--gold)' : null));
     });
   }
-  eqPanel.appendChild(el('button',{class:'btn ghost', style:'margin-top:10px;', onclick:()=>{
-    f.equip.push({tipo:'geral', item:'Novo item', qtd:'1', carga:'1'});
-    render();
-  }}, '+ Item personalizado (fora do catálogo)'));
+  eqPanel.appendChild(el('button',{class:'btn ghost', style:'margin-top:10px;', onclick:()=>abrirItemPersonalizado()}, '🔧 Criar Item Personalizado'));
   wrap.appendChild(eqPanel);
 
   const rotuloMoedaCurta = {tc:'TC', ts:'T$', to:'TO'};
@@ -2618,6 +2615,11 @@ function renderItensCompleto(){
   wrap.appendChild(tabsRow);
 
   wrap.appendChild(el('input',{id:'busca-itens', type:'text', placeholder:'buscar item pelo nome...', value:itf.busca, oninput:(e)=>{itf.busca=e.target.value; renderDebounced();}}));
+
+  // Item Personalizado — visível aqui, ACIMA das sub-abas, pra aparecer não importa em qual
+  // aba você está (Armas, Defesas, etc.) — antes só ficava escondido dentro de "Itens Gerais",
+  // e quem queria criar uma arma/armadura personalizada não pensava em procurar lá.
+  wrap.appendChild(el('button',{class:'btn ghost', style:'margin-bottom:10px;', onclick:()=>abrirItemPersonalizado()}, '🔧 Criar Item Personalizado'));
 
   const results = el('div',{});
 
@@ -2680,9 +2682,6 @@ function renderItensCompleto(){
   }
 
   if(itf.tipo==='gerais'){
-    // Item Personalizado — sempre visível no topo dessa aba, já que é o lugar mais natural de
-    // "criar algo que não está pronto no catálogo".
-    wrap.appendChild(el('button',{class:'btn ghost', style:'margin-bottom:10px;', onclick:()=>abrirItemPersonalizado()}, '🔧 Criar Item Personalizado'));
     const itensDisponiveis = itensVisiveisJogador();
     const categorias = ['todas', ...new Set(itensDisponiveis.map(i=>i.cat))];
     const sel = el('select',{onchange:(e)=>{itf.categoria=e.target.value; render();}});
@@ -3131,17 +3130,29 @@ function renderPopupItemPersonalizado(f){
       });
     }
     sheet.appendChild(lista);
+    // Pra item puramente narrativo (sem estatística nenhuma — uma carta, uma foto, uma lembrança)
+    // não faz sentido obrigar a escolher uma base. Isso reproduz o comportamento antigo do botão
+    // que ficava direto na mochila, agora como opção dentro desse mesmo fluxo.
+    sheet.appendChild(el('button',{class:'btn ghost', style:'margin:10px 14px 0;', onclick:()=>{
+      fluxo.baseEscolhida = {nome:'', categoria:'geral', dados:{esp:1}, desc:''};
+      fluxo.nome = '';
+      fluxo.desc = '';
+      render();
+    }}, 'Pular — item sem base (só narrativo, sem estatística)'));
   } else {
     // Etapa 2: nome e descrição próprios, por cima da base escolhida
     const CATEGORIA_ROTULO = {arma:'Arma', armadura:'Armadura', escudo:'Escudo', esoterico:'Esotérico', geral:'Item'};
+    const semBase = !fluxo.baseEscolhida.nome;
     sheet.appendChild(el('div',{class:'tip', style:'margin:6px 14px;'},
-      el('b',{}, 'Base escolhida: '), fluxo.baseEscolhida.nome+' ('+CATEGORIA_ROTULO[fluxo.baseEscolhida.categoria]+')',
-      el('div',{style:'margin-top:4px;'}, el('button',{class:'btn ghost', style:'width:auto;padding:3px 10px;font-size:0.7rem;', onclick:()=>{ fluxo.baseEscolhida=null; render(); }}, '← Trocar base'))
+      semBase
+        ? el('span',{}, el('b',{}, 'Sem base'), ' — item só narrativo, sem estatística nenhuma.')
+        : el('span',{}, el('b',{}, 'Base escolhida: '), fluxo.baseEscolhida.nome+' ('+CATEGORIA_ROTULO[fluxo.baseEscolhida.categoria]+')'),
+      el('div',{style:'margin-top:4px;'}, el('button',{class:'btn ghost', style:'width:auto;padding:3px 10px;font-size:0.7rem;', onclick:()=>{ fluxo.baseEscolhida=null; render(); }}, '← Voltar'))
     ));
     sheet.appendChild(el('div',{style:'padding:0 14px;display:flex;flex-direction:column;gap:8px;'},
       el('div',{},
         el('label',{},'Nome do item'),
-        el('input',{type:'text', placeholder:fluxo.baseEscolhida.nome, value:fluxo.nome, oninput:(e)=>{fluxo.nome=e.target.value;}})
+        el('input',{type:'text', placeholder:fluxo.baseEscolhida.nome||'ex: Carta antiga', value:fluxo.nome, oninput:(e)=>{fluxo.nome=e.target.value;}})
       ),
       el('div',{},
         el('label',{},'Descrição / efeito especial (opcional — deixa em branco pra usar a da base)'),
