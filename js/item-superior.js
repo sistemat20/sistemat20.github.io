@@ -110,7 +110,12 @@ function renderCriadorItemSuperior(){
   const calc = calcularItemSuperior(b);
   const precoBase = precoParaNumero(b.baseItem.preco);
   const precoTotal = precoBase + calc.precoExtra + calc.precoMaterial;
-  const materialSemPreco = b.materialEscolhido && precoMaterialParaCategoria(b.materialEscolhido, b.categoria)==null;
+  // Achado: precoMaterialParaCategoria espera o OBJETO do material (lê mat.precos.arma etc),
+  // mas essa linha passava só o NOME (string) direto — b.materialEscolhido é sempre uma string
+  // (o nome, definido lá em cima como b.materialEscolhido=mat.nome). Isso quebrava com erro
+  // toda vez que o jogador escolhia "Material especial" e selecionava um material da lista.
+  const matEscolhidoObj = b.materialEscolhido ? MATERIAIS_ESPECIAIS.find(m=>m.nome===b.materialEscolhido) : null;
+  const materialSemPreco = matEscolhidoObj && precoMaterialParaCategoria(matEscolhidoObj, b.categoria)==null;
   wrap.appendChild(el('div',{class:'panel faixa'},
     el('h2',{},'Resumo'),
     el('div',{class:'tip'},
@@ -120,7 +125,7 @@ function renderCriadorItemSuperior(){
       el('div',{style:'font-weight:800;margin-top:6px;border-top:1px solid var(--line);padding-top:6px;'}, 'Preço total: T$ '+precoTotal),
       calc.cd ? el('div',{}, el('b',{},'CD extra pra fabricar: '), '+'+calc.cd) : null,
     ),
-    materialSemPreco ? el('div',{class:'tip', style:'border:1px solid var(--red-bright);'}, '⚠️ '+b.materialEscolhido.nome+' é raro e não tem preço de mercado — só é possível obter como saque de uma criatura específica, combine com o Mestre. O preço total acima não inclui o custo desse material.') : null
+    materialSemPreco ? el('div',{class:'tip', style:'border:1px solid var(--red-bright);'}, '⚠️ '+b.materialEscolhido+' é raro e não tem preço de mercado — só é possível obter como saque de uma criatura específica, combine com o Mestre. O preço total acima não inclui o custo desse material.') : null
   ));
 
   const podeCriar = b.melhoriasEscolhidas.length>0 && (!b.melhoriasEscolhidas.includes('Material especial') || b.materialEscolhido);
