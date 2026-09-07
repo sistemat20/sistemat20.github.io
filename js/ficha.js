@@ -1515,7 +1515,7 @@ function renderPainelParceiros(f){
       corpo.push(el('div',{class:'empty'},'Nenhum parceiro ainda.'));
     } else {
       ativos.forEach((p, idx)=>{
-        const infoTipo = p.ehMontaria ? MONTARIA_TIPOS_ESPECIFICOS.find(m=>m.nome===p.tipoMontaria) : PARCEIRO_TIPOS.find(t=>t.nome===p.tipo);
+        const infoTipo = p.fonteAmeacasArton ? PARCEIROS_AMEACAS_ARTON.find(t=>t.nome===p.fonteAmeacasArton) : p.ehMontaria ? MONTARIA_TIPOS_ESPECIFICOS.find(m=>m.nome===p.tipoMontaria) : PARCEIRO_TIPOS.find(t=>t.nome===p.tipo);
         const textoAtual = infoTipo ? infoTipo.niveis[p.poder] : '';
         const ehAutomatizavel = ['Guardião','Combatente','Perseguidor','Vigilante','Ajudante'].includes(p.tipo);
         const corpoCard = [
@@ -1559,25 +1559,28 @@ function renderPopupAdicionarParceiro(f){
   sheet.appendChild(el('div',{class:'wizard-title', style:'padding:6px 14px 0;'}, '🐾 Adicionar Parceiro'));
 
   if(!fluxo.categoria){
-    sheet.appendChild(el('div',{class:'tip', style:'margin:6px 14px;'}, 'É um bicho/NPC genérico (escolhe um TIPO de ajuda) ou uma montaria específica (cavalo, grifo...)?'));
+    sheet.appendChild(el('div',{class:'tip', style:'margin:6px 14px;'}, 'É um bicho/NPC genérico (escolhe um TIPO de ajuda), uma montaria específica do livro básico, ou uma criatura específica de Ameaças de Arton (bestiário)?'));
     sheet.appendChild(el('div',{style:'padding:0 14px;display:flex;flex-direction:column;gap:8px;'},
       el('button',{class:'btn ghost', onclick:()=>{ fluxo.categoria='generico'; render(); }}, 'Tipo genérico (Guardião, Combatente, Adepto...)'),
-      el('button',{class:'btn ghost', onclick:()=>{ fluxo.categoria='montaria'; render(); }}, 'Montaria específica (Cavalo, Grifo, Lobo...)')
+      el('button',{class:'btn ghost', onclick:()=>{ fluxo.categoria='montaria'; render(); }}, 'Montaria específica (Cavalo, Grifo, Lobo...)'),
+      el('button',{class:'btn ghost', onclick:()=>{ fluxo.categoria='ameacas'; render(); }}, 'Criatura de Ameaças de Arton (Urso das Neves...)')
     ));
   } else if(!fluxo.tipoEscolhido){
-    const lista = fluxo.categoria==='generico' ? PARCEIRO_TIPOS : MONTARIA_TIPOS_ESPECIFICOS;
-    sheet.appendChild(el('div',{class:'tip', style:'margin:6px 14px;'}, 'Escolha o tipo:'));
+    const lista = fluxo.categoria==='generico' ? PARCEIRO_TIPOS : fluxo.categoria==='montaria' ? MONTARIA_TIPOS_ESPECIFICOS : PARCEIROS_AMEACAS_ARTON;
+    sheet.appendChild(el('div',{class:'tip', style:'margin:6px 14px;'}, fluxo.categoria==='ameacas' ? 'Escolha a criatura (texto de referência — o efeito varia demais entre elas pra automatizar sozinho; anote e aplique na mesa):' : 'Escolha o tipo:'));
+    sheet.appendChild(el('input',{id:'parceiro-busca-ameacas', type:'text', placeholder:'buscar...', style:'margin:0 14px 8px;width:calc(100% - 28px);', value:fluxo.busca||'', oninput:(e)=>{fluxo.busca=e.target.value; renderDebounced();}}));
     const grid = el('div',{style:'padding:0 14px;display:flex;flex-direction:column;gap:6px;max-height:400px;overflow-y:auto;'});
-    lista.forEach(t=>{
+    const listaFiltrada = lista.filter(t=> !fluxo.busca || t.nome.toLowerCase().includes(fluxo.busca.toLowerCase()));
+    listaFiltrada.forEach(t=>{
       grid.appendChild(el('button',{class:'option-card', style:'text-align:left;', onclick:()=>{ fluxo.tipoEscolhido=t.nome; render(); }},
-        el('div',{class:'opt-nome'}, t.nome+(t.tamanho?' ('+t.tamanho+')':'')),
-        el('div',{class:'opt-sub'}, t.descCurta||t.obs)
+        el('div',{class:'opt-nome'}, t.nome+(t.tamanho?' ('+t.tamanho+')':'')+(t.ehMontaria?' 🐴':'')),
+        el('div',{class:'opt-sub'}, t.descCurta||t.obs||t.tipoNarrativo||'')
       ));
     });
     sheet.appendChild(grid);
-    sheet.appendChild(el('button',{class:'btn ghost', style:'margin:10px 14px 0;', onclick:()=>{ fluxo.categoria=null; render(); }}, '← Voltar'));
+    sheet.appendChild(el('button',{class:'btn ghost', style:'margin:10px 14px 0;', onclick:()=>{ fluxo.categoria=null; fluxo.busca=''; render(); }}, '← Voltar'));
   } else {
-    const lista = fluxo.categoria==='generico' ? PARCEIRO_TIPOS : MONTARIA_TIPOS_ESPECIFICOS;
+    const lista = fluxo.categoria==='generico' ? PARCEIRO_TIPOS : fluxo.categoria==='montaria' ? MONTARIA_TIPOS_ESPECIFICOS : PARCEIROS_AMEACAS_ARTON;
     const infoTipo = lista.find(t=>t.nome===fluxo.tipoEscolhido);
     sheet.appendChild(el('div',{class:'tip', style:'margin:6px 14px;'},
       el('b',{}, fluxo.tipoEscolhido), ' — ', infoTipo.niveis[fluxo.poder],
@@ -1612,11 +1615,13 @@ function renderPopupAdicionarParceiro(f){
     }
     sheet.appendChild(el('button',{class:'btn', style:'margin:14px 14px 0;width:calc(100% - 28px);', onclick:()=>{
       if(!fluxo.nome.trim()){ flashMsg('Dá um nome pro parceiro primeiro.'); return; }
+      const infoAmeacas = fluxo.categoria==='ameacas' ? PARCEIROS_AMEACAS_ARTON.find(t=>t.nome===fluxo.tipoEscolhido) : null;
       const dados = {
         nome: fluxo.nome.trim(),
-        tipo: fluxo.categoria==='generico' ? fluxo.tipoEscolhido : 'Montaria',
-        ehMontaria: fluxo.categoria==='montaria',
-        tipoMontaria: fluxo.categoria==='montaria' ? fluxo.tipoEscolhido : null,
+        tipo: fluxo.categoria==='generico' ? fluxo.tipoEscolhido : fluxo.categoria==='montaria' ? 'Montaria' : (infoAmeacas.ehMontaria ? 'Montaria' : 'Ameaças de Arton'),
+        ehMontaria: fluxo.categoria==='montaria' || (infoAmeacas && infoAmeacas.ehMontaria),
+        tipoMontaria: fluxo.categoria==='montaria' ? fluxo.tipoEscolhido : (infoAmeacas && infoAmeacas.ehMontaria ? fluxo.tipoEscolhido : null),
+        fonteAmeacasArton: fluxo.categoria==='ameacas' ? fluxo.tipoEscolhido : null,
         poder: fluxo.poder,
         origem: fluxo.origem.trim(),
         montadoAgora: false,
