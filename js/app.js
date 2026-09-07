@@ -491,7 +491,90 @@ function periciaValor(f, p){
   // Sem proficiência com a armadura/escudo equipado: a penalidade vale para TODA perícia de Força/Destreza
   // (não só as 3 marcadas com ‡), mesmo que a perícia normalmente não sofresse penalidade de armadura.
   const penalidadeExtra = (!p.armadura && (p.attr==='For' || p.attr==='Des')) ? penalidadeNaoProficienciaArmadura(f) : 0;
-  return metade + attrVal + treino + poderes + tormentaBonus + itensVestidos + racaBonus + divindadeBonus + origemBonus + classeBonus + habilidadeAutomaticaBonus + condicoesBonus + tamanhoBonus + penalidade + penalidadeExtra;
+  const parceirosBonus = bonusPericiaDeParceiros(f, p.nome) + bonusResistenciaParceiros(f, p.nome);
+  return metade + attrVal + treino + poderes + tormentaBonus + itensVestidos + racaBonus + divindadeBonus + origemBonus + classeBonus + habilidadeAutomaticaBonus + condicoesBonus + tamanhoBonus + penalidade + penalidadeExtra + parceirosBonus;
+}
+
+// ---- Sistema de Parceiros (Tormenta 20, pág. 260-262) ----
+function adicionarParceiro(f, dados){
+  if(!f.parceiros) f.parceiros = [];
+  if(f.parceiros.length >= limiteParceiros(f)){
+    flashMsg('Você já está no limite de '+limiteParceiros(f)+' parceiro(s) pro seu nível.');
+    return false;
+  }
+  f.parceiros.push(dados);
+  registrarLog(f, 'Ganhou um parceiro: '+dados.nome+' ('+dados.tipo+', '+dados.poder+')');
+  salvarPerfis();
+  return true;
+}
+function removerParceiro(f, idx){
+  const p = f.parceiros[idx];
+  if(!p) return;
+  registrarLog(f, 'Perdeu o parceiro: '+p.nome);
+  f.parceiros.splice(idx,1);
+  salvarPerfis(); render();
+}
+function alterarPoderParceiro(f, idx, novoPoder){
+  const p = f.parceiros[idx];
+  if(!p) return;
+  p.poder = novoPoder;
+  registrarLog(f, p.nome+' evoluiu pra '+novoPoder);
+  salvarPerfis(); render();
+}
+// Bônus de Defesa vindos de parceiros do tipo Guardião — +2/+3/+4 conforme o nível de poder.
+// Só as automáticas e incondicionais entram aqui; o resto (habilidades especiais tipo "pode
+// usar Esquiva Sobrenatural") fica só como referência de texto.
+function bonusDefesaParceiros(f){
+  let bonus = 0;
+  parceirosAtivos(f).forEach(p=>{
+    if(p.tipo==='Guardião'){
+      bonus += p.poder==='mestre' ? 4 : p.poder==='veterano' ? 3 : 2;
+    }
+    if(p.ehMontaria && p.montadoAgora){
+      const nomeMontaria = p.tipoMontaria;
+      if(nomeMontaria==='Cão de caça' && (p.poder==='veterano'||p.poder==='mestre')) bonus += 2;
+    }
+  });
+  return bonus;
+}
+// Bônus de teste de resistência (Fortitude/Reflexos/Vontade) de Guardião mestre — "+2 em testes
+// de resistência" sem especificar qual, então vale pras três.
+function bonusResistenciaParceiros(f, periciaNome){
+  if(!['Fortitude','Reflexos','Vontade'].includes(periciaNome)) return 0;
+  let bonus = 0;
+  parceirosAtivos(f).forEach(p=>{
+    if(p.tipo==='Guardião' && p.poder==='mestre') bonus += 2;
+    if(p.ehMontaria && p.montadoAgora && p.tipoMontaria==='Trobo'){
+      bonus += p.poder==='mestre' ? 5 : p.poder==='veterano' ? 2 : 1;
+    }
+  });
+  return bonus;
+}
+// Bônus de teste de ataque de parceiros Combatente, e de montarias montadas com bônus de ataque.
+function bonusAtaqueParceiros(f){
+  let bonus = 0;
+  parceirosAtivos(f).forEach(p=>{
+    if(p.tipo==='Combatente'){
+      bonus += p.poder==='mestre' ? 4 : p.poder==='veterano' ? 3 : 2;
+    }
+    if(p.ehMontaria && p.montadoAgora && p.tipoMontaria==='Cavalo' && (p.poder==='veterano'||p.poder==='mestre')){
+      bonus += 2;
+    }
+  });
+  return bonus;
+}
+// Bônus de perícia de parceiros — Perseguidor/Vigilante dão bônus fixo; Ajudante dá bônus nas
+// perícias que o JOGADOR escolheu pra ele (guardado em p.periciasEscolhidas).
+function bonusPericiaDeParceiros(f, periciaNome){
+  let bonus = 0;
+  parceirosAtivos(f).forEach(p=>{
+    if(p.tipo==='Perseguidor' && (periciaNome==='Percepção' || periciaNome==='Sobrevivência')) bonus += 2;
+    if(p.tipo==='Vigilante' && (periciaNome==='Percepção' || periciaNome==='Iniciativa')) bonus += 2;
+    if(p.tipo==='Ajudante' && (p.periciasEscolhidas||[]).includes(periciaNome)){
+      bonus += p.poder==='mestre' ? 4 : 2;
+    }
+  });
+  return bonus;
 }
 
 function bonusDefesaPoderes(f){
@@ -933,7 +1016,7 @@ function defesaTotal(f){
   // Armadura pesada: você NÃO aplica Destreza (ou Carisma, no caso acima) na Defesa (pág. 157)
   const des = usaArmaduraPesada(f) ? 0 : atributoBaseDefesa;
   const outros = parseInt(f.defOutros)||0;
-  return 10 + des + armadura + escudo + outros + bonusDefesaPoderes(f) + bonusDefesaRaca(f) + bonusCondicoesDefesa(f) + bonusDefesaTormenta(f);
+  return 10 + des + armadura + escudo + outros + bonusDefesaPoderes(f) + bonusDefesaRaca(f) + bonusCondicoesDefesa(f) + bonusDefesaTormenta(f) + bonusDefesaParceiros(f);
 }
 // Deslocamento reduzido em 3m ao usar armadura pesada
 // Sobrecarga: ultrapassar o limite de carga dá -5 de penalidade de armadura e -3m de deslocamento
@@ -1638,7 +1721,7 @@ function testeAtaqueArma(f, arma){
   // Toque de Tibar (maldição, Ameaças de Arton pág. 362): "armas impõem –2 em testes de ataque e
   // rolagens de dano" — tudo que você veste ou empunha vira pirita enquanto amaldiçoado.
   const penalidadeTibar = maldicoesAtivas(f).includes('Toque de Tibar') ? -2 : 0;
-  return (proficienteComArma(f, arma) ? base : base - 5) + bonusMelhoria + bonusUmaArma + bonusFocoArma + bonusRaca + bonusArmaLonga + penalidadeTibar;
+  return (proficienteComArma(f, arma) ? base : base - 5) + bonusMelhoria + bonusUmaArma + bonusFocoArma + bonusRaca + bonusArmaLonga + penalidadeTibar + bonusAtaqueParceiros(f);
 }
 // Bônus de dano = Força somada em armas corpo a corpo e de arremesso (não em armas de disparo,
 // a menos que tenha um poder que mude isso, como Acuidade com Arma ou Estilo de Disparo/Arremesso)

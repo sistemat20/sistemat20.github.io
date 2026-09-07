@@ -579,6 +579,9 @@ function renderFichaScreen(){
   if(state._itemPersonalizadoPopup){
     wrap.appendChild(renderPopupItemPersonalizado(fichaAtual()));
   }
+  if(state._adicionarParceiroPopup){
+    wrap.appendChild(renderPopupAdicionarParceiro(fichaAtual()));
+  }
   if(state._visualizarMapaPopup){
     wrap.appendChild(renderPopupVisualizarMapa());
   }
@@ -588,7 +591,7 @@ function renderFichaScreen(){
   if(state._logAberto){
     wrap.appendChild(renderPopupLog(fichaAtual()));
   }
-  const semMenuAberto = !state._menuAberto && !state._divindadeFluxo && !state._cropperFoto && !(state.levelUp&&state.levelUp.aberto) && !state._enviarItemFluxo && !state._enviarDinheiroFluxo && !state._moedaPopup && !state._escolherJogadorRelFluxo && !state._escolherMapaFluxo && !state._perfilJogadorPopup && !state._usarMagiaPopup && !state._efeitoItemPopup && !state._golpePessoalPopup && !state._itemPersonalizadoPopup && !state._visualizarMapaPopup && !state._pendenciasAberto && !state._logAberto;
+  const semMenuAberto = !state._menuAberto && !state._divindadeFluxo && !state._cropperFoto && !(state.levelUp&&state.levelUp.aberto) && !state._enviarItemFluxo && !state._enviarDinheiroFluxo && !state._moedaPopup && !state._escolherJogadorRelFluxo && !state._escolherMapaFluxo && !state._perfilJogadorPopup && !state._usarMagiaPopup && !state._efeitoItemPopup && !state._golpePessoalPopup && !state._itemPersonalizadoPopup && !state._adicionarParceiroPopup && !state._visualizarMapaPopup && !state._pendenciasAberto && !state._logAberto;
   if(estaMorto(f) && semMenuAberto){
     wrap.appendChild(el('div',{class:'aviso-sobrecarga aviso-morte'}, '💀 '+(f.nome||'Personagem')+' morreu.'));
   } else if(estaInconsciente(f) && semMenuAberto){
@@ -1417,6 +1420,7 @@ function renderPersonagemFicha(){
   ));
 
   wrap.appendChild(renderPainelCondicoes(f));
+  wrap.appendChild(renderPainelParceiros(f));
   const painelLembretes = renderPainelLembretesMecanicos(f);
   if(painelLembretes) wrap.appendChild(painelLembretes);
   // Manobras de Combate foi movido pra Notas (agora colapsável, junto com Proficiências,
@@ -1498,6 +1502,137 @@ function renderPainelLembretesMecanicos(f){
     });
     return corpo;
   }, true);
+}
+
+// ---- Painel de Parceiros (Notas) ----
+function renderPainelParceiros(f){
+  const ativos = parceirosAtivos(f);
+  const limite = limiteParceiros(f);
+  return renderSecaoNotasColapsavel('parceiros-ativos', '🐾', 'Parceiros',
+    ativos.length+'/'+limite, ()=>{
+    const corpo = [el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Parceiros não têm turno nem agem sozinhos — só dão um bônus fixo, que depende do tipo e do nível de poder (iniciante/veterano/mestre). Limite de '+limite+' pro seu nível atual.')];
+    if(ativos.length===0){
+      corpo.push(el('div',{class:'empty'},'Nenhum parceiro ainda.'));
+    } else {
+      ativos.forEach((p, idx)=>{
+        const infoTipo = p.ehMontaria ? MONTARIA_TIPOS_ESPECIFICOS.find(m=>m.nome===p.tipoMontaria) : PARCEIRO_TIPOS.find(t=>t.nome===p.tipo);
+        const textoAtual = infoTipo ? infoTipo.niveis[p.poder] : '';
+        const ehAutomatizavel = ['Guardião','Combatente','Perseguidor','Vigilante','Ajudante'].includes(p.tipo);
+        const corpoCard = [
+          el('div',{class:'meta'}, p.ehMontaria ? ('Montaria: '+p.tipoMontaria+' ('+infoTipo.tamanho+')') : ('Tipo: '+p.tipo)),
+          p.origem ? el('div',{class:'meta'}, 'Origem: '+p.origem) : null,
+          el('div',{class:'desc', style:'margin-top:4px;'}, textoAtual),
+          ehAutomatizavel ? el('div',{class:'meta', style:'color:var(--gold);margin-top:4px;'}, '⚡ o bônus fixo já entra sozinho no cálculo') : null,
+          el('div',{class:'row', style:'gap:6px;margin-top:8px;'},
+            ...['iniciante','veterano','mestre'].map(nivel=>
+              el('button',{class:'btn ghost'+(p.poder===nivel?' selected':''), style:'flex:1;padding:5px;font-size:0.72rem;'+(p.poder===nivel?'border-color:var(--gold);color:var(--gold);':''), onclick:()=>alterarPoderParceiro(f, idx, nivel)}, nivel)
+            )
+          ),
+        ];
+        if(p.ehMontaria){
+          corpoCard.push(el('label',{style:'margin-top:8px;display:flex;align-items:center;gap:6px;'},
+            el('input',{type:'checkbox', checked:!!p.montadoAgora, onchange:(e)=>{ p.montadoAgora=e.target.checked; salvarPerfis(); render(); }}),
+            'Estou montado nele agora (aplica os bônus de montaria)'
+          ));
+        }
+        if(p.tipo==='Ajudante'){
+          corpoCard.push(el('div',{class:'meta', style:'margin-top:6px;'}, 'Perícias escolhidas: '+((p.periciasEscolhidas||[]).join(', ')||'nenhuma ainda')));
+        }
+        corpoCard.push(el('button',{class:'btn ghost', style:'margin-top:8px;color:var(--red-bright);', onclick:()=>{ if(confirm('Remover o parceiro "'+p.nome+'"?')) removerParceiro(f, idx); }}, 'Remover parceiro 🗑️'));
+        corpo.push(renderItemColapsavel('parceiro-'+idx, p.nome, p.ehMontaria?p.tipoMontaria:p.tipo, corpoCard));
+      });
+    }
+    if(ativos.length < limite){
+      corpo.push(el('button',{class:'btn ghost', style:'margin-top:10px;', onclick:()=>abrirAdicionarParceiro()}, '+ Adicionar Parceiro'));
+    }
+    return corpo;
+  });
+}
+function abrirAdicionarParceiro(){
+  state._adicionarParceiroPopup = {categoria:null, tipoEscolhido:null, nome:'', origem:'', poder:'iniciante', periciasEscolhidas:[]};
+  render();
+}
+function renderPopupAdicionarParceiro(f){
+  const fluxo = state._adicionarParceiroPopup;
+  const overlay = el('div',{class:'menu-overlay', onclick:(e)=>{ if(e.target===e.currentTarget){ state._adicionarParceiroPopup=null; render(); } }});
+  const sheet = el('div',{class:'menu-sheet'});
+  sheet.appendChild(el('div',{class:'wizard-title', style:'padding:6px 14px 0;'}, '🐾 Adicionar Parceiro'));
+
+  if(!fluxo.categoria){
+    sheet.appendChild(el('div',{class:'tip', style:'margin:6px 14px;'}, 'É um bicho/NPC genérico (escolhe um TIPO de ajuda) ou uma montaria específica (cavalo, grifo...)?'));
+    sheet.appendChild(el('div',{style:'padding:0 14px;display:flex;flex-direction:column;gap:8px;'},
+      el('button',{class:'btn ghost', onclick:()=>{ fluxo.categoria='generico'; render(); }}, 'Tipo genérico (Guardião, Combatente, Adepto...)'),
+      el('button',{class:'btn ghost', onclick:()=>{ fluxo.categoria='montaria'; render(); }}, 'Montaria específica (Cavalo, Grifo, Lobo...)')
+    ));
+  } else if(!fluxo.tipoEscolhido){
+    const lista = fluxo.categoria==='generico' ? PARCEIRO_TIPOS : MONTARIA_TIPOS_ESPECIFICOS;
+    sheet.appendChild(el('div',{class:'tip', style:'margin:6px 14px;'}, 'Escolha o tipo:'));
+    const grid = el('div',{style:'padding:0 14px;display:flex;flex-direction:column;gap:6px;max-height:400px;overflow-y:auto;'});
+    lista.forEach(t=>{
+      grid.appendChild(el('button',{class:'option-card', style:'text-align:left;', onclick:()=>{ fluxo.tipoEscolhido=t.nome; render(); }},
+        el('div',{class:'opt-nome'}, t.nome+(t.tamanho?' ('+t.tamanho+')':'')),
+        el('div',{class:'opt-sub'}, t.descCurta||t.obs)
+      ));
+    });
+    sheet.appendChild(grid);
+    sheet.appendChild(el('button',{class:'btn ghost', style:'margin:10px 14px 0;', onclick:()=>{ fluxo.categoria=null; render(); }}, '← Voltar'));
+  } else {
+    const lista = fluxo.categoria==='generico' ? PARCEIRO_TIPOS : MONTARIA_TIPOS_ESPECIFICOS;
+    const infoTipo = lista.find(t=>t.nome===fluxo.tipoEscolhido);
+    sheet.appendChild(el('div',{class:'tip', style:'margin:6px 14px;'},
+      el('b',{}, fluxo.tipoEscolhido), ' — ', infoTipo.niveis[fluxo.poder],
+      el('div',{style:'margin-top:4px;'}, el('button',{class:'btn ghost', style:'width:auto;padding:3px 10px;font-size:0.7rem;', onclick:()=>{ fluxo.tipoEscolhido=null; render(); }}, '← Trocar tipo'))
+    ));
+    sheet.appendChild(el('div',{style:'padding:0 14px;display:flex;flex-direction:column;gap:8px;'},
+      el('div',{},
+        el('label',{},'Nome do parceiro'),
+        el('input',{id:'parceiro-nome', type:'text', placeholder:'ex: Rex', value:fluxo.nome, oninput:(e)=>{fluxo.nome=e.target.value;}})
+      ),
+      el('div',{},
+        el('label',{},'Origem (opcional — de onde ele veio)'),
+        el('input',{id:'parceiro-origem', type:'text', placeholder:'ex: Poder Companheiro Animal, recompensa de missão...', value:fluxo.origem, oninput:(e)=>{fluxo.origem=e.target.value;}})
+      ),
+      el('div',{},
+        el('label',{},'Nível de poder'),
+        el('div',{class:'row', style:'gap:6px;'},
+          ...['iniciante','veterano','mestre'].map(nivel=>
+            el('button',{class:'btn ghost'+(fluxo.poder===nivel?' selected':''), style:'flex:1;'+(fluxo.poder===nivel?'border-color:var(--gold);color:var(--gold);':''), onclick:()=>{ fluxo.poder=nivel; render(); }}, nivel)
+          )
+        )
+      )
+    ));
+    if(fluxo.tipoEscolhido==='Ajudante'){
+      const maxPericias = fluxo.poder==='iniciante' ? 2 : 3;
+      sheet.appendChild(el('div',{style:'padding:0 14px;margin-top:8px;'},
+        el('label',{},'Quais perícias ele ajuda (até '+maxPericias+', não pode ser Luta/Pontaria)'),
+        el('input',{id:'parceiro-pericias', type:'text', placeholder:'ex: Diplomacia, Intuição', value:(fluxo.periciasEscolhidas||[]).join(', '), oninput:(e)=>{ fluxo.periciasEscolhidasTxt=e.target.value; }, onchange:(e)=>{
+          fluxo.periciasEscolhidas = e.target.value.split(',').map(s=>s.trim()).filter(Boolean).slice(0,maxPericias);
+        }})
+      ));
+    }
+    sheet.appendChild(el('button',{class:'btn', style:'margin:14px 14px 0;width:calc(100% - 28px);', onclick:()=>{
+      if(!fluxo.nome.trim()){ flashMsg('Dá um nome pro parceiro primeiro.'); return; }
+      const dados = {
+        nome: fluxo.nome.trim(),
+        tipo: fluxo.categoria==='generico' ? fluxo.tipoEscolhido : 'Montaria',
+        ehMontaria: fluxo.categoria==='montaria',
+        tipoMontaria: fluxo.categoria==='montaria' ? fluxo.tipoEscolhido : null,
+        poder: fluxo.poder,
+        origem: fluxo.origem.trim(),
+        montadoAgora: false,
+        periciasEscolhidas: fluxo.tipoEscolhido==='Ajudante' ? (fluxo.periciasEscolhidas||[]) : undefined,
+      };
+      const ok = adicionarParceiro(f, dados);
+      if(ok){
+        flashMsg('🐾 "'+dados.nome+'" adicionado!');
+        state._adicionarParceiroPopup = null;
+        render();
+      }
+    }}, '✓ Adicionar Parceiro'));
+  }
+  sheet.appendChild(el('button',{class:'menu-close', style:'margin-top:14px;', onclick:()=>{ state._adicionarParceiroPopup=null; render(); }}, 'Cancelar'));
+  overlay.appendChild(sheet);
+  return overlay;
 }
 
 function renderPainelCondicoes(f){
