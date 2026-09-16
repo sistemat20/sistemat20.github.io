@@ -275,6 +275,87 @@ function renderLevelUpPanel(f){
   return wrap;
 }
 
+// ---- Descer de Nível (desfazer um level up) ----
+// Só é possível porque historicoNiveis guarda EXATAMENTE quanto de PV/PM cada nível deu e qual
+// poder foi escolhido nele — sem isso teria que adivinhar quanto tirar. Reverte na ordem inversa
+// do aplicarLevelUp: poder escolhido, aumento de atributo, perícia de Treinamento em Perícia,
+// PV/PM, e por fim o nível na classe.
+function podeDescerNivel(f){
+  const historico = f.historicoNiveis || [];
+  if(historico.length===0) return {pode:false, motivo:'Não há histórico de level up pra desfazer. Personagens que subiram de nível antes dessa função existir não têm o registro de quanto ganharam em cada nível.'};
+  if(nivelTotal(f)<=1) return {pode:false, motivo:'Já está no nível 1 — não dá pra descer mais.'};
+  return {pode:true, ultimo: historico[historico.length-1]};
+}
+async function descerNivel(f){
+  const check = podeDescerNivel(f);
+  if(!check.pode){ flashMsg(check.motivo); return false; }
+  const ultimo = check.ultimo;
+
+  // 1) Remove o poder que foi escolhido nesse nível (se houve)
+  if(ultimo.poder){
+    const idx = (f.poderesClasse||[]).findIndex(p=>
+      p.classe===ultimo.poder.classe && p.nivel===ultimo.poder.nivel && p.nome===ultimo.poder.nome
+    );
+    if(idx>=0){
+      const poderRemovido = f.poderesClasse[idx];
+      // 1a) Se era "Aumento de Atributo", desfaz o +1 no atributo
+      if(poderRemovido.nome==='Aumento de Atributo' && poderRemovido.sub){
+        const mapaAtributo = {'Força':'for','Destreza':'des','Constituição':'con','Inteligência':'int','Sabedoria':'sab','Carisma':'car'};
+        const chave = mapaAtributo[poderRemovido.sub];
+        if(chave){
+          f[chave] = (parseInt(f[chave])||0) - 1;
+          registrarLog(f, 'Desfeito o Aumento de Atributo: –1 em '+poderRemovido.sub+' (agora '+f[chave]+')');
+          // Se era Inteligência, tira também a perícia extra pendente que ele gerou
+          if(chave==='int' && f.periciasExtraIntPendentes>0){
+            f.periciasExtraIntPendentes -= 1;
+          }
+        }
+      }
+      // 1b) Se era "Treinamento em Perícia", tira o treino que ele concedeu
+      if(poderRemovido.nome==='Treinamento em Perícia' && poderRemovido.sub){
+        const nb = nomeBasePericia(poderRemovido.sub);
+        const idxPericia = (f.periciasTreinadas||[]).indexOf(nb);
+        if(idxPericia>=0){
+          f.periciasTreinadas.splice(idxPericia,1);
+          registrarLog(f, 'Perdeu o treino em '+nb+' (vinha do Treinamento em Perícia desse nível)');
+        }
+      }
+      f.poderesClasse.splice(idx,1);
+    }
+  }
+
+  // 2) Tira o PV/PM que esse nível deu (usando o valor EXATO registrado, não recalculando)
+  const pvGanho = parseInt(ultimo.pvGanho)||0;
+  const pmGanho = parseInt(ultimo.pmGanho)||0;
+  f.pvmax = Math.max(1, (parseInt(f.pvmax)||0) - pvGanho);
+  f.pmmax = Math.max(0, (parseInt(f.pmmax)||0) - pmGanho);
+  // O atual nunca pode ficar acima do novo máximo (nem negativo)
+  f.pvatual = Math.max(0, Math.min(parseInt(f.pvatual)||0, f.pvmax));
+  f.pmatual = Math.max(0, Math.min(parseInt(f.pmatual)||0, f.pmmax));
+
+  // 3) Desce o nível na classe certa (ou remove a classe inteira, se era nível 1 dela —
+  // caso de multiclasse: a pessoa pegou 1 nível de uma classe nova e quer desfazer)
+  const entrada = (f.classesNiveis||[]).find(c=>c.classe===ultimo.classe);
+  if(entrada){
+    if(entrada.nivel<=1){
+      f.classesNiveis = f.classesNiveis.filter(c=>c.classe!==ultimo.classe);
+      registrarLog(f, 'Removeu a classe '+ultimo.classe+' (era o único nível dela)');
+      // Escolhas exclusivas dessa classe deixam de fazer sentido
+      if(ultimo.classe==='Arcanista'){ f.arcanistaCaminho=null; f.arcanistaLinhagem=null; }
+    } else {
+      entrada.nivel -= 1;
+    }
+  }
+
+  // 4) Tira a entrada do histórico (o passo que impede desfazer duas vezes o mesmo nível)
+  f.historicoNiveis.pop();
+
+  registrarLog(f, 'Desceu de nível: '+ultimo.classe+' nível '+ultimo.nivel+' desfeito (–'+pvGanho+' PV, –'+pmGanho+' PM)');
+  await salvarPerfis();
+  render();
+  return true;
+}
+
 async function aplicarLevelUp(f){
   const lv = state.levelUp;
   const entradaAtual = (f.classesNiveis||[]).find(c=>c.classe===lv.classeEscolhida);

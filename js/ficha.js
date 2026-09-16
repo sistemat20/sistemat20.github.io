@@ -96,6 +96,24 @@ function renderMenuOverlay(){
   }},
     el('span',{class:'ico'}, '↩️'), el('span',{}, 'Desfazer Última Alteração')
   ));
+  // Descer de Nível — ação rara e destrutiva, então fica no menu (não como botão sempre visível
+  // ao lado do Level Up). Desabilitado com explicação quando não dá pra usar.
+  const checkDescer = podeDescerNivel(fichaAtual());
+  sheet.appendChild(el('button',{class:'menu-item', style: checkDescer.pode ? '' : 'opacity:0.45;', onclick:()=>{
+    const f = fichaAtual();
+    const check = podeDescerNivel(f);
+    if(!check.pode){ flashMsg(check.motivo); return; }
+    const u = check.ultimo;
+    const oQueVolta = [
+      '– '+(u.pvGanho||0)+' PV e –'+(u.pmGanho||0)+' PM',
+      u.poder ? 'remove o poder "'+u.poder.nome+'"' : null,
+    ].filter(Boolean).join(', ');
+    if(!confirm('Desfazer o nível '+u.nivel+' de '+u.classe+'?\n\nIsso vai: '+oQueVolta+'.\n\nSó dá pra desfazer um nível por vez, do mais recente pro mais antigo.')) return;
+    state._menuAberto = false;
+    descerNivel(f);
+  }},
+    el('span',{class:'ico'}, '⬇️'), el('span',{}, 'Descer de Nível'+(checkDescer.pode ? ' ('+checkDescer.ultimo.classe+' '+checkDescer.ultimo.nivel+')' : ''))
+  ));
   sheet.appendChild(el('button',{class:'menu-item', onclick:()=>{ state._menuAberto=false; baixarBackupFicha(fichaAtual()); }},
     el('span',{class:'ico'}, '💾'), el('span',{}, 'Baixar Cópia de Segurança')
   ));
