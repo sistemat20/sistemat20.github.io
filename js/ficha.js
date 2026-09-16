@@ -1526,9 +1526,52 @@ function renderPainelLembretesMecanicos(f){
 function renderPainelParceiros(f){
   const ativos = parceirosAtivos(f);
   const limite = limiteParceiros(f);
+  const temPoderFamiliar = nomesPoderesConhecidos(f).includes('Familiar');
+  const famAtual = familiarAtivo(f);
   return renderSecaoNotasColapsavel('parceiros-ativos', '🐾', 'Parceiros',
-    ativos.length+'/'+limite, ()=>{
-    const corpo = [el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Parceiros não têm turno nem agem sozinhos — só dão um bônus fixo, que depende do tipo e do nível de poder (iniciante/veterano/mestre). Limite de '+limite+' pro seu nível atual.')];
+    (ativos.length+'/'+limite)+(famAtual?' + familiar':''), ()=>{
+    const corpo = [];
+    // Familiar Arcano — sistema separado dos parceiros comuns (vem do poder "Familiar" do
+    // Arcanista; é um bicho com UM efeito fixo, sem níveis de poder). Só aparece pra quem tem
+    // o poder, pra não poluir a ficha de quem não usa.
+    if(temPoderFamiliar){
+      corpo.push(el('div',{class:'grupo-rot', style:'font-family:Cinzel,serif;font-size:0.64rem;color:var(--gold);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;'}, '✨ Familiar Arcano'));
+      if(famAtual){
+        corpo.push(renderItemColapsavel('familiar-'+famAtual.nome, famAtual.nome, famAtual.auto?'⚡ automático':'📖 referência', [
+          el('div',{class:'desc'}, famAtual.efeito),
+          famAtual.auto ? el('div',{class:'meta', style:'color:var(--gold);margin-top:4px;'}, '⚡ já entra sozinho no cálculo') : null,
+          el('button',{class:'btn ghost', style:'margin-top:8px;', onclick:()=>{ state._escolhendoFamiliar = true; render(); }}, 'Trocar familiar'),
+          el('button',{class:'btn ghost', style:'margin-top:6px;color:var(--red-bright);', onclick:()=>{
+            if(!confirm('Remover o familiar '+famAtual.nome+'?')) return;
+            registrarLog(f, 'Perdeu o familiar: '+famAtual.nome);
+            f.familiarEscolhido = null; salvarPerfis(); render();
+          }}, 'Remover familiar 🗑️')
+        ]));
+      } else if(!state._escolhendoFamiliar){
+        corpo.push(el('div',{class:'empty', style:'margin-bottom:6px;'},'Você tem o poder Familiar mas ainda não escolheu qual bicho.'));
+        corpo.push(el('button',{class:'btn ghost', onclick:()=>{ state._escolhendoFamiliar=true; render(); }}, '+ Escolher Familiar'));
+      }
+      if(state._escolhendoFamiliar){
+        corpo.push(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Cada familiar dá um efeito fixo. Os marcados com ⚡ já entram sozinhos nos cálculos da ficha.'));
+        const grid = el('div',{class:'option-grid'});
+        FAMILIARES_ARCANOS.forEach(fam=>{
+          grid.appendChild(el('button',{class:'option-card'+(f.familiarEscolhido===fam.nome?' selected':''), onclick:()=>{
+            f.familiarEscolhido = fam.nome;
+            registrarLog(f, 'Familiar escolhido: '+fam.nome);
+            state._escolhendoFamiliar = false;
+            salvarPerfis(); render();
+          }},
+            el('div',{class:'opt-nome'}, fam.nome+(fam.auto?' ⚡':'')),
+            el('div',{class:'opt-sub'}, fam.efeito)
+          ));
+        });
+        corpo.push(grid);
+        corpo.push(el('button',{class:'btn ghost', style:'margin-top:8px;', onclick:()=>{ state._escolhendoFamiliar=false; render(); }}, 'Cancelar'));
+      }
+      corpo.push(el('div',{class:'secao-divisor', style:'margin:12px 0;'}));
+      corpo.push(el('div',{class:'grupo-rot', style:'font-family:Cinzel,serif;font-size:0.64rem;color:var(--gold);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;'}, '🐾 Parceiros'));
+    }
+    corpo.push(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Parceiros não têm turno nem agem sozinhos — só dão um bônus fixo, que depende do tipo e do nível de poder (iniciante/veterano/mestre). Limite de '+limite+' pro seu nível atual.'));
     if(ativos.length===0){
       corpo.push(el('div',{class:'empty'},'Nenhum parceiro ainda.'));
     } else {

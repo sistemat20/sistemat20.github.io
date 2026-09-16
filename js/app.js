@@ -154,11 +154,23 @@ function custoPMAjustado(f, magia){
   return Math.max(1, custo);
 }
 // CD de resistência de uma magia específica (considera bônus de esotéricos arcanos por escola)
+// Bônus de CD vindo do familiar arcano (Borboleta/Cobra/Lagarto) — cada um aumenta em +1 a CD
+// de UM tipo de teste de resistência. O campo `resistencia` da magia diz qual teste ela usa
+// ("Vontade anula", "Reflexos reduz à metade"...), então dá pra aplicar só no tipo certo.
+function bonusCdFamiliar(f, magia){
+  const fam = familiarAtivo(f);
+  if(!fam) return 0;
+  const resistenciaDaMagia = (magia && magia.resistencia) || '';
+  const mapa = {'Borboleta':'Vontade', 'Cobra':'Fortitude', 'Lagarto':'Reflexos'};
+  const tipoDoFamiliar = mapa[fam.nome];
+  if(!tipoDoFamiliar) return 0;
+  return resistenciaDaMagia.includes(tipoDoFamiliar) ? 1 : 0;
+}
 function cdMagiaEspecifica(f, magia){
   const base = cdMagias(f);
   if(base==null) return null;
   const ehArcanaOuUniversal = magia.trad==='Arcana' || magia.trad==='Universal';
-  return base + (ehArcanaOuUniversal ? bonusCdArcana(f, magia.e) : 0);
+  return base + (ehArcanaOuUniversal ? bonusCdArcana(f, magia.e) : 0) + bonusCdFamiliar(f, magia);
 }
 // Limite de PM que pode gastar numa única magia/habilidade de custo variável (regra geral do
 // livro, pág. de Classes — o mesmo exemplo do livro: "um arcanista de 11º nível pode gastar até
@@ -473,7 +485,14 @@ function periciaValor(f, p){
   // Fé Guerreira (poder concedido de Arsenal, achado na mesma auditoria): "usa Sabedoria para
   // Guerra em vez de Inteligência" — mesmo padrão de troca já usado acima pra Adestramento.
   const usaSabEmGuerra = p.nome==='Guerra' && listaPoderesConcedidos(f).some(pc=>pc && pc.nome==='Fé Guerreira');
-  const attrKey = usaDesEmAtletismo ? 'des' : usaSabEmAdestramento ? 'sab' : usaSabEmGuerra ? 'sab' : (p.attr||'').toLowerCase().slice(0,3); // 'For'->'for','Des'->'des', etc.
+  // Familiar Rato: "pode usar seu atributo-chave (de magia) em Fortitude, no lugar de
+  // Constituição" — mesma mecânica de troca de atributo já usada acima. Implementado como o
+  // MAIOR dos dois, já que a regra diz "pode usar" (a escolha óbvia é sempre a melhor).
+  const famRato = familiarAtivo(f);
+  const usaChaveMagiaEmFortitude = p.nome==='Fortitude' && famRato && famRato.nome==='Rato' && atributoChaveMagia(f);
+  const attrKey = usaDesEmAtletismo ? 'des' : usaSabEmAdestramento ? 'sab' : usaSabEmGuerra ? 'sab'
+    : usaChaveMagiaEmFortitude ? (atributoEfetivo(f, atributoChaveMagia(f)) > atributoEfetivo(f,'con') ? atributoChaveMagia(f) : 'con')
+    : (p.attr||'').toLowerCase().slice(0,3); // 'For'->'for','Des'->'des', etc.
   const attrVal = atributoEfetivo(f, attrKey);
   const treinada = periciasTreinadasComDivindade(f).has(p.nome);
   const treino = treinada ? bonusTreinoPericia(nivel) : 0;
@@ -574,6 +593,10 @@ function bonusPericiaDeParceiros(f, periciaNome){
       bonus += p.poder==='mestre' ? 4 : 2;
     }
   });
+  // Familiar Gato: "+2 em Furtividade" (a visão no escuro que ele também dá não é calculável,
+  // fica só no texto do efeito).
+  const fam = familiarAtivo(f);
+  if(fam && fam.nome==='Gato' && periciaNome==='Furtividade') bonus += 2;
   return bonus;
 }
 
@@ -1131,7 +1154,11 @@ function pvMaxEfetivo(f){
     const temHerancaSuperior = (f.poderesClasse||[]).some(p=>p.nome==='Herança Superior');
     bonusLinhagemDraconica = (parseInt(f.car)||0) * (temHerancaSuperior ? 2 : 1);
   }
-  return base + bonusVitalidade + bonusDuroComoPedra + bonusLinhagemDraconica + bonusItens;
+  // Familiar Sapo: "soma seu atributo-chave (de magia) ao seu total de pontos de vida".
+  const famSapo = familiarAtivo(f);
+  const chaveMagiaPV = atributoChaveMagia(f);
+  const bonusFamiliarSapo = (famSapo && famSapo.nome==='Sapo' && chaveMagiaPV) ? atributoEfetivo(f, chaveMagiaPV) : 0;
+  return base + bonusVitalidade + bonusDuroComoPedra + bonusLinhagemDraconica + bonusFamiliarSapo + bonusItens;
 }
 function pmMaxEfetivo(f){
   const base = parseInt(f.pmmax)||0;

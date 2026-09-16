@@ -66,6 +66,30 @@ const PARCEIRO_TIPOS = [
 function MT(nome, tamanho, obs, iniciante, veterano, mestre){
   return {nome, tamanho, obs, niveis:{iniciante, veterano, mestre}};
 }
+// Familiares Arcanos (Livro Básico, pág. 37) — sistema SEPARADO dos parceiros comuns: cada
+// familiar é um bicho específico com UM efeito fixo (não tem iniciante/veterano/mestre). Vem do
+// poder "Familiar" do Arcanista. Se morre, você fica atordoado 1 rodada; invocar outro custa 1
+// dia e T$ 100. O campo `auto` marca os que o app calcula sozinho.
+const FAMILIARES_ARCANOS = [
+  {nome:'Borboleta', efeito:'A CD dos testes de Vontade pra resistir às suas magias aumenta em +1.', auto:true},
+  {nome:'Cobra', efeito:'A CD dos testes de Fortitude pra resistir às suas magias aumenta em +1.', auto:true},
+  {nome:'Coruja', efeito:'Ao lançar uma magia de alcance toque, pode pagar 1 PM pra aumentar o alcance pra curto.', auto:false},
+  {nome:'Corvo', efeito:'Num teste de Misticismo ou Vontade, pode pagar 1 PM pra rolar dois dados e usar o melhor.', auto:false},
+  {nome:'Falcão', efeito:'Não pode ser surpreendido e nunca fica desprevenido.', auto:false},
+  {nome:'Gato', efeito:'Recebe visão no escuro e +2 em Furtividade.', auto:true},
+  {nome:'Lagarto', efeito:'A CD dos testes de Reflexos pra resistir às suas magias aumenta em +1.', auto:true},
+  {nome:'Morcego', efeito:'Adquire percepção às cegas em alcance curto.', auto:false},
+  {nome:'Rato', efeito:'Pode usar seu atributo-chave de magia em Fortitude, no lugar de Constituição.', auto:true},
+  {nome:'Sapo', efeito:'Soma seu atributo-chave de magia ao seu total de pontos de vida (cumulativo).', auto:true},
+];
+function familiarAtivo(f){
+  // Só vale se o personagem realmente tem o poder Familiar (senão um familiar "órfão" ficaria
+  // dando bônus mesmo depois de trocar/perder o poder, por exemplo num downlevel).
+  if(!f.familiarEscolhido) return null;
+  if(!nomesPoderesConhecidos(f).includes('Familiar')) return null;
+  return FAMILIARES_ARCANOS.find(x=>x.nome===f.familiarEscolhido) || null;
+}
+
 const MONTARIA_TIPOS_ESPECIFICOS = [
   MT('Cavalo', 'Grande', 'A montaria mais comum. Também vale pra pôneis (Médio).',
     'Deslocamento 12m; +1 ação de movimento extra (só pra se deslocar).',
