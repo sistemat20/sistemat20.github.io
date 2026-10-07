@@ -774,7 +774,7 @@ function liberarMaos(f, maosNecessarias){
       flashMsg('"'+arma.nome+'" foi para a mochila para liberar as mãos.');
     } else if(f.esotericos && f.esotericos.length>0){
       const eso = f.esotericos.shift();
-      f.equip.push({tipo:'esoterico', ref:eso.refBase||eso.nome, item:eso.nome, qtd:'1', carga:String(eso.esp||1), superior:eso.superior, efeitoExtra:eso.efeitoExtra, melhoriasTxt:eso.melhoriasTxt});
+      f.equip.push({tipo:'esoterico', ref:eso.refBase||eso.nome, item:eso.nome, qtd:'1', carga:String(eso.esp||1), superior:eso.superior, efeitoExtra:eso.efeitoExtra, melhoriasTxt:eso.melhoriasTxt, magiaHarmonizada:eso.magiaHarmonizada||null});
       flashMsg('"'+eso.nome+'" foi para a mochila para liberar as mãos.');
     } else if(f.escudo){
       f.equip.push({tipo:'escudo', ref:f.escudo.refBase||f.escudo.nome, item:f.escudo.nome, qtd:'1', carga:String(f.escudo.esp), superior:f.escudo.superior, bonusDefExtra:f.escudo.bonusDefExtra, bonusPenExtra:f.escudo.bonusPenExtra, melhoriasTxt:f.escudo.melhoriasTxt});
@@ -846,7 +846,7 @@ function guardarEsotericoNaMochila(idx){
   const eso = f.esotericos[idx];
   if(!eso) return;
   f.esotericos.splice(idx,1);
-  f.equip.push({tipo:'esoterico', ref:eso.refBase||eso.nome, item:eso.nome, qtd:'1', carga:String(eso.esp||1), superior:eso.superior, efeitoExtra:eso.efeitoExtra, melhoriasTxt:eso.melhoriasTxt});
+  f.equip.push({tipo:'esoterico', ref:eso.refBase||eso.nome, item:eso.nome, qtd:'1', carga:String(eso.esp||1), superior:eso.superior, efeitoExtra:eso.efeitoExtra, melhoriasTxt:eso.melhoriasTxt, magiaHarmonizada:eso.magiaHarmonizada||null});
   salvarPerfis();
   flashMsg('"'+eso.nome+'" guardado na mochila.');
   render();
@@ -864,7 +864,8 @@ function equiparEsotericoDaMochila(idx){
   f.esotericos.push({
     nome: row.superior?row.item:it.n, refBase:it.n, esp:it.esp, maos:it.maos||1,
     efeito: [...efeitoBase, ...efeitoExtra], escolaFoco:null, equipado:true,
-    superior:!!row.superior, efeitoExtra:efeitoExtra, melhoriasTxt:row.melhoriasTxt||null
+    superior:!!row.superior, efeitoExtra:efeitoExtra, melhoriasTxt:row.melhoriasTxt||null,
+    magiaHarmonizada: row.magiaHarmonizada||null
   });
   removerItemMochila(f, idx);
   salvarPerfis();
@@ -2204,6 +2205,26 @@ function renderItensEquipados(){
       const efeitoTxt = (buscarItemEmpunhavel(eso.refBase||eso.nome)||{}).desc;
       if(efeitoTxt) card.appendChild(el('div',{class:'desc'}, efeitoTxt));
       if(eso.superior && eso.melhoriasTxt) card.appendChild(el('div',{class:'meta', style:'color:var(--gold);'}, '⭐ '+eso.melhoriasTxt));
+      // Harmonizado: mostra qual magia está com o desconto de PM ativo, e deixa trocar caso o
+      // item tenha vindo de antes (ou de presente) sem a magia definida.
+      const temHarmonizado = (eso.efeito||[]).some(ef=>ef.tipo==='custo_pm_magia');
+      if(temHarmonizado){
+        if(eso.magiaHarmonizada){
+          card.appendChild(el('div',{class:'meta', style:'color:var(--gold);'}, '🎵 Harmonizado com "'+eso.magiaHarmonizada+'" — essa magia custa 1 PM a menos.'));
+        }
+        const conhecidas = f.magias||[];
+        if(conhecidas.length){
+          const selH = el('select',{onchange:(e)=>{ eso.magiaHarmonizada=e.target.value||null; salvarPerfis(); render(); }});
+          selH.appendChild(el('option',{value:''}, eso.magiaHarmonizada ? 'Trocar a magia harmonizada...' : 'Escolha a magia harmonizada...'));
+          conhecidas.forEach(m=> selH.appendChild(el('option',{value:m.n, selected: eso.magiaHarmonizada===m.n}, m.n)));
+          card.appendChild(selH);
+        } else if(!eso.magiaHarmonizada){
+          card.appendChild(el('div',{class:'meta'}, '🎵 Harmonizado: escolha a magia quando o personagem conhecer alguma.'));
+        }
+      }
+      if((eso.efeito||[]).some(ef=>ef.tipo==='defesa_esoterico')){
+        card.appendChild(el('div',{class:'meta', style:'color:var(--gold);'}, '🛡️ Vigilante: +2 na Defesa (já somado no total da ficha).'));
+      }
       const precisaEscola = (eso.efeito||[]).some(ef=>ef.tipo==='cd_arcana_escola');
       if(precisaEscola){
         const sel = el('select',{onchange:(e)=>{ eso.escolaFoco=e.target.value; salvarPerfis(); render(); }});
@@ -3511,6 +3532,22 @@ function renderPopupUsarMagia(f){
     + ')'
     + (passouLimite ? ' ⚠ o total atual passa do limite!' : '')
   ));
+  // Deixa claro de onde veio o desconto quando um esotérico Harmonizado cobre justo essa magia —
+  // sem isso o custo base aparecia menor do que o do círculo, sem explicação nenhuma.
+  const esoHarmonizado = esotericosEquipados(f).find(e=> (e.efeito||[]).some(ef=>ef.tipo==='custo_pm_magia') && e.magiaHarmonizada===s.n);
+  if(esoHarmonizado){
+    sheet.appendChild(el('div',{class:'tip', style:'margin:0 14px 6px;color:var(--gold);'}, '🎵 '+esoHarmonizado.nome+' está harmonizado com esta magia: –1 PM já aplicado no custo base.'));
+  }
+  // Mesma ideia pros itens mágicos do Cap. 8 que mexem no custo (Cajado do Poder, Símbolo
+  // abençoado, Joia da Alma, Chifre de Unicórnio).
+  const ehArcanistaPopup = (f.classesNiveis||[]).some(c=>c.classe==='Arcanista');
+  efeitosMagicosAtivos(f).forEach(ef=>{
+    let txt = null;
+    if(ef.tipo==='custo_pm_tradicao' && s.trad===ef.tradicao) txt = ef._item+': magias '+ef.tradicao.toLowerCase()+'s custam '+ef.valor+' PM (já aplicado).';
+    if(ef.tipo==='custo_pm_magia_lista' && (ef.magias||[]).includes(s.n)) txt = ef._item+': esta magia custa '+ef.valor+' PM (já aplicado).';
+    if(ef.tipo==='custo_pm_zero_arcanista' && ehArcanistaPopup && (s.trad==='Arcana'||s.trad==='Universal')) txt = ef._item+': magias arcanas custam 0 PM — só os aprimoramentos é que pesam.';
+    if(txt) sheet.appendChild(el('div',{class:'tip', style:'margin:0 14px 6px;color:var(--gold);'}, '✦ '+txt));
+  });
 
   // Magia Pungente (Arcanista) — "pode pagar 1 PM pra aumentar em +2 a CD". Achado numa
   // auditoria; só aparece pra quem realmente tem o poder.

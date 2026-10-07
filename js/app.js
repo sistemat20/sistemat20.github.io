@@ -81,6 +81,8 @@ function bonusCdArcana(f, escola){
   if(f.arcanistaLinhagem==='Linhagem Feérica' && (f.poderesClasse||[]).some(p=>p.nome==='Herança Aprimorada') && (escola==='Encantamento' || escola==='Ilusão')){
     total += 2;
   }
+  // Itens mágicos do Cap. 8 com bônus fixo de CD (ex: Cajado do Poder, +3 no total)
+  efeitosMagicosAtivos(f).forEach(ef=>{ if(ef.tipo==='cd_arcana_geral') total += ef.valor; });
   return total;
 }
 function limitePMExtraArcana(f){
@@ -88,6 +90,8 @@ function limitePMExtraArcana(f){
   esotericosEquipados(f).forEach(e=>{
     (e.efeito||[]).forEach(ef=>{ if(ef.tipo==='limite_pm_arcana') total += ef.valor; });
   });
+  // Itens mágicos do Cap. 8 que também mexem no limite (ex: Cajado do Poder conta como cajado arcano)
+  efeitosMagicosAtivos(f).forEach(ef=>{ if(ef.tipo==='limite_pm_arcana') total += ef.valor; });
   return total;
 }
 // Alguns esotéricos (Bolsa de pó, Tomo de Guerra) só dão o PM extra quando a magia é de uma
@@ -131,6 +135,31 @@ function deslocamentosAlternativos(f){
   return resultado;
 }
 
+// Itens mágicos do Cap. 8 (acessórios, artefatos, armas específicas) que o personagem está
+// usando agora — vestidos nos slots ativos, empunhados como arma/esotérico, ou vestindo como
+// armadura/escudo. O nome pode vir com sufixo de item superior ("Cajado do Poder (Certeira)"),
+// então compara pelo nome limpo e também pelo item-base do catálogo.
+function itensMagicosEquipadosNomes(f){
+  const nomes = new Set();
+  const limpar = (n)=> String(n||'').replace(/\s*\([^()]*\)\s*$/,'').trim();
+  const por = (n)=>{ const l = limpar(n); if(l) nomes.add(l); };
+  itensVestidosAtivos(f).forEach(fonte=> por(fonte.nome));
+  (f.armas||[]).filter(a=>a && a.equipado!==false).forEach(a=>{ por(a.nome); por(a.refBase); });
+  esotericosEquipados(f).forEach(e=>{ por(e.nome); por(e.refBase); });
+  if(f.armadura && f.armadura.equipado!==false){ por(f.armadura.nome); por(f.armadura.refBase); }
+  if(f.escudo && f.escudo.equipado!==false){ por(f.escudo.nome); por(f.escudo.refBase); }
+  return [...nomes];
+}
+function efeitosMagicosAtivos(f){
+  if(typeof EFEITOS_MAGICOS_AUTOMATICOS==='undefined') return [];
+  const out = [];
+  itensMagicosEquipadosNomes(f).forEach(n=>{
+    const efs = EFEITOS_MAGICOS_AUTOMATICOS[n];
+    if(efs) efs.forEach(ef=> out.push({...ef, _item:n}));
+  });
+  return out;
+}
+
 function custoPMAjustado(f, magia){
   let custo = custoPM(magia.c);
   if(/pessoal/i.test(magia.alcance||'')){
@@ -151,7 +180,32 @@ function custoPMAjustado(f, magia){
   // Condição Alquebrado: "custo em PM das habilidades aumenta em +1" — a condição existia na
   // lista e podia ser marcada na ficha, mas o efeito nunca era aplicado em lugar nenhum.
   if(condicoesAtivas(f).includes('Alquebrado')) custo += 1;
+  // Melhoria Harmonizado (esotérico): "escolha uma magia — o custo dela cai em –1 PM". A magia
+  // escolhida fica guardada em `magiaHarmonizada` no item, definida na hora de forjar o esotérico.
+  esotericosEquipados(f).forEach(e=>{
+    const temHarmonizado = (e.efeito||[]).some(ef=>ef.tipo==='custo_pm_magia');
+    if(temHarmonizado && e.magiaHarmonizada && e.magiaHarmonizada===magia.n) custo -= 1;
+  });
+  // Itens mágicos do Cap. 8 que reduzem o custo de PM (Símbolo abençoado, Cajado do Poder,
+  // Chifre de Unicórnio, Joia da Alma) — antes só existiam como texto na descrição do item.
+  const ehArcanista = (f.classesNiveis||[]).some(c=>c.classe==='Arcanista');
+  let custoZerado = false;
+  efeitosMagicosAtivos(f).forEach(ef=>{
+    if(ef.tipo==='custo_pm_tradicao' && magia.trad===ef.tradicao) custo += ef.valor;
+    if(ef.tipo==='custo_pm_magia_lista' && (ef.magias||[]).includes(magia.n)) custo += ef.valor;
+    if(ef.tipo==='custo_pm_zero_arcanista' && ehArcanista && (magia.trad==='Arcana' || magia.trad==='Universal')) custoZerado = true;
+  });
+  if(custoZerado) return 0;
   return Math.max(1, custo);
+}
+// Melhoria Vigilante (esotérico): "+2 na Defesa". Separada das outras porque a Defesa vem de
+// armadura/escudo, e o esotérico não passava por lá.
+function bonusDefesaEsotericos(f){
+  let total = 0;
+  esotericosEquipados(f).forEach(e=>{
+    (e.efeito||[]).forEach(ef=>{ if(ef.tipo==='defesa_esoterico') total += ef.valor; });
+  });
+  return total;
 }
 // CD de resistência de uma magia específica (considera bônus de esotéricos arcanos por escola)
 // Bônus de CD vindo do familiar arcano (Borboleta/Cobra/Lagarto) — cada um aumenta em +1 a CD
@@ -1039,7 +1093,7 @@ function defesaTotal(f){
   // Armadura pesada: você NÃO aplica Destreza (ou Carisma, no caso acima) na Defesa (pág. 157)
   const des = usaArmaduraPesada(f) ? 0 : atributoBaseDefesa;
   const outros = parseInt(f.defOutros)||0;
-  return 10 + des + armadura + escudo + outros + bonusDefesaPoderes(f) + bonusDefesaRaca(f) + bonusCondicoesDefesa(f) + bonusDefesaTormenta(f) + bonusDefesaParceiros(f);
+  return 10 + des + armadura + escudo + outros + bonusDefesaPoderes(f) + bonusDefesaRaca(f) + bonusCondicoesDefesa(f) + bonusDefesaTormenta(f) + bonusDefesaParceiros(f) + bonusDefesaEsotericos(f);
 }
 // Deslocamento reduzido em 3m ao usar armadura pesada
 // Sobrecarga: ultrapassar o limite de carga dá -5 de penalidade de armadura e -3m de deslocamento

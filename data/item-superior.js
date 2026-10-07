@@ -36,9 +36,11 @@ const MELHORIAS = [
   ME("Selada", ['armadura'], "+1 em testes de resistência (só armadura pesada)"),
   ME("Canalizador", ['esoterico'], "+1 no limite de PM que pode gastar em magias", {tipo:'limite_pm_arcana', valor:1}),
   ME("Energético", ['esoterico'], "+1d6 no dano de magias do mesmo tipo do catalisador usado"),
-  ME("Harmonizado", ['esoterico'], "Escolha uma magia: seu custo cai em –1 PM"),
+  ME("Harmonizado", ['esoterico'], "Escolha uma magia: seu custo cai em –1 PM", {tipo:'custo_pm_magia', valor:-1}),
   ME("Poderoso", ['esoterico'], "+1 na CD para resistir às suas magias", {tipo:'cd_arcana_geral', valor:1}),
-  ME("Vigilante", ['esoterico'], "+2 na Defesa"),
+  ME("Vigilante", ['esoterico'], "+2 na Defesa", {tipo:'defesa_esoterico', valor:2}),
+  // Deuses e Heróis — melhoria de esotérico que não está no Livro Básico
+  ME("Potencializador", ['esoterico'], "O esotérico tem duas gemas místicas que, combinadas, deixam você canalizar mais mana do que normalmente conseguiria. O máximo de PM que você pode gastar em magias aumenta em +2. (Deuses e Heróis)", {tipo:'limite_pm_arcana', valor:2}, "Canalizador"),
   ME("Aprimorado", ['ferramenta','vestuario'], "+1 na perícia que o item já modifica"),
   ME("Banhado a ouro", ['qualquer'], "+2 em Diplomacia"),
   ME("Cravejado de gemas", ['qualquer'], "+2 em Enganação"),
@@ -137,7 +139,15 @@ const MATERIAIS_ESPECIAIS = [
     arma: "+2 de dano em espíritos e mortos-vivos; conta como mágica pra acertar essas criaturas.",
     armadura: "Redução de dano contra espíritos/mortos-vivos: leve/escudo 5, pesada 10.",
     escudo: "Redução de dano contra espíritos/mortos-vivos: leve/escudo 5, pesada 10.",
+    esoterico: "Suas magias de dano contam como mágicas pra vencer a resistência de espíritos e mortos-vivos, e causam +2 de dano nessas criaturas.",
     geral: "Por ser um revestimento, pode ser combinada com um 2º material especial (cada um conta como uma melhoria separada).",
+  }),
+  MAT("Quitina Razza", null, null, null, null, null, {
+    arma: "Exige uma peça. Sempre que rolar o resultado máximo num dado do dano básico da arma, role um dado extra, repetindo a cada resultado máximo.",
+    armadura: "Leve (1 peça): +2 Percepção e +1 no bônus de Defesa. Pesada (3 peças): +5 Percepção e +2 no bônus de Defesa.",
+    escudo: "Exige uma peça: +2 em Percepção e +1 no bônus de Defesa.",
+    esoterico: "Exige uma peça. Sempre que rolar o resultado máximo num dado do dano básico da magia (sem contar aprimoramentos), role um dado extra, repetindo a cada resultado máximo.",
+    geral: "Raro — extraída da carapaça de razzas, não é vendida no mercado comum.",
   }),
 ];
 

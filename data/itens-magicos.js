@@ -2,6 +2,25 @@
 // Usado principalmente como referência/geração para o Mestre — efeitos únicos demais pra automatizar
 // numericamente na ficha do jogador, então ficam descritivos (o jogador anota o efeito nas Notas).
 
+// Itens mágicos cujo efeito em PM/CD de magia é numérico e previsível. O resto do catálogo é
+// descritivo de propósito (efeitos únicos demais pra virar conta), mas estes poucos dá pra aplicar
+// sozinho assim que o jogador equipa/veste o item — antes só apareciam como texto e o jogador
+// tinha que lembrar de descontar na mão.
+// tipos: 'custo_pm_tradicao' (desconto no custo de magias de uma tradição)
+//        'custo_pm_magia_lista' (desconto só nas magias listadas)
+//        'custo_pm_zero_arcanista' (magias arcanas de arcanista custam 0; aprimoramentos ainda custam)
+//        'cd_arcana_geral' e 'limite_pm_arcana' (mesmos tipos já usados pelos esotéricos)
+const EFEITOS_MAGICOS_AUTOMATICOS = {
+  'Símbolo abençoado': [{tipo:'custo_pm_tradicao', tradicao:'Divina', valor:-1}],
+  'Cajado do Poder': [
+    {tipo:'custo_pm_tradicao', tradicao:'Arcana', valor:-1},
+    {tipo:'cd_arcana_geral', valor:3},
+    {tipo:'limite_pm_arcana', valor:1},
+  ],
+  'Joia da Alma': [{tipo:'custo_pm_zero_arcanista'}],
+  'Chifre de Unicórnio': [{tipo:'custo_pm_magia_lista', magias:['Curar Ferimentos','Purificação'], valor:-1}],
+};
+
 // Tabela 8-7: Preço de Encantos (itens mágicos "encantados" — genéricos, tipo item superior)
 const PRECO_ENCANTOS = [
   {n:1, preco:18000, cd:10},

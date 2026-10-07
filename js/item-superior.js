@@ -107,6 +107,31 @@ function renderCriadorItemSuperior(){
     wrap.appendChild(matPanel);
   }
 
+  // Harmonizado (esotérico) pede uma magia específica: o desconto de –1 PM só vale pra ela.
+  // Sem escolher a magia aqui, o efeito não teria como ser aplicado automaticamente depois.
+  if(b.melhoriasEscolhidas.includes('Harmonizado')){
+    const fHarm = fichaAtual();
+    const conhecidas = (fHarm && fHarm.magias) || [];
+    const magPanel = el('div',{class:'panel'}, el('h2',{},'Harmonizado: qual magia?'));
+    if(!conhecidas.length){
+      magPanel.appendChild(el('div',{class:'tip'}, 'Este personagem ainda não conhece nenhuma magia. Aprenda uma magia antes de forjar um esotérico Harmonizado.'));
+    } else {
+      magPanel.appendChild(el('input',{id:'harmonizado-busca', type:'text', placeholder:'buscar magia...', style:'width:100%;margin-bottom:8px;', value:b.buscaHarmonizado||'', oninput:(e)=>{ b.buscaHarmonizado=e.target.value; renderDebounced(); }}));
+      const termo = (b.buscaHarmonizado||'').toLowerCase().trim();
+      const filtradas = termo ? conhecidas.filter(m=>(m.n||'').toLowerCase().includes(termo)) : conhecidas;
+      const gridMag = el('div',{class:'option-grid'});
+      filtradas.slice(0,40).forEach(m=>{
+        gridMag.appendChild(el('button',{class:'option-card '+(b.magiaHarmonizada===m.n?'selected':''), onclick:()=>{ b.magiaHarmonizada=m.n; render(); }},
+          el('div',{class:'opt-nome'}, m.n),
+          el('div',{class:'opt-sub'}, (m.c?m.c+'º círculo':'')+(m.e?' · '+m.e:'')+' · custa '+custoPM(m.c)+' PM, passa a custar '+Math.max(1,custoPM(m.c)-1)+' PM')
+        ));
+      });
+      if(!filtradas.length) gridMag.appendChild(el('div',{class:'tip'}, 'Nenhuma magia conhecida com esse nome.'));
+      magPanel.appendChild(gridMag);
+    }
+    wrap.appendChild(magPanel);
+  }
+
   const calc = calcularItemSuperior(b);
   const precoBase = precoParaNumero(b.baseItem.preco);
   const precoTotal = precoBase + calc.precoExtra + calc.precoMaterial;
@@ -128,7 +153,9 @@ function renderCriadorItemSuperior(){
     materialSemPreco ? el('div',{class:'tip', style:'border:1px solid var(--red-bright);'}, '⚠️ '+b.materialEscolhido+' é raro e não tem preço de mercado — só é possível obter como saque de uma criatura específica, combine com o Mestre. O preço total acima não inclui o custo desse material.') : null
   ));
 
-  const podeCriar = b.melhoriasEscolhidas.length>0 && (!b.melhoriasEscolhidas.includes('Material especial') || b.materialEscolhido);
+  const podeCriar = b.melhoriasEscolhidas.length>0
+    && (!b.melhoriasEscolhidas.includes('Material especial') || b.materialEscolhido)
+    && (!b.melhoriasEscolhidas.includes('Harmonizado') || b.magiaHarmonizada);
   wrap.appendChild(el('button',{class:'btn', style: podeCriar?'':'opacity:0.5;', onclick:()=>{ if(podeCriar) finalizarItemSuperior(); }}, 'Criar e Guardar na Mochila'));
 
   return wrap;
@@ -144,6 +171,7 @@ function montarNomeEMelhoriasTxt(b){
       return 'Material especial ('+b.materialEscolhido+'): '+efeito;
     }
     const m = MELHORIAS.find(x=>x.nome===nome);
+    if(nome==='Harmonizado' && b.magiaHarmonizada) return 'Harmonizado ('+b.magiaHarmonizada+'): essa magia custa –1 PM';
     return nome+': '+(m?m.desc:'');
   }).join(' · ');
   return {nomeFinal, melhoriasTxt};
@@ -163,7 +191,7 @@ function finalizarItemSuperior(){
     if(m.efeito.tipo==='dano') bonusDano += m.efeito.valor;
     if(m.efeito.tipo==='penalidade') bonusPenalidade += m.efeito.valor;
     if(m.efeito.tipo==='defesaEArmadura'){ bonusDefesa += m.efeito.valor; bonusPenalidade += m.efeito.valor; }
-    if(m.efeito.tipo==='cd_arcana_geral' || m.efeito.tipo==='limite_pm_arcana') efeitoExtraEsoterico.push({tipo:m.efeito.tipo, valor:m.efeito.valor});
+    if(['cd_arcana_geral','limite_pm_arcana','custo_pm_magia','defesa_esoterico'].includes(m.efeito.tipo)) efeitoExtraEsoterico.push({tipo:m.efeito.tipo, valor:m.efeito.valor});
   });
   if(b.materialEscolhido==='Gelo eterno' && categoriaMelhoria(b.categoria)==='arma') bonusDano += 2;
 
@@ -182,7 +210,8 @@ function finalizarItemSuperior(){
   } else if(b.categoria==='esoterico'){
     const it = ITENS_ESOTERICOS.find(x=>x.n===b.baseItem.n);
     f.equip.push({tipo:'esoterico', ref:it.n, item:nomeFinal, qtd:'1', carga:String(it.esp),
-      superior:true, efeitoExtra:efeitoExtraEsoterico, melhoriasTxt});
+      superior:true, efeitoExtra:efeitoExtraEsoterico, melhoriasTxt,
+      magiaHarmonizada: b.magiaHarmonizada||null});
   }
 
   salvarPerfis();
