@@ -11,14 +11,18 @@ const PRECO_MELHORIAS = [
 // Tabela 3-8: Melhorias
 // categorias: 'arma' | 'armadura' | 'escudo' | 'esoterico' | 'ferramenta' | 'vestuario' | 'qualquer'
 // efeito: descreve o tipo pra permitir aplicar automaticamente quando possível
-function ME(nome, categorias, desc, efeito, prereq){
-  return {nome, categorias, desc, efeito: efeito||null, prereq: prereq||null};
+// `substitui` = nome da melhoria básica cujo bônus esta aqui SUBSTITUI (não soma). O livro deixa
+// isso explícito em Sob Medida: "reduz a penalidade em 2... para outros, comporta-se como um item
+// ajustado" — ou seja, o total é 2, não 3. Certeira/Pungente, Cruel/Atroz e Canalizador/
+// Potencializador seguem o mesmo padrão ("a arma fornece +2", não "+2 adicionais").
+function ME(nome, categorias, desc, efeito, prereq, substitui){
+  return {nome, categorias, desc, efeito: efeito||null, prereq: prereq||null, substitui: substitui||null};
 }
 const MELHORIAS = [
   ME("Certeira", ['arma'], "+1 nos testes de ataque", {tipo:'testeAtaque', valor:1}),
-  ME("Pungente", ['arma'], "+2 nos testes de ataque (em vez do bônus de Certeira)", {tipo:'testeAtaque', valor:2}, "Certeira"),
+  ME("Pungente", ['arma'], "+2 nos testes de ataque no total (substitui o +1 de Certeira, não soma)", {tipo:'testeAtaque', valor:2}, "Certeira", "Certeira"),
   ME("Cruel", ['arma'], "+1 nas rolagens de dano", {tipo:'dano', valor:1}),
-  ME("Atroz", ['arma'], "+2 nas rolagens de dano (em vez do bônus de Cruel)", {tipo:'dano', valor:2}, "Cruel"),
+  ME("Atroz", ['arma'], "+2 nas rolagens de dano no total (substitui o +1 de Cruel, não soma)", {tipo:'dano', valor:2}, "Cruel", "Cruel"),
   ME("Equilibrada", ['arma'], "+2 em testes de manobras (desarmar, quebrar etc.)"),
   ME("Harmonizada", ['arma'], "Escolha uma habilidade ativada de ataque: seu custo cai em –1 PM", null, "outra melhoria qualquer"),
   ME("Injeção alquímica", ['arma'], "Injeta um preparado (2 doses) automaticamente ao acertar um ataque"),
@@ -27,7 +31,7 @@ const MELHORIAS = [
   ME("Precisa", ['arma'], "+1 na margem de ameaça (crítico)", {tipo:'margemAmeaca', valor:1}),
   ME("Material especial", ['arma','armadura','escudo','esoterico'], "Item feito de um material especial escolhido (veja lista de materiais)", {tipo:'material'}),
   ME("Ajustada", ['armadura','escudo'], "–1 na penalidade de armadura", {tipo:'penalidade', valor:-1}),
-  ME("Sob medida", ['armadura','escudo'], "–2 na penalidade de armadura (só pro dono do item)", {tipo:'penalidade', valor:-2}, "Ajustada"),
+  ME("Sob medida", ['armadura','escudo'], "–2 na penalidade de armadura no total, só pro dono do item (substitui o –1 de Ajustada, não soma; pra outra pessoa funciona como Ajustada)", {tipo:'penalidade', valor:-2}, "Ajustada", "Ajustada"),
   ME("Delicada", ['armadura'], "Aplica 1 ponto de Destreza na Defesa (só armadura pesada)"),
   ME("Espinhosa", ['armadura'], "Causa dano de perfuração (igual à sua Força) em quem te agarra ou você agarra"),
   ME("Espinhoso", ['escudo'], "Aumenta o dano de ataque com escudo em um passo"),
@@ -40,7 +44,7 @@ const MELHORIAS = [
   ME("Poderoso", ['esoterico'], "+1 na CD para resistir às suas magias", {tipo:'cd_arcana_geral', valor:1}),
   ME("Vigilante", ['esoterico'], "+2 na Defesa", {tipo:'defesa_esoterico', valor:2}),
   // Deuses e Heróis — melhoria de esotérico que não está no Livro Básico
-  ME("Potencializador", ['esoterico'], "O esotérico tem duas gemas místicas que, combinadas, deixam você canalizar mais mana do que normalmente conseguiria. O máximo de PM que você pode gastar em magias aumenta em +2. (Deuses e Heróis)", {tipo:'limite_pm_arcana', valor:2}, "Canalizador"),
+  ME("Potencializador", ['esoterico'], "O esotérico tem duas gemas místicas que, combinadas, deixam você canalizar mais mana do que normalmente conseguiria. O máximo de PM que você pode gastar em magias passa a aumentar em +2 no total (substitui o +1 de Canalizador, não soma). (Deuses e Heróis)", {tipo:'limite_pm_arcana', valor:2}, "Canalizador", "Canalizador"),
   ME("Aprimorado", ['ferramenta','vestuario'], "+1 na perícia que o item já modifica"),
   ME("Banhado a ouro", ['qualquer'], "+2 em Diplomacia"),
   ME("Cravejado de gemas", ['qualquer'], "+2 em Enganação"),

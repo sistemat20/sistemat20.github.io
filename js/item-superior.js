@@ -50,6 +50,17 @@ function iniciarItemSuperior(categoria, baseItem){
   render();
 }
 
+// Dada a lista de melhorias escolhidas, devolve quais delas têm o bônus anulado por uma melhoria
+// avançada presente na mesma lista (Certeira some quando tem Pungente, e assim por diante).
+function melhoriasSubstituidas(escolhidas){
+  const fora = [];
+  escolhidas.forEach(nome=>{
+    const m = MELHORIAS.find(x=>x.nome===nome);
+    if(m && m.substitui && escolhidas.includes(m.substitui)) fora.push(m.substitui);
+  });
+  return fora;
+}
+
 function prereqOkMelhoria(m, escolhidas){
   if(!m.prereq) return true;
   if(m.prereq==='outra melhoria qualquer') return escolhidas.length>0;
@@ -150,6 +161,7 @@ function renderCriadorItemSuperior(){
       el('div',{style:'font-weight:800;margin-top:6px;border-top:1px solid var(--line);padding-top:6px;'}, 'Preço total: T$ '+precoTotal),
       calc.cd ? el('div',{}, el('b',{},'CD extra pra fabricar: '), '+'+calc.cd) : null,
     ),
+    melhoriasSubstituidas(b.melhoriasEscolhidas).length ? el('div',{class:'tip', style:'margin-top:6px;'}, 'ℹ️ '+melhoriasSubstituidas(b.melhoriasEscolhidas).join(' e ')+' conta só como pré-requisito aqui: a melhoria avançada já traz o valor final, os dois bônus não se somam. O preço continua contando as duas melhorias.') : null,
     materialSemPreco ? el('div',{class:'tip', style:'border:1px solid var(--red-bright);'}, '⚠️ '+b.materialEscolhido+' é raro e não tem preço de mercado — só é possível obter como saque de uma criatura específica, combine com o Mestre. O preço total acima não inclui o custo desse material.') : null
   ));
 
@@ -164,7 +176,9 @@ function renderCriadorItemSuperior(){
 function montarNomeEMelhoriasTxt(b){
   const partes = b.melhoriasEscolhidas.map(nome=> nome==='Material especial' ? b.materialEscolhido : nome);
   const nomeFinal = (b.baseItem.n||b.baseItem.nome) + ' (' + partes.join(', ') + ')';
+  const foraDoCalculo = melhoriasSubstituidas(b.melhoriasEscolhidas);
   const melhoriasTxt = b.melhoriasEscolhidas.map(nome=>{
+    if(foraDoCalculo.includes(nome)) return nome+': só pré-requisito (o bônus vem da melhoria avançada)';
     if(nome==='Material especial' && b.materialEscolhido){
       const mat = MATERIAIS_ESPECIAIS.find(x=>x.nome===b.materialEscolhido);
       const efeito = mat ? efeitoMaterialParaCategoria(mat, b.categoria) : '';
@@ -184,7 +198,12 @@ function finalizarItemSuperior(){
 
   let bonusTeste=0, bonusDano=0, bonusPenalidade=0, bonusDefesa=0;
   const efeitoExtraEsoterico = [];
+  // Melhorias avançadas (Pungente, Atroz, Sob medida, Potencializador) substituem o bônus da
+  // básica que elas exigem, em vez de somar com ele — então a básica entra só como pré-requisito
+  // e não conta nada no número final.
+  const substituidas = melhoriasSubstituidas(b.melhoriasEscolhidas);
   b.melhoriasEscolhidas.forEach(nome=>{
+    if(substituidas.includes(nome)) return;
     const m = MELHORIAS.find(x=>x.nome===nome);
     if(!m || !m.efeito) return;
     if(m.efeito.tipo==='testeAtaque') bonusTeste += m.efeito.valor;

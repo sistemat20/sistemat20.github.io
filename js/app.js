@@ -2154,6 +2154,48 @@ function aplicarMigracoesPerfis(){
         .concat((f.classesNiveis||[]).flatMap(c=> (CLASSES[c.classe] && CLASSES[c.classe].habilidadesClasse) ? CLASSES[c.classe].habilidadesClasse.map(([nome,desc])=>({fonte:'Classe: '+c.classe, nome, desc})) : []));
     }
   });
+  migrarMelhoriasSubstituidas();
+}
+// Migração: itens superiores forjados antes de a regra de substituição existir ficaram com os
+// dois bônus somados (Certeira +1 e Pungente +2 virando +3, por exemplo). O livro diz que a
+// melhoria avançada substitui a básica, então aqui o excedente é descontado uma única vez por
+// item — a marca _melhoriasMigradas impede de descontar de novo numa próxima abertura.
+const PARES_MELHORIA_SUBSTITUIDA = [
+  {basica:'Certeira',   avancada:'Pungente',        campo:'bonusTesteExtra', ajuste:-1},
+  {basica:'Cruel',      avancada:'Atroz',           campo:'bonusDanoExtra',  ajuste:-1},
+  {basica:'Ajustada',   avancada:'Sob medida',      campo:'bonusPenExtra',   ajuste:+1},
+  {basica:'Canalizador',avancada:'Potencializador', campo:null,              ajuste:0},
+];
+function migrarMelhoriasSubstituidas(){
+  const corrigirItem = (item)=>{
+    if(!item || !item.superior || !item.melhoriasTxt || item._melhoriasMigradas) return;
+    const txt = String(item.melhoriasTxt);
+    let mexeu = false;
+    PARES_MELHORIA_SUBSTITUIDA.forEach(par=>{
+      if(!txt.includes(par.basica+':') || !txt.includes(par.avancada+':')) return;
+      if(par.campo){
+        item[par.campo] = (parseInt(item[par.campo])||0) + par.ajuste;
+      } else {
+        // Esotérico: tira uma das entradas de limite de PM (a do Canalizador, valor 1)
+        const tira = (lista)=>{
+          if(!Array.isArray(lista)) return lista;
+          const i = lista.findIndex(ef=>ef && ef.tipo==='limite_pm_arcana' && ef.valor===1);
+          if(i>=0) lista.splice(i,1);
+          return lista;
+        };
+        tira(item.efeitoExtra); tira(item.efeito);
+      }
+      mexeu = true;
+    });
+    if(mexeu) item._melhoriasMigradas = true;
+  };
+  state.perfis.forEach(f=>{
+    (f.equip||[]).forEach(corrigirItem);
+    (f.esotericos||[]).forEach(corrigirItem);
+    (f.armas||[]).forEach(corrigirItem);
+    corrigirItem(f.armadura);
+    corrigirItem(f.escudo);
+  });
 }
 async function carregarPerfis(){
   state.perfis = await carregarPerfisArmazenamento();
