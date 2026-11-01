@@ -1,0 +1,10 @@
+node_modules/
+package-lock.json
+
+# PDFs dos livros: fonte das regras, mas pesados e protegidos por direito autoral.
+# Mantenha-os aqui localmente, fora do repositório.
+livros/
+*.pdf
+
+.DS_Store
+Thumbs.db
