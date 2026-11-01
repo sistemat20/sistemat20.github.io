@@ -1,0 +1,14 @@
+{
+  "name": "painel-aventureiro-t20",
+  "version": "1.0.0",
+  "description": "Ficha digital automatizada de Tormenta 20 para mesa de campanha",
+  "private": true,
+  "scripts": {
+    "test": "node test/regressao.test.js",
+    "check": "node test/check-sintaxe.js",
+    "serve": "python3 -m http.server 8000"
+  },
+  "devDependencies": {
+    "jsdom": "^26.0.0"
+  }
+}
