@@ -2349,7 +2349,11 @@ function renderPopupEnviarItem(f){
         const resultado = await enviarItemParaOutroPersonagem(p.id, itemEnviado);
         if(resultado.ok){
           removerItemMochila(f, fluxo.idx);
-          await mestreAtualizarPersonagem(f); // grava só a ficha do remetente, sem tocar na do destino
+          // Na planilha: grava só a ficha do remetente, sem tocar na do destino. No Supabase essa
+          // ação é só do Mestre; o salvamento normal grava as fichas do próprio jogador, com a
+          // mesma proteção de presentes (e a do destino já foi alterada no servidor pelo envio).
+          if(usandoSupabase()) await salvarPerfis();
+          else await mestreAtualizarPersonagem(f);
           flashMsg('📤 "'+row.item+'" enviado pra '+(resultado.nomeDestino||p.nome)+'!');
           state._enviarItemFluxo = null;
         } else {

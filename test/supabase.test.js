@@ -96,6 +96,30 @@ const okDados = (dados) => ({ status: 200, json: { ok: true, dados } });
     h.igual('versão final guardada', lista[0]._versao, 6);
   }
 
+  // ------------------------------------------------------------ enviar item (achado no ensaio)
+  h.secao('Jogador envia item: grava a própria ficha sem usar ação de Mestre');
+  {
+    const sessao = { token: 'tok-jog', jogador: { id: 'j1', nome: 'Max', papel: 'jogador', ehMestre: false } };
+    const { window: w } = h.carregarApp({ backend: 'supabase', sessao });
+    const srv = servidorFalso(w);
+    srv.respostas.enviarItem = okDados({ nomeDestino: 'Ravena' });
+    let salvou = 0;
+    w.salvarPerfis = async () => { salvou++; };
+    const f = h.usarFicha(w, h.fichaBase({ nome: 'Aeon', equip: [{ item: 'Ácido', qtd: '1', tipo: 'geral', carga: '0.5' }] }));
+    w.state._enviarItemFluxo = { idx: 0, lista: [{ id: 'p2', nome: 'Ravena', jogador: 'Vanessa' }], carregando: false, enviando: false };
+    h.renderizar(w);
+    const botao = [...w.document.querySelectorAll('button.menu-item')].find((b) => b.textContent.includes('Ravena'));
+    h.ok('o popup de envio mostra o destino', !!botao);
+    if (botao) {
+      botao.click();
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    h.ok('mandou o item pelo enviarItem', !!srv.ultima('enviarItem'));
+    h.ok('o item saiu da mochila de quem enviou', f.equip.length === 0);
+    h.igual('gravou pelo salvamento normal do jogador', salvou, 1);
+    h.ok('não chamou nenhuma ação de Mestre', !srv.ultima('mestreAtualizarPersonagem') && !srv.ultima('todosPersonagens'));
+  }
+
   // ------------------------------------------------------------ sessão vencida
   h.secao('Sessão vencida volta para o login');
   {
