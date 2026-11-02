@@ -89,7 +89,11 @@ Deno.serve(async (req) => {
         const dados = linha.dados || {};
         if (acao === "lerGrade") return ok({ combateCompartilhado: dados.combateCompartilhado || null });
         if (!p?.grade || typeof p.grade !== "object") return falha("DADOS_INVALIDOS", "Grade ausente.");
-        const novo = { ...dados, combateCompartilhado: { ...(dados.combateCompartilhado || {}), grade: p.grade } };
+        // Quem tem o link só mexe no tabuleiro: a grade completa e a versão filtrada que os
+        // jogadores enxergam (o app recalcula as duas juntas). Combatentes e o resto ficam intactos.
+        const cc = { ...(dados.combateCompartilhado || {}), grade: p.grade };
+        if (p.gradeParaJogadores && typeof p.gradeParaJogadores === "object") cc.gradeParaJogadores = p.gradeParaJogadores;
+        const novo = { ...dados, combateCompartilhado: cc };
         const { data: gravou, error: e2 } = await db.from("mestre_dados")
           .update({ dados: novo, versao: linha.versao + 1, atualizadoEm: new Date().toISOString() })
           .eq("mestreId", linha.mestreId).eq("versao", linha.versao).select("versao");
@@ -159,6 +163,12 @@ Deno.serve(async (req) => {
         const f = l.dados || {};
         return { id: l.id, nome: f.nome || "", jogador: f.jogador || "", foto: f.foto || "", raca: f.raca || "", classesNiveis: f.classesNiveis || [] };
       }) });
+    }
+
+    // Mapas que o Mestre compartilhou (Notas → Locais do jogador). Só os mapas, nada mais.
+    if (acao === "mapasDoMestre") {
+      const linha = await lerMestre(db, "mestre");
+      return ok({ mapas: (linha?.dados && Array.isArray(linha.dados.mapas)) ? linha.dados.mapas : [] });
     }
 
     if (acao === "enviarItem") {

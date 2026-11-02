@@ -2417,6 +2417,7 @@ async function iniciar(){
 
 // ---- Tela de entrada de código de jogador (só aparece quando há planilha configurada) ----
 function renderEntradaCodigoScreen(){
+  if(usandoSupabase()) return renderEntradaSupabaseScreen();
   const wrap = el('div',{class:'perfis-screen'});
   wrap.appendChild(el('div',{class:'perfis-title'},'Painel do Aventureiro'));
   const painel = el('div',{class:'panel faixa', style:'max-width:380px;width:100%;'});
@@ -2439,7 +2440,63 @@ async function confirmarCodigoJogador(){
   if(!codigo){ state._codigoErro = 'Digite um código pra continuar.'; render(); return; }
   state._codigoErro = null;
   definirCodigoJogador(codigo);
-  if(ehCodigoMestre(codigo)){
+  await seguirDepoisDoLogin(ehCodigoMestre(codigo));
+}
+
+// ---- Tela de entrada no modo Supabase: nome + código (ou só o código, para o Mestre) ----
+function renderEntradaSupabaseScreen(){
+  if(!state._login) state._login = {modo:'jogador', nome:'', codigo:'', erro:null, carregando:false};
+  const L = state._login;
+  const wrap = el('div',{class:'perfis-screen'});
+  wrap.appendChild(el('div',{class:'perfis-title'},'Painel do Aventureiro'));
+  const painel = el('div',{class:'panel faixa', style:'max-width:380px;width:100%;'});
+  const titulos = {jogador:'Entrar', registrar:'Primeiro acesso', mestre:'Entrar como Mestre'};
+  painel.appendChild(el('h2',{}, titulos[L.modo]));
+  if(L.modo==='registrar') painel.appendChild(el('div',{class:'tip'},
+    el('b',{},'Primeira vez aqui?'),
+    'Escolha o nome que a mesa conhece e um código só seu (4 a 32 caracteres). Você vai usar os dois para entrar em qualquer aparelho.'
+  ));
+  if(L.modo!=='mestre'){
+    painel.appendChild(el('label',{},'Nome'));
+    painel.appendChild(el('input',{type:'text', autocomplete:'username', value:L.nome, oninput:(e)=>{L.nome=e.target.value;}}));
+  }
+  painel.appendChild(el('label',{}, L.modo==='mestre' ? 'Código do Mestre' : 'Código'));
+  painel.appendChild(el('input',{type:'password', autocomplete: L.modo==='registrar' ? 'new-password' : 'current-password', value:L.codigo,
+    oninput:(e)=>{L.codigo=e.target.value;}, onkeydown:(e)=>{ if(e.key==='Enter') confirmarLoginSupabase(); }}));
+  if(L.erro) painel.appendChild(el('div',{class:'tip', style:'color:var(--red-bright);'}, L.erro));
+  painel.appendChild(el('button',{class:'btn', onclick:confirmarLoginSupabase}, L.carregando ? 'Entrando...' : (L.modo==='registrar' ? 'Criar acesso' : 'Entrar')));
+  const trocar = (modo)=>{ L.modo = modo; L.erro = null; L.codigo = ''; render(); };
+  if(L.modo==='jogador'){
+    painel.appendChild(el('button',{class:'btn ghost', style:'margin-top:8px;', onclick:()=>trocar('registrar')}, 'Primeiro acesso'));
+    painel.appendChild(el('button',{class:'btn ghost', style:'margin-top:8px;', onclick:()=>trocar('mestre')}, '♛ Sou o Mestre'));
+  } else {
+    painel.appendChild(el('button',{class:'btn ghost', style:'margin-top:8px;', onclick:()=>trocar('jogador')}, 'Voltar'));
+  }
+  wrap.appendChild(painel);
+  return wrap;
+}
+
+async function confirmarLoginSupabase(){
+  const L = state._login;
+  if(!L || L.carregando) return;
+  if(L.modo!=='mestre' && !L.nome.trim()){ L.erro = 'Digite seu nome.'; render(); return; }
+  if(!L.codigo.trim()){ L.erro = 'Digite o código.'; render(); return; }
+  L.erro = null; L.carregando = true; render();
+  const r = await entrarSupabase(L.modo, L.nome.trim(), L.codigo.trim());
+  L.carregando = false;
+  if(!r.ok){
+    L.erro = (r.erro && r.erro.codigo==='REDE') ? 'Sem conexão com o servidor. Tente de novo.' : ((r.erro && r.erro.mensagem) || 'Não consegui entrar.');
+    render();
+    return;
+  }
+  state._login = null;
+  await seguirDepoisDoLogin(!!r.dados.jogador.ehMestre);
+}
+
+// Depois de entrar (por código na planilha ou por login no Supabase): Mestre vai para as
+// ferramentas do Mestre, jogador para a lista de personagens.
+async function seguirDepoisDoLogin(ehMestre){
+  if(ehMestre){
     state.screen = 'mestre';
     state.mestreCategoria = 'combate'; state.mestreTab = 'combate';
     state._carregandoInicial = true;
@@ -2694,7 +2751,7 @@ function renderPerfisScreen(){
   }
   if(precisaCodigoJogador()){
     wrap.appendChild(el('div',{class:'perfil-manage'},
-      el('button',{onclick:sairDoCodigoJogador}, 'Trocar código de acesso')
+      el('button',{onclick:sairDoCodigoJogador}, usandoSupabase() ? 'Sair' : 'Trocar código de acesso')
     ));
   }
   return wrap;

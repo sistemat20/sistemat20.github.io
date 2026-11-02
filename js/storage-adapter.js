@@ -13,6 +13,73 @@
 const SHEETS_API_URL = 'https://script.google.com/macros/s/AKfycbyxHtjQoe_HTiG2PtSDSqNQ768dlgydz6IuNnuOKDwMsAomy23vlISaxrqTfokBmn5aPg/exec';
 const CHAVE_CODIGO_JOGADOR = 'painel_aventureiro_codigo_jogador';
 
+// ---- Backend Supabase (migração da planilha, ver supabase/ no repositório) ----
+// BACKEND decide quem guarda os dados: 'planilha' (Apps Script, o de sempre) ou 'supabase'.
+// Para ensaiar o Supabase sem mudar nada para a mesa, abra o site com ?backend=supabase: a
+// escolha fica guardada só neste navegador (e ?backend=planilha desfaz).
+// No modo Supabase, o "código do jogador" que o resto do app enxerga passa a ser o token da
+// sessão (login por nome + código no auth-api). Assim app.js, ficha.js e mestre.js quase não mudam.
+const BACKEND = 'planilha';
+const SUPABASE_URL = 'https://wosdybamqyisdtfpnvly.supabase.co';
+const SUPABASE_CHAVE_PUBLICA = 'sb_publishable_2fWTgZZqIkWycwXNJe3t2Q_2RZHonvS'; // pública por natureza
+const CHAVE_BACKEND = 'painel_aventureiro_backend';
+const CHAVE_SESSAO = 'painel_aventureiro_sessao';
+const CHAVE_TOKEN_GRADE = 'painel_aventureiro_token_grade';
+
+function backendAtivo(){
+  try{
+    const pedido = new URLSearchParams(window.location.search).get('backend');
+    if(pedido==='supabase' || pedido==='planilha') localStorage.setItem(CHAVE_BACKEND, pedido);
+    return localStorage.getItem(CHAVE_BACKEND) || BACKEND;
+  }catch(e){ return BACKEND; }
+}
+function usandoSupabase(){
+  return !usandoStorageDoClaude() && backendAtivo()==='supabase';
+}
+function obterSessao(){
+  try{
+    const s = JSON.parse(localStorage.getItem(CHAVE_SESSAO) || 'null');
+    return (s && s.token && s.jogador) ? s : null;
+  }catch(e){ return null; }
+}
+function definirSessao(sessao){
+  try{ localStorage.setItem(CHAVE_SESSAO, JSON.stringify(sessao)); }catch(e){}
+}
+function limparSessao(){
+  try{ localStorage.removeItem(CHAVE_SESSAO); localStorage.removeItem(CHAVE_TOKEN_GRADE); }catch(e){}
+}
+// Chama uma Edge Function. Sempre devolve {ok, dados} ou {ok:false, erro:{codigo, mensagem}},
+// nunca lança. Sessão vencida (401 com token de sessão) desloga o aparelho e volta pro login.
+async function chamarSupabase(funcao, corpo){
+  try{
+    const resp = await fetch(SUPABASE_URL + '/functions/v1/' + funcao, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json', apikey: SUPABASE_CHAVE_PUBLICA},
+      body: JSON.stringify(corpo),
+      cache: 'no-store'
+    });
+    const data = await resp.json();
+    if(resp.status===401 && corpo && corpo.token && data && data.erro && data.erro.codigo==='NAO_AUTENTICADO'){
+      limparSessao();
+      if(typeof render==='function') setTimeout(render, 0);
+    }
+    return data || {ok:false, erro:{codigo:'SEM_RESPOSTA', mensagem:'Resposta vazia do servidor.'}};
+  }catch(e){
+    return {ok:false, erro:{codigo:'REDE', mensagem:e.message}};
+  }
+}
+function comSessao(corpo){
+  const s = obterSessao();
+  return Object.assign({token: s ? s.token : ''}, corpo);
+}
+// Login: modo 'jogador' (nome + código), 'mestre' (só o código) ou 'registrar' (jogador novo).
+async function entrarSupabase(modo, nome, codigo){
+  const acao = modo==='mestre' ? 'entrarMestre' : (modo==='registrar' ? 'registrar' : 'entrar');
+  const r = await chamarSupabase('auth-api', {acao, nome, codigo});
+  if(r.ok) definirSessao({token: r.dados.token, jogador: r.dados.jogador});
+  return r;
+}
+
 function usandoStorageDoClaude(){
   return typeof window.storage !== 'undefined' && window.storage !== null;
 }
@@ -20,10 +87,12 @@ function usandoStorageDoClaude(){
 // Só faz sentido pedir um código quando existe uma planilha compartilhada de verdade — dentro
 // do Claude cada conversa já é isolada, então não precisa de código nenhum.
 function precisaCodigoJogador(){
+  if(usandoSupabase()) return true;
   return !usandoStorageDoClaude() && !!SHEETS_API_URL;
 }
 
 function obterCodigoJogador(){
+  if(usandoSupabase()){ const s = obterSessao(); return s ? s.token : null; }
   try{ return localStorage.getItem(CHAVE_CODIGO_JOGADOR) || null; }
   catch(e){ return null; }
 }
@@ -34,6 +103,14 @@ function definirCodigoJogador(codigo){
   return true;
 }
 function limparCodigoJogador(){
+  if(usandoSupabase()){
+    const s = obterSessao();
+    if(s) chamarSupabase('auth-api', {acao:'sair', token:s.token}); // não espera: sair é local de qualquer jeito
+    limparSessao();
+    // A cópia local é de quem saiu: não pode aparecer para o próximo que entrar neste aparelho.
+    try{ localStorage.removeItem('painel_aventureiro_perfis'); }catch(e){}
+    return;
+  }
   try{ localStorage.removeItem(CHAVE_CODIGO_JOGADOR); }catch(e){}
 }
 // Palavra especial que vira código de Mestre — separado numa constante pra ficar fácil de trocar
@@ -42,6 +119,11 @@ function limparCodigoJogador(){
 // momento pela tela do Mestre (botão de chave, embaixo do de Modo Mesa).
 const CODIGO_MESTRE_ESPECIAL = 'Rola';
 function ehCodigoMestre(codigo){
+  if(usandoSupabase()){
+    // No Supabase quem diz se é Mestre é o login, não uma palavra: o "código" aqui é o token.
+    const s = obterSessao();
+    return !!(s && s.jogador.ehMestre && codigo===s.token);
+  }
   // minúsculo dos dois lados, não só do código digitado — assim funciona não importa como a
   // constante acima estiver escrita (maiúscula, minúscula, misturada).
   return String(codigo||'').trim().toLowerCase() === CODIGO_MESTRE_ESPECIAL.toLowerCase();
@@ -76,6 +158,13 @@ async function carregarPerfisArmazenamento(){
       return removerPersonagensDuplicados((r && r.value) ? JSON.parse(r.value) : []);
     }catch(e){ return []; }
   }
+  if(usandoSupabase()){
+    if(!obterSessao()) return [];
+    const r = await chamarSupabase('t20-api', comSessao({acao:'meusPersonagens'}));
+    if(r.ok) return removerPersonagensDuplicados(r.dados.personagens || []);
+    console.error('Falha ao carregar do Supabase, usando cópia local salva no navegador.', r.erro);
+    return removerPersonagensDuplicados(carregarDoLocalStorage());
+  }
   if(SHEETS_API_URL){
     const codigo = obterCodigoJogador();
     if(!codigo) return []; // sem código ainda — a tela de entrada cuida disso antes de chegar aqui
@@ -107,6 +196,12 @@ async function salvarPerfisArmazenamento(perfis){
   }
   // Sempre guarda uma cópia local também, como rede de segurança offline
   salvarNoLocalStorage(perfis);
+  if(usandoSupabase()){
+    if(!obterSessao()) return;
+    await salvarPerfisSupabase(perfis, true);
+    salvarNoLocalStorage(perfis); // de novo, agora com as versões novas
+    return;
+  }
   if(SHEETS_API_URL){
     const codigo = obterCodigoJogador();
     if(!codigo) return;
@@ -122,12 +217,44 @@ async function salvarPerfisArmazenamento(perfis){
   }
 }
 
+// Cada ficha carrega "_versao" (a versão que o servidor tinha quando a gente leu). Se alguém
+// gravou por cima nesse meio-tempo (o Mestre editou, chegou um presente), o servidor recusa
+// essa ficha e devolve em "conflitos": aí busca a versão nova, mescla sem perder item/dinheiro
+// (mesclarSemPerderDados, o mesmo critério de sempre) e tenta UMA vez de novo.
+async function salvarPerfisSupabase(perfis, tentarDeNovo){
+  const r = await chamarSupabase('t20-api', comSessao({acao:'salvarPersonagens', personagens: perfis}));
+  if(!r.ok){ console.error('Falha ao salvar no Supabase — os dados continuam salvos neste navegador.', r.erro); return; }
+  (r.dados.salvos || []).forEach(s=>{
+    const p = perfis.find(x=>x.id===s.id);
+    if(p) p._versao = s._versao;
+  });
+  const conflitos = r.dados.conflitos || [];
+  if(!conflitos.length || !tentarDeNovo) return;
+  const doServidor = await chamarSupabase('t20-api', comSessao({acao:'meusPersonagens'}));
+  if(!doServidor.ok) return;
+  conflitos.forEach(id=>{
+    const local = perfis.find(x=>x.id===id);
+    const servidor = (doServidor.dados.personagens || []).find(x=>x.id===id);
+    if(!local || !servidor) return;
+    mesclarSemPerderDados(local, servidor);
+    local._versao = servidor._versao;
+  });
+  await salvarPerfisSupabase(perfis, false);
+}
+
 // Envia uma foto (data URL base64) pro backend, que guarda no Drive e devolve um link —
 // evita encher a célula da planilha com uma string gigante. Se não houver planilha configurada
 // (ex: dentro do Claude), devolve a própria data URL sem mexer no Drive.
 async function enviarFotoParaBackend(dataUrlBase64, nomeArquivo){
   if(usandoStorageDoClaude() || !SHEETS_API_URL){
     return dataUrlBase64; // sem backend de Drive disponível — guarda a imagem direto (modo Claude)
+  }
+  if(usandoSupabase()){
+    const r = await chamarSupabase('t20-api', comSessao({acao:'enviarFoto', imagemBase64: dataUrlBase64}));
+    if(r.ok && r.dados.url) return r.dados.url;
+    console.error('Upload de foto falhou, guardando localmente como reserva.', r.erro);
+    if(typeof flashMsg==='function') flashMsg('⚠ Não consegui enviar a foto (' + ((r.erro&&r.erro.mensagem)||'erro desconhecido') + '). Guardei a foto direto por enquanto.');
+    return dataUrlBase64;
   }
   try{
     const resp = await fetch(SHEETS_API_URL, {
@@ -165,6 +292,12 @@ async function carregarTodosPersonagensMestre(){
   if(usandoStorageDoClaude()){
     const lista = await carregarPerfisArmazenamento();
     return lista.map(p=> Object.assign({}, p, {_playerId: p._playerId || 'local'}));
+  }
+  if(usandoSupabase()){
+    const r = await chamarSupabase('t20-api', comSessao({acao:'todosPersonagens'}));
+    if(r.ok) return removerPersonagensDuplicados(r.dados.personagens || []);
+    console.error('Falha ao carregar personagens de todos os jogadores.', r.erro);
+    return [];
   }
   if(SHEETS_API_URL){
     try{
@@ -227,7 +360,24 @@ async function mestreAtualizarPersonagem(personagem){
     const todos = await carregarTodosPersonagensMestre();
     const versaoServidor = todos.find(p=>p.id===copia.id);
     mesclarSemPerderDados(copia, versaoServidor);
+    if(versaoServidor && versaoServidor._versao) copia._versao = versaoServidor._versao; // já mesclado com essa versão
   }catch(e){ /* se não conseguir buscar, segue com o que tinha — melhor tentar salvar do que travar */ }
+  if(usandoSupabase()){
+    delete copia._donoId; delete copia._donoNome;
+    let r = await chamarSupabase('t20-api', comSessao({acao:'mestreAtualizarPersonagem', personagem: copia}));
+    if(!r.ok && r.erro && r.erro.codigo==='CONFLITO'){
+      // O jogador salvou bem nessa hora: busca de novo, mescla e tenta mais uma vez.
+      const todos = await carregarTodosPersonagensMestre();
+      const versaoServidor = todos.find(p=>p.id===copia.id);
+      if(versaoServidor){
+        mesclarSemPerderDados(copia, versaoServidor);
+        copia._versao = versaoServidor._versao;
+        r = await chamarSupabase('t20-api', comSessao({acao:'mestreAtualizarPersonagem', personagem: copia}));
+      }
+    }
+    if(!r.ok) console.error('Falha ao mandar atualização de personagem via Mestre.', r.erro);
+    return !!r.ok;
+  }
   if(usandoStorageDoClaude()){
     const lista = await carregarPerfisArmazenamento();
     const idx = lista.findIndex(p=>p.id===copia.id);
@@ -259,6 +409,12 @@ async function listaLeveDeTodosPersonagens(){
     const lista = await carregarPerfisArmazenamento();
     return lista.map(p=>({id:p.id, nome:p.nome, jogador:p.jogador||''}));
   }
+  if(usandoSupabase()){
+    const r = await chamarSupabase('t20-api', comSessao({acao:'listaJogadores'}));
+    if(r.ok) return r.dados.personagens || [];
+    console.error('Falha ao carregar a lista de personagens.', r.erro);
+    return [];
+  }
   if(SHEETS_API_URL){
     try{
       const resp = await fetch(SHEETS_API_URL + '?listaJogadores=true&_t=' + Date.now(), {cache:'no-store'});
@@ -285,6 +441,10 @@ async function enviarItemParaOutroPersonagem(personagemDestinoId, item){
     alvo.equip.push(item);
     await salvarPerfisArmazenamento(lista);
     return {ok:true, nomeDestino:alvo.nome};
+  }
+  if(usandoSupabase()){
+    const r = await chamarSupabase('t20-api', comSessao({acao:'enviarItem', personagemDestinoId, item}));
+    return r.ok ? {ok:true, nomeDestino:r.dados.nomeDestino} : {ok:false};
   }
   if(SHEETS_API_URL){
     try{
@@ -315,6 +475,10 @@ async function enviarDinheiroParaOutroPersonagem(personagemDestinoId, campo, val
     await salvarPerfisArmazenamento(lista);
     return {ok:true, nomeDestino:alvo.nome};
   }
+  if(usandoSupabase()){
+    const r = await chamarSupabase('t20-api', comSessao({acao:'enviarDinheiro', personagemDestinoId, campo, valor}));
+    return r.ok ? {ok:true, nomeDestino:r.dados.nomeDestino} : {ok:false};
+  }
   if(SHEETS_API_URL){
     try{
       const resp = await fetch(SHEETS_API_URL, {
@@ -342,6 +506,7 @@ async function carregarMestreDadosArmazenamento(){
       return (r && r.value) ? JSON.parse(r.value) : {grupos:[], encontrosSalvos:[]};
     }catch(e){ return {grupos:[], encontrosSalvos:[]}; }
   }
+  if(usandoSupabase()) return carregarMestreDadosPorCodigo(obterCodigoJogador());
   if(SHEETS_API_URL){
     const codigo = obterCodigoJogador();
     if(!codigo) return {grupos:[], encontrosSalvos:[]};
@@ -369,6 +534,11 @@ async function trocarCodigoMestreArmazenamento(codigoAtual, codigoNovo){
     // confirma que pode trocar (o localStorage muda depois, do lado de quem chamou).
     return true;
   }
+  if(usandoSupabase()){
+    // Aqui codigoAtual é o código digitado de verdade (o token da sessão não muda).
+    const r = await chamarSupabase('auth-api', comSessao({acao:'trocarCodigo', codigoAtual, codigoNovo}));
+    return r.ok ? true : ((r.erro && r.erro.mensagem) || false);
+  }
   if(SHEETS_API_URL){
     try{
       const resp = await fetch(SHEETS_API_URL, {
@@ -390,6 +560,20 @@ async function salvarMestreDadosArmazenamento(dados, codigoExplicito){
   if(usandoStorageDoClaude()){
     try{ await window.storage.set('mestre_dados', JSON.stringify(dados), false); }catch(e){}
     return true;
+  }
+  if(usandoSupabase()){
+    const codigo = codigoExplicito || obterCodigoJogador();
+    if(!codigo) return false;
+    if(!ehCodigoMestre(codigo)){
+      // Quem salva pelo link da grade só pode mexer no tabuleiro.
+      const cc = (dados && dados.combateCompartilhado) || {};
+      if(!cc.grade) return false;
+      const r = await chamarSupabase('t20-api', {acao:'salvarGrade', tokenGrade: codigo, grade: cc.grade, gradeParaJogadores: cc.gradeParaJogadores});
+      return !!r.ok;
+    }
+    const r = await chamarSupabase('t20-api', comSessao({acao:'salvarMestreDados', dados}));
+    if(!r.ok) console.error('Falha ao salvar dados do Mestre.', r.erro);
+    return !!r.ok;
   }
   if(SHEETS_API_URL){
     const codigo = codigoExplicito || obterCodigoJogador();
@@ -426,6 +610,22 @@ async function carregarMestreDadosPorCodigo(codigo){
       return (r && r.value) ? JSON.parse(r.value) : {grupos:[], encontrosSalvos:[]};
     }catch(e){ return {grupos:[], encontrosSalvos:[]}; }
   }
+  if(usandoSupabase()){
+    // Três jeitos de chegar aqui no Supabase: o Mestre logado (código = token da sessão), o
+    // jogador pedindo os mapas do Mestre (ficha.js passa CODIGO_MESTRE_ESPECIAL) e quem abriu o
+    // link da grade (código = token do link). Cada um só recebe a parte a que tem direito.
+    const vazio = {grupos:[], encontrosSalvos:[]};
+    if(ehCodigoMestre(codigo)){
+      const r = await chamarSupabase('t20-api', comSessao({acao:'lerMestreDados'}));
+      return r.ok ? (r.dados.dados || vazio) : vazio;
+    }
+    if(codigo===CODIGO_MESTRE_ESPECIAL){
+      const r = await chamarSupabase('t20-api', comSessao({acao:'mapasDoMestre'}));
+      return Object.assign({}, vazio, {mapas: r.ok ? (r.dados.mapas || []) : []});
+    }
+    const r = await chamarSupabase('t20-api', {acao:'lerGrade', tokenGrade: codigo});
+    return (r.ok && r.dados.combateCompartilhado) ? Object.assign({}, vazio, {combateCompartilhado: r.dados.combateCompartilhado}) : vazio;
+  }
   if(SHEETS_API_URL){
     try{
       const resp = await fetch(SHEETS_API_URL + '?mestreDados=true&mestreCodigo=' + encodeURIComponent(codigo) + '&_t=' + Date.now(), {cache:'no-store'});
@@ -435,6 +635,17 @@ async function carregarMestreDadosPorCodigo(codigo){
     }catch(e){ return {grupos:[], encontrosSalvos:[]}; }
   }
   return {grupos:[], encontrosSalvos:[]};
+}
+// O que vai no link ?vergrade= da grade compartilhada. Na planilha é o próprio código do
+// Mestre; no Supabase é um token só da grade (o servidor guarda só o hash), gerado uma vez e
+// reaproveitado neste aparelho — gerar outro derrubaria o link que a mesa já tem.
+async function codigoParaLinkDaGrade(){
+  if(!usandoSupabase()) return obterCodigoJogador();
+  try{ const salvo = localStorage.getItem(CHAVE_TOKEN_GRADE); if(salvo) return salvo; }catch(e){}
+  const r = await chamarSupabase('t20-api', comSessao({acao:'gerarLinkGrade'}));
+  if(!r.ok) return null;
+  try{ localStorage.setItem(CHAVE_TOKEN_GRADE, r.dados.tokenGrade); }catch(e){}
+  return r.dados.tokenGrade;
 }
 // Salva a grade a partir do link compartilhado (jogador mexendo, sem estar logado como Mestre).
 // Faz "ler, trocar só a grade, salvar de volta" pra não apagar grupos/encontros salvos do

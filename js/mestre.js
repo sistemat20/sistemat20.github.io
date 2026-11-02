@@ -89,11 +89,18 @@ function renderPopupTrocarCodigoMestre(){
   const overlay = el('div',{class:'menu-overlay', onclick:(e)=>{ if(e.target===e.currentTarget && !fluxo.trocando){ state._trocarCodigoMestrePopup=null; render(); } }});
   const sheet = el('div',{class:'menu-sheet'});
   sheet.appendChild(el('div',{class:'wizard-title', style:'padding:6px 14px 0;'}, '🔑 Trocar código de Mestre'));
-  sheet.appendChild(el('div',{class:'tip', style:'margin:6px 14px;'}, 'Código atual: "'+codigoAtual+'". Isso renomeia sua linha na planilha — nada é duplicado nem fica pra trás, é só o código que muda.'));
+  // No Supabase o código atual não fica guardado no aparelho (só o token da sessão), então pede.
+  const supabase = usandoSupabase();
+  if(supabase && fluxo.codigoAtual==null) fluxo.codigoAtual = '';
+  sheet.appendChild(el('div',{class:'tip', style:'margin:6px 14px;'}, supabase
+    ? 'Digite o código atual e o novo. Você continua logado neste aparelho; nos outros, entra com o código novo.'
+    : 'Código atual: "'+codigoAtual+'". Isso renomeia sua linha na planilha — nada é duplicado nem fica pra trás, é só o código que muda.'));
   if(fluxo.trocando){
     sheet.appendChild(el('div',{class:'empty', style:'padding:14px;'}, 'Trocando...'));
   } else {
     const conteudo = el('div',{style:'padding:0 14px;'},
+      supabase ? el('label',{},'Código atual') : null,
+      supabase ? el('input',{type:'password', autocomplete:'current-password', value:fluxo.codigoAtual, oninput:(e)=>{fluxo.codigoAtual=e.target.value;}}) : null,
       el('label',{},'Novo código'),
       el('input',{type:'text', placeholder:'ex: Rola, ou o que preferir', value:fluxo.novoCodigo, oninput:(e)=>{fluxo.novoCodigo=e.target.value;}})
     );
@@ -101,6 +108,21 @@ function renderPopupTrocarCodigoMestre(){
     sheet.appendChild(el('button',{class:'btn', style:'margin:14px 14px 0;width:calc(100% - 28px);', onclick: async ()=>{
       const novo = fluxo.novoCodigo.trim();
       if(!novo){ flashMsg('Digita o código novo primeiro.'); return; }
+      if(supabase){
+        const atual = (fluxo.codigoAtual||'').trim();
+        if(!atual){ flashMsg('Digita o código atual.'); return; }
+        fluxo.trocando = true; render();
+        const resultado = await trocarCodigoMestreArmazenamento(atual, novo);
+        if(resultado!==true){
+          flashMsg('⚠ ' + (typeof resultado==='string' ? resultado : 'Não consegui trocar agora — tenta de novo em instantes.'));
+          fluxo.trocando = false; render();
+          return;
+        }
+        flashMsg('🔑 Código trocado!');
+        state._trocarCodigoMestrePopup = null;
+        render();
+        return;
+      }
       if(novo.toLowerCase()===codigoAtual.toLowerCase()){ flashMsg('Esse já é o código atual.'); return; }
       fluxo.trocando = true; render();
       const resultado = await trocarCodigoMestreArmazenamento(codigoAtual, novo);
@@ -1844,7 +1866,7 @@ function renderMestreGrade(){
   if(state._gradePopup==='link'){
     const conteudo = el('div',{style:'padding:0 14px 10px;'});
     conteudo.appendChild(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Gera um link que abre o tabuleiro num tablet/celular de qualquer jogador — sem precisar logar em nada. Eles também podem mover os próprios tokens por lá. Atualiza sozinho a cada poucos segundos.'));
-    conteudo.appendChild(el('button',{class:'btn', style:'margin-top:8px;', onclick: ()=>{
+    conteudo.appendChild(el('button',{class:'btn', style:'margin-top:8px;', onclick: async ()=>{
       // Importante: passa pela FILA (sincronizarGradeCompartilhada), não chama
       // salvarDadosMestreNoServidor() direto. Chamar direto ignorava a proteção contra dois
       // salvamentos rodando ao mesmo tempo (a mesma que já existe pra qualquer outra mudança na
@@ -1852,8 +1874,9 @@ function renderMestreGrade(){
       // atropelar, e o efeito colateral parecia "a tela parou de atualizar depois de gerar o
       // link".
       sincronizarGradeCompartilhada();
-      const codigo = obterCodigoJogador();
-      const url = window.location.origin + window.location.pathname + '?vergrade=' + encodeURIComponent(codigo||'');
+      const codigo = await codigoParaLinkDaGrade();
+      if(!codigo){ flashMsg('⚠ Não consegui gerar o link agora — tenta de novo em instantes.'); return; }
+      const url = window.location.origin + window.location.pathname + '?vergrade=' + encodeURIComponent(codigo) + (usandoSupabase() ? '&backend=supabase' : '');
       state._gradeLinkGerado = url;
       render();
     }}, '🔗 Gerar Link'));

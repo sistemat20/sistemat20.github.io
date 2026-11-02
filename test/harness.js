@@ -32,6 +32,12 @@ const EXPOSTOS = [
   // estado e telas
   'state', 'render', 'fichaAtual', 'removerItemMochila', 'migrarMelhoriasSubstituidas',
   'aplicarMigracoesPerfis',
+  // armazenamento (modo planilha e modo Supabase)
+  'carregarPerfisArmazenamento', 'salvarPerfisArmazenamento', 'carregarTodosPersonagensMestre',
+  'mestreAtualizarPersonagem', 'listaLeveDeTodosPersonagens', 'carregarMestreDadosPorCodigo',
+  'carregarMestreDadosArmazenamento', 'salvarMestreDadosArmazenamento', 'codigoParaLinkDaGrade',
+  'ehCodigoMestre', 'obterCodigoJogador', 'obterSessao', 'usandoSupabase', 'precisaCodigoJogador',
+  'limparCodigoJogador', 'confirmarLoginSupabase', 'enviarItemParaOutroPersonagem',
 ];
 
 /**
@@ -40,7 +46,8 @@ const EXPOSTOS = [
  *   que o app mandou para console.error (o render() engole exceções, então é por aqui que elas
  *   aparecem).
  */
-function carregarApp() {
+function carregarApp(opcoes) {
+  opcoes = opcoes || {};
   const html = fs.readFileSync(path.join(RAIZ, 'index.html'), 'utf8');
   const dom = new JSDOM(html, { runScripts: 'outside-only', url: 'https://example.org/' });
   const w = dom.window;
@@ -49,6 +56,9 @@ function carregarApp() {
   // Sem o código de acesso, toda tela cai na tela de login e o teste falha pelo motivo errado.
   w.localStorage.clear();
   w.localStorage.setItem('painel_aventureiro_codigo_jogador', 'TESTE-1234');
+  // Modo Supabase: opcoes.backend = 'supabase' e, se quiser já logado, opcoes.sessao.
+  if (opcoes.backend) w.localStorage.setItem('painel_aventureiro_backend', opcoes.backend);
+  if (opcoes.sessao) w.localStorage.setItem('painel_aventureiro_sessao', JSON.stringify(opcoes.sessao));
 
   // O jsdom não tem nada disso.
   w.scrollTo = () => {};
