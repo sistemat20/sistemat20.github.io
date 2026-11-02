@@ -238,7 +238,7 @@
   }
 
   label{display:block; font-size:var(--fs-2xs); text-transform:uppercase; letter-spacing:0.04em; color:var(--ink-soft); margin-bottom:3px; font-weight:600;}
-  input[type=text], input[type=number], select, textarea{
+  input[type=text], input[type=password], input[type=number], select, textarea{
     width:100%; padding:9px 10px; border:1px solid var(--line); border-radius:var(--radius-sm);
     background:var(--input-bg); color:var(--ink); font-family:'Inter',sans-serif; font-size:var(--fs-base);
     margin-bottom:10px; transition:border-color 150ms ease, box-shadow 150ms ease;
