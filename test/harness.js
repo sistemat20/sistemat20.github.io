@@ -56,9 +56,13 @@ function carregarApp(opcoes) {
   // Sem o código de acesso, toda tela cai na tela de login e o teste falha pelo motivo errado.
   w.localStorage.clear();
   w.localStorage.setItem('painel_aventureiro_codigo_jogador', 'TESTE-1234');
-  // Modo Supabase: opcoes.backend = 'supabase' e, se quiser já logado, opcoes.sessao.
+  // Modo Supabase (o padrão desde a virada): sem sessão toda tela cai no login, então por padrão
+  // o teste já entra logado como jogador. opcoes.sessao troca a sessão; sessao: null testa o login.
   if (opcoes.backend) w.localStorage.setItem('painel_aventureiro_backend', opcoes.backend);
-  if (opcoes.sessao) w.localStorage.setItem('painel_aventureiro_sessao', JSON.stringify(opcoes.sessao));
+  const sessao = opcoes.sessao === undefined
+    ? { token: 'TESTE-SESSAO', jogador: { id: 'teste', nome: 'Teste', papel: 'jogador', ehMestre: false } }
+    : opcoes.sessao;
+  if (sessao) w.localStorage.setItem('painel_aventureiro_sessao', JSON.stringify(sessao));
 
   // O jsdom não tem nada disso.
   w.scrollTo = () => {};

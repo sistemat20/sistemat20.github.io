@@ -14,12 +14,13 @@ const SHEETS_API_URL = 'https://script.google.com/macros/s/AKfycbyxHtjQoe_HTiG2P
 const CHAVE_CODIGO_JOGADOR = 'painel_aventureiro_codigo_jogador';
 
 // ---- Backend Supabase (migração da planilha, ver supabase/ no repositório) ----
-// BACKEND decide quem guarda os dados: 'planilha' (Apps Script, o de sempre) ou 'supabase'.
-// Para ensaiar o Supabase sem mudar nada para a mesa, abra o site com ?backend=supabase: a
-// escolha fica guardada só neste navegador (e ?backend=planilha desfaz).
+// BACKEND decide quem guarda os dados: 'supabase' (desde a virada) ou 'planilha' (Apps Script).
+// Com BACKEND = 'supabase' não há escolha por navegador: todo mundo usa o Supabase, inclusive
+// quem tinha guardado ?backend=planilha durante o ensaio. Voltar atrás = trocar a constante.
+// (Com BACKEND = 'planilha', ?backend=supabase ligava o Supabase só naquele navegador.)
 // No modo Supabase, o "código do jogador" que o resto do app enxerga passa a ser o token da
 // sessão (login por nome + código no auth-api). Assim app.js, ficha.js e mestre.js quase não mudam.
-const BACKEND = 'planilha';
+const BACKEND = 'supabase';
 const SUPABASE_URL = 'https://wosdybamqyisdtfpnvly.supabase.co';
 const SUPABASE_CHAVE_PUBLICA = 'sb_publishable_2fWTgZZqIkWycwXNJe3t2Q_2RZHonvS'; // pública por natureza
 const CHAVE_BACKEND = 'painel_aventureiro_backend';
@@ -27,6 +28,7 @@ const CHAVE_SESSAO = 'painel_aventureiro_sessao';
 const CHAVE_TOKEN_GRADE = 'painel_aventureiro_token_grade';
 
 function backendAtivo(){
+  if(BACKEND==='supabase') return 'supabase';
   try{
     const pedido = new URLSearchParams(window.location.search).get('backend');
     if(pedido==='supabase' || pedido==='planilha') localStorage.setItem(CHAVE_BACKEND, pedido);

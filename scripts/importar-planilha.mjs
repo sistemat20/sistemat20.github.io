@@ -132,10 +132,16 @@ console.log(`${jogadores.length} jogadores, ${porId.size} fichas lidas. Relatór
 if (args.simular) process.exit(0);
 
 // ---------------------------------------------------------------- 5. gravar no Supabase
-console.log('Entrando como Mestre no Supabase...');
-const login = await chamar('auth-api', { acao: 'entrarMestre', codigo: CODIGO_MESTRE });
-if (!login.ok) throw new Error('Não consegui entrar como Mestre: ' + JSON.stringify(login.erro));
-const token = login.dados.token;
+// T20_TOKEN_MESTRE: sessão de Mestre já aberta (por exemplo, uma sessão temporária criada no
+// banco depois que o Mestre trocou o código). Sem ela, entra com o código de Mestre.
+let token = process.env.T20_TOKEN_MESTRE || '';
+const sessaoPropria = !token;
+if (sessaoPropria) {
+  console.log('Entrando como Mestre no Supabase...');
+  const login = await chamar('auth-api', { acao: 'entrarMestre', codigo: CODIGO_MESTRE });
+  if (!login.ok) throw new Error('Não consegui entrar como Mestre: ' + JSON.stringify(login.erro));
+  token = login.dados.token;
+}
 
 console.log('Calculando bcrypt dos códigos (pode levar alguns segundos)...');
 const jogadoresBanco = jogadores.map((j) => ({
@@ -166,5 +172,5 @@ for (let i = 0; i < lotes.length; i++) {
   totalJog += r.dados.jogadores; totalFichas += r.dados.personagens;
   console.log(`Lote ${i + 1}/${lotes.length}: ${r.dados.personagens} fichas.`);
 }
-await chamar('auth-api', { acao: 'sair', token });
+if (sessaoPropria) await chamar('auth-api', { acao: 'sair', token });
 console.log(`Pronto: ${totalJog} jogadores e ${totalFichas} fichas no Supabase.`);

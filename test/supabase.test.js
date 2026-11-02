@@ -1,6 +1,6 @@
 // Modo Supabase do storage-adapter: login, fichas com versão, Mestre, mapas e link da grade.
 // O servidor é simulado: cada teste diz o que a Edge Function responde e confere o que o app
-// mandou para ela. Também confere que o modo planilha (o padrão) continua igual.
+// mandou para ela. Desde a virada o Supabase é o padrão para todo mundo.
 
 const h = require('./harness');
 
@@ -22,20 +22,24 @@ const okDados = (dados) => ({ status: 200, json: { ok: true, dados } });
 
 (async () => {
   // ------------------------------------------------------------ padrão continua planilha
-  h.secao('Sem a chave, nada muda: continua a planilha');
+  h.secao('Supabase é o padrão (virada)');
   {
     const { window: w } = h.carregarApp();
-    h.ok('modo Supabase desligado por padrão', !w.usandoSupabase());
-    h.ok('"Rola" ainda é o código do Mestre na planilha', w.ehCodigoMestre('Rola'));
-    h.igual('o código continua vindo do aparelho', w.obterCodigoJogador(), 'TESTE-1234');
+    h.ok('modo Supabase ligado sem escolher nada', w.usandoSupabase());
+    h.ok('"Rola" não abre o Mestre', !w.ehCodigoMestre('Rola'));
+    h.igual('o "código" do app é o token da sessão', w.obterCodigoJogador(), 'TESTE-SESSAO');
+  }
+  {
+    const { window: w } = h.carregarApp({ backend: 'planilha' });
+    h.ok('quem guardou ?backend=planilha no ensaio também vai para o Supabase', w.usandoSupabase());
   }
 
   // ------------------------------------------------------------ tela de login
   h.secao('Tela de entrada no modo Supabase');
   {
-    const { window: w } = h.carregarApp({ backend: 'supabase' });
+    const { window: w } = h.carregarApp({ sessao: null });
     const srv = servidorFalso(w);
-    h.ok('modo Supabase ligado pela chave do aparelho', w.usandoSupabase());
+    h.ok('modo Supabase ligado', w.usandoSupabase());
     h.ok('sem sessão, pede login', w.precisaCodigoJogador() && !w.obterCodigoJogador());
     w.render();
     const texto = w.document.body.textContent;
@@ -161,7 +165,7 @@ const okDados = (dados) => ({ status: 200, json: { ok: true, dados } });
   }
   {
     // Quem abriu o link: sem login, só o token da grade.
-    const { window: w } = h.carregarApp({ backend: 'supabase' });
+    const { window: w } = h.carregarApp({ sessao: null });
     const srv = servidorFalso(w);
     srv.respostas.lerGrade = okDados({ combateCompartilhado: { grade: { blocos: {}, posicoes: { a: [1, 1] } }, combatentes: [] } });
     const d = await w.carregarMestreDadosPorCodigo('grade-abc');
