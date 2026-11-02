@@ -46,7 +46,7 @@ const HORA = 60 * 60 * 1000;
     const f = h.usarFicha(w, h.fichaBase({
       pmatual: 2,
       magias: [
-        { n: 'Bênção', c: 1, e: 'Encantamento', trad: 'Arcana', alcance: 'curto', resistencia: '' },
+        { n: 'Bênção', c: 1, e: 'Encantamento', trad: 'Arcana', alcance: 'curto', resistencia: '', d: 'Abençoa seus aliados, que recebem +1 em testes de ataque e rolagens de dano.', aprim: [{ custo: '+2 PM', efeito: 'aumenta os bônus em +1.' }] },
         { n: 'Bola de Fogo', c: 3, e: 'Evocação', trad: 'Arcana', alcance: 'médio', resistencia: 'Reflexos reduz à metade' },
       ],
     }));
@@ -55,14 +55,30 @@ const HORA = 60 * 60 * 1000;
     const cartas = [...w.document.querySelectorAll('.grimorio-carta')];
     h.igual('uma carta por magia', cartas.length, 2);
     h.ok('a que custa mais que a mana fica apagada', cartas[1].classList.contains('sem-mana') && !cartas[0].classList.contains('sem-mana'));
+    h.ok('a carta fechada é a de tarô: nome, escola e custo, sem o texto', cartas[0].textContent.includes('Bênção') && cartas[0].textContent.includes('1 PM') && !cartas[0].textContent.includes('Abençoa seus aliados'));
+    h.igual('sem a lista antiga duplicada embaixo', w.document.querySelectorAll('.spell-card').length, 0);
+    h.ok('nada de rolagem lateral (o arrastar de lado é das Perícias)', !w.document.querySelector('.grimorio-cartas'));
     cartas[0].click();
-    h.ok('tocar na carta abre o lançamento', !!w.state._usarMagiaPopup && w.state._usarMagiaPopup.magia.n === 'Bênção');
+    h.renderizar(w, 'personagem');
+    const aberta = w.document.querySelector('.grimorio-carta.aberta');
+    h.ok('tocar abre a carta inteira', !!aberta && aberta.textContent.includes('Execução') && aberta.textContent.includes('aumenta os bônus'));
+    [...aberta.querySelectorAll('button')].find((b) => b.textContent.includes('Lançar')).click();
+    h.ok('Lançar abre o lançamento', !!w.state._usarMagiaPopup && w.state._usarMagiaPopup.magia.n === 'Bênção');
     h.renderizar(w, 'personagem');
     h.ok('o lançamento mostra a prévia da mana', !!w.document.querySelector('.mana-previa'));
     const previa = w.renderManaPrevia(f, 6);
     h.ok('custo maior que a mana fica marcado como insuficiente', previa.classList.contains('insuficiente') && previa.textContent.includes('falta 4 PM'));
     h.ok('custo que cabe mostra quanto sobra', w.renderManaPrevia(f, 1).textContent.includes('→ 1'));
     w.state._usarMagiaPopup = null;
+
+    const confirmar = w.confirm;
+    w.confirm = () => true;
+    w.state._usarMagiaPopup = null;
+    h.renderizar(w, 'personagem');
+    const esquecer = [...w.document.querySelectorAll('.grimorio-carta.aberta button')].find((b) => b.textContent === 'Esquecer');
+    esquecer.click();
+    h.ok('Esquecer remove a magia (com confirmação)', f.magias.length === 1 && f.magias[0].n === 'Bola de Fogo');
+    w.confirm = confirmar;
   }
 
   // ------------------------------------------------------------ resumo da sessão

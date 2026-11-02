@@ -3712,15 +3712,14 @@ function renderPersonagemMagias(){
   if(f.magias.length===0){
     magPanel.appendChild(el('div',{class:'empty'},'Nenhuma magia adicionada ainda. Vá no Menu → Magias pra buscar e adicionar.'));
   } else {
-    magPanel.appendChild(renderGrimorioCartas(f));
-    f.magias.forEach((s,idx)=>{
-      const card = renderCardMagia(s, 'minhas', null, ()=>{ if(!confirm('Remover "'+s.n+'" das suas magias conhecidas? Não tem como desfazer.')) return; registrarLog(f, 'Esqueceu a magia: '+s.n); f.magias.splice(idx,1); salvarPerfis(); render(); }, f, ()=>abrirUsarMagia(s));
-      if(f.arcanistaCaminho==='Mago'){
-        const memorizada = (f.magiasMemorizadas||[]).includes(s.n);
-        card.querySelector('.head .name')?.appendChild(el('span',{class:'pill', style:'margin-left:6px;background:'+(memorizada?'#2e5e3e':'#4a3a1e')+';color:#e8f5e9;'}, memorizada?'📖 memorizada':'não memorizada'));
-      }
-      magPanel.appendChild(card);
-    });
+    magPanel.appendChild(renderGrimorioCartas(f, (s, idx)=>{
+      if(!confirm('Remover "'+s.n+'" das suas magias conhecidas? Não tem como desfazer.')) return;
+      registrarLog(f, 'Esqueceu a magia: '+s.n);
+      f.magias.splice(idx,1);
+      state._cartaMagiaAberta = null;
+      salvarPerfis();
+      render();
+    }));
   }
   wrap.appendChild(magPanel);
 

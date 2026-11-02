@@ -79,24 +79,67 @@ function renderPresenteVoo(){
 }
 
 // ---------------------------------------------------------------- 3. Grimório
+// Grade VERTICAL de cartas (nunca rolagem de lado: a ficha inteira já usa o arrastar lateral
+// pra ir até Perícias). Fechada, a carta mostra o que a magia faz em poucas linhas; um toque
+// abre a carta inteira com descrição, detalhes, aprimoramentos, Lançar e Esquecer. Substitui a
+// lista antiga de Minhas Magias (era a mesma informação duas vezes).
 function siglaEscola(escola){ return String(escola||'?').slice(0,2); }
-function renderGrimorioCartas(f){
+function renderGrimorioCartas(f, aoEsquecer){
   if(!f.magias || !f.magias.length) return null;
   const pm = parseInt(f.pmatual)||0;
-  const linha = el('div',{class:'grimorio-cartas', 'data-preservar-scroll':'grimorio-cartas'});
-  f.magias.forEach(s=>{
+  const mago = f.arcanistaCaminho==='Mago';
+  const grade = el('div',{class:'grimorio-grade'});
+  f.magias.forEach((s, idx)=>{
     const custo = custoPMAjustado(f, s);
-    linha.appendChild(el('button',{class:'grimorio-carta'+(custo>pm?' sem-mana':''), 'aria-label':'Lançar '+s.n+' ('+custo+' PM)', onclick:()=>abrirUsarMagia(s)},
-      el('span',{class:'circulo'}, (s.c||'?')+'º CÍRCULO'),
-      el('span',{class:'selo-escola', 'aria-hidden':'true'}, siglaEscola(s.e)),
-      el('span',{class:'nome'}, s.n),
-      el('span',{class:'escola'}, s.e||''),
+    const aberta = state._cartaMagiaAberta === s.n;
+    const alternar = ()=>{ state._cartaMagiaAberta = aberta ? null : s.n; render(); };
+    const selos = [
+      s.trad==='Universal' ? el('span',{class:'selo-carta universal'}, 'Universal') : null,
+      mago ? el('span',{class:'selo-carta'}, (f.magiasMemorizadas||[]).includes(s.n) ? 'memorizada' : 'não memorizada') : null,
+    ];
+    const topo = el('span',{class:'topo'},
+      el('span',{class:'circulo'}, (s.c||'?')+'º círculo'),
       el('span',{class:'custo'}, custo+' PM')
-    ));
+    );
+    const escola = el('span',{class:'escola'}, [s.e, s.execucao].filter(Boolean).join(' · '));
+    if(!aberta){
+      // Fechada: a carta de tarô (círculo, selo da escola, nome, escola, custo). O texto da
+      // magia só aparece ao abrir.
+      grade.appendChild(el('button',{class:'grimorio-carta fechada'+(custo>pm?' sem-mana':''), 'aria-expanded':'false', 'aria-label':s.n+', '+custo+' PM. Toque para ver a descrição', onclick:alternar},
+        el('span',{class:'circulo'}, (s.c||'?')+'º CÍRCULO'),
+        el('span',{class:'selo-escola', 'aria-hidden':'true'}, siglaEscola(s.e)),
+        el('span',{class:'nome'}, s.n),
+        el('span',{class:'escola'}, s.e||''),
+        el('span',{class:'selos'}, ...selos),
+        el('span',{class:'custo'}, custo+' PM')
+      ));
+      return;
+    }
+    const cdEsp = cdMagiaEspecifica(f, s);
+    const carta = el('div',{class:'grimorio-carta aberta'},
+      el('button',{class:'cabeca', 'aria-expanded':'true', onclick:alternar}, topo, el('span',{class:'nome'}, s.n), escola, el('span',{class:'selos'}, ...selos)),
+      el('div',{class:'desc'}, s.d||''),
+      el('div',{class:'magia-info-grid'},
+        el('div',{}, el('span',{class:'magia-info-ico'},'Execução'), el('span',{}, s.execucao||'—')),
+        el('div',{}, el('span',{class:'magia-info-ico'},'Alcance'), el('span',{}, s.alcance||'—')),
+        el('div',{}, el('span',{class:'magia-info-ico'},'Alvo'), el('span',{}, s.alvo||'—')),
+        el('div',{}, el('span',{class:'magia-info-ico'},'Duração'), el('span',{}, s.duracao||'—')),
+        el('div',{style:'grid-column:1/-1;'}, el('span',{class:'magia-info-ico'},'Resistência'), el('span',{}, (s.resistencia||'—')+(cdEsp!=null && s.resistencia ? ' · CD '+cdEsp : '')))
+      ),
+      (s.aprim && s.aprim.length) ? el('div',{class:'aprims'},
+        el('div',{class:'magia-info-ico'}, 'Aprimoramentos'),
+        ...s.aprim.map(a=> el('div',{class:'aprim'}, el('b',{}, a.custo), ' ', a.efeito))
+      ) : null,
+      el('div',{class:'acoes'},
+        el('button',{class:'btn', onclick:()=>abrirUsarMagia(s)}, custo>pm ? 'Lançar (falta mana)' : '✨ Lançar · '+custo+' PM'),
+        aoEsquecer ? el('button',{class:'btn ghost', onclick:()=>aoEsquecer(s, idx)}, 'Esquecer') : null
+      )
+    );
+    grade.appendChild(carta);
   });
   return el('div',{},
-    el('div',{class:'meta', style:'margin:6px 0 2px;'}, 'Toque numa carta para lançar. As apagadas custam mais do que a sua mana agora.'),
-    linha
+    el('div',{class:'meta', style:'margin:6px 0 4px;'}, 'Toque numa carta para ver tudo e lançar. As apagadas custam mais do que a sua mana agora.'),
+    grade
   );
 }
 // Barra de mana com o gasto listrado ANTES de confirmar: dá pra ver se vai sobrar.

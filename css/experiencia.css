@@ -36,15 +36,36 @@
 @keyframes presente-aviso{ 0%{ opacity:0; transform:translateY(8px); } 15%{ opacity:1; transform:none; } 85%{ opacity:1; } 100%{ opacity:0; } }
 
 /* --- Grimório em cartas e prévia de mana --- */
-.grimorio-cartas{ display:flex; gap:10px; overflow-x:auto; scroll-snap-type:x mandatory; padding:6px 2px 12px; margin:0 0 6px; }
-.grimorio-carta{ flex:0 0 132px; scroll-snap-align:start; min-height:186px; border-radius:var(--radius-md); border:1.5px solid rgba(216,189,116,0.35); background:linear-gradient(170deg, #2b2036 0%, #17111d 55%, #120c09 100%); color:#f0e9da; padding:12px 10px; display:flex; flex-direction:column; align-items:center; gap:6px; text-align:center; cursor:pointer; font-family:'Inter',sans-serif; box-shadow:0 8px 18px var(--shadow); transition:transform 160ms ease, border-color 160ms ease; }
-.grimorio-carta:hover, .grimorio-carta:active{ transform:translateY(-4px); border-color:var(--pm-accent); }
-.grimorio-carta.sem-mana{ opacity:0.4; }
-.grimorio-carta .circulo{ font-size:var(--fs-2xs); letter-spacing:0.12em; color:#c7b998; }
-.grimorio-carta .selo-escola{ width:44px; height:44px; border-radius:50%; border:1.5px solid var(--pm-accent); display:flex; align-items:center; justify-content:center; font-family:'Cinzel',serif; font-weight:800; color:var(--pm-accent); }
-.grimorio-carta .nome{ font-family:'Cinzel',serif; font-weight:800; font-size:0.92rem; line-height:1.15; }
-.grimorio-carta .escola{ font-family:'Cormorant Garamond',serif; font-size:0.95rem; color:#c7b998; }
-.grimorio-carta .custo{ margin-top:auto; padding:3px 10px; border-radius:var(--radius-pill); background:rgba(156,199,232,0.15); color:var(--pm-accent); font-family:'Cinzel',serif; font-weight:800; font-size:0.85rem; }
+.grimorio-grade{ display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:10px; margin:0 0 6px; }
+.grimorio-carta{ min-height:150px; border-radius:var(--radius-md); border:1.5px solid rgba(216,189,116,0.35); background:linear-gradient(170deg, #2b2036 0%, #17111d 55%, #120c09 100%); color:#f0e9da; padding:11px 11px 10px; display:flex; flex-direction:column; align-items:stretch; gap:6px; text-align:left; cursor:pointer; font-family:'Inter',sans-serif; box-shadow:0 6px 14px var(--shadow); transition:transform 160ms ease, border-color 160ms ease; }
+button.grimorio-carta:hover, button.grimorio-carta:active{ transform:translateY(-2px); border-color:var(--pm-accent); }
+.grimorio-carta.sem-mana{ opacity:0.45; }
+.grimorio-carta .topo{ display:flex; justify-content:space-between; align-items:center; gap:6px; }
+.grimorio-carta .circulo{ font-size:var(--fs-2xs); letter-spacing:0.06em; text-transform:uppercase; color:#c7b998; }
+.grimorio-carta .custo{ flex-shrink:0; padding:2px 8px; border-radius:var(--radius-pill); background:rgba(156,199,232,0.15); color:var(--pm-accent); font-family:'Cinzel',serif; font-weight:800; font-size:0.78rem; }
+.grimorio-carta .nome{ font-family:'Cinzel',serif; font-weight:800; font-size:0.98rem; line-height:1.2; color:var(--gold); }
+.grimorio-carta .escola{ margin-top:-3px; font-size:var(--fs-2xs); color:#c7b998; }
+/* Fechada: carta de tarô centralizada, sem texto da magia (ele aparece ao abrir). */
+.grimorio-carta.fechada{ min-height:186px; align-items:center; text-align:center; padding:12px 10px; }
+.grimorio-carta.fechada .circulo{ letter-spacing:0.12em; }
+.grimorio-carta.fechada .selo-escola{ width:44px; height:44px; border-radius:50%; border:1.5px solid var(--pm-accent); display:flex; align-items:center; justify-content:center; font-family:'Cinzel',serif; font-weight:800; color:var(--pm-accent); }
+.grimorio-carta.fechada .nome{ color:#f0e9da; font-size:0.92rem; line-height:1.15; }
+.grimorio-carta.fechada .escola{ margin-top:0; font-family:'Cormorant Garamond',serif; font-size:0.95rem; }
+.grimorio-carta.fechada .selos{ justify-content:center; margin-top:0; }
+.grimorio-carta.fechada .custo{ margin-top:auto; padding:3px 10px; font-size:0.85rem; }
+.grimorio-carta .selos{ display:flex; flex-wrap:wrap; gap:4px; margin-top:auto; }
+.selo-carta{ padding:1px 7px; border-radius:var(--radius-pill); border:1px solid rgba(216,189,116,0.45); color:var(--gold); font-size:var(--fs-2xs); font-weight:600; }
+.selo-carta.universal{ border-color:rgba(176,140,230,0.6); color:#cdb6f2; }
+.grimorio-carta.aberta{ grid-column:1/-1; cursor:default; border-color:var(--pm-accent); gap:10px; }
+.grimorio-carta.aberta .cabeca{ display:flex; flex-direction:column; gap:6px; padding:0; border:0; background:transparent; color:inherit; text-align:left; cursor:pointer; font-family:inherit; }
+.grimorio-carta.aberta .desc{ font-family:'Cormorant Garamond',serif; font-size:1.05rem; line-height:1.4; color:#f0e9da; }
+.grimorio-carta.aberta .magia-info-grid{ margin:0; }
+.grimorio-carta .aprims{ display:flex; flex-direction:column; gap:5px; padding:9px 10px; border-radius:var(--radius-sm); background:rgba(0,0,0,0.25); border:1px solid var(--line); }
+.grimorio-carta .aprim{ font-size:var(--fs-sm); line-height:1.4; }
+.grimorio-carta .aprim b{ color:var(--pm-accent); }
+.grimorio-carta .acoes{ display:flex; gap:8px; }
+.grimorio-carta .acoes .btn{ margin:0; }
+.grimorio-carta .acoes .btn.ghost{ flex:0 0 auto; width:auto; padding:8px 14px; }
 .mana-previa{ margin:6px 14px 4px; padding:10px 12px; border-radius:var(--radius-sm); background:var(--card-2); border:1px solid rgba(156,199,232,0.3); }
 .mana-previa .linha{ display:flex; justify-content:space-between; align-items:baseline; font-size:var(--fs-xs); color:var(--ink-soft); }
 .mana-previa .valor{ font-family:'Cinzel',serif; font-weight:800; font-size:1.05rem; color:var(--pm-accent); }
