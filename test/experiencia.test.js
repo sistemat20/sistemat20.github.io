@@ -62,23 +62,65 @@ const HORA = 60 * 60 * 1000;
     h.renderizar(w, 'personagem');
     const aberta = w.document.querySelector('.grimorio-carta.aberta');
     h.ok('tocar abre a carta inteira', !!aberta && aberta.textContent.includes('Execução') && aberta.textContent.includes('aumenta os bônus'));
-    [...aberta.querySelectorAll('button')].find((b) => b.textContent.includes('Lançar')).click();
-    h.ok('Lançar abre o lançamento', !!w.state._usarMagiaPopup && w.state._usarMagiaPopup.magia.n === 'Bênção');
-    h.renderizar(w, 'personagem');
-    h.ok('o lançamento mostra a prévia da mana', !!w.document.querySelector('.mana-previa'));
-    const previa = w.renderManaPrevia(f, 6);
-    h.ok('custo maior que a mana fica marcado como insuficiente', previa.classList.contains('insuficiente') && previa.textContent.includes('falta 4 PM'));
+    h.ok('a carta aberta tem a mesa de lançamento com a mana listrada', !!aberta.querySelector('.mesa-lancamento .mana-previa'));
+    h.ok('custo maior que a mana fica marcado como insuficiente', w.renderManaPrevia(f, 6).classList.contains('insuficiente') && w.renderManaPrevia(f, 6).textContent.includes('falta 4 PM'));
     h.ok('custo que cabe mostra quanto sobra', w.renderManaPrevia(f, 1).textContent.includes('→ 1'));
+    // selo de aprimoramento soma ao custo
+    aberta.querySelector('.selo-aprim').click();
+    h.renderizar(w, 'personagem');
+    const botaoLancar = () => [...w.document.querySelectorAll('.grimorio-carta.aberta .acoes button')].find((b) => /Lançar|Falta mana/.test(b.textContent));
+    h.ok('ligar o selo soma o aprimoramento (1 + 2 PM)', botaoLancar().textContent.includes('3 PM') && w.document.querySelector('.selo-aprim.ativo'));
+    h.ok('sem mana para o total, o botão avisa', botaoLancar().textContent.includes('Falta mana'));
+    w.document.querySelector('.selo-aprim.ativo').click();
+    h.renderizar(w, 'personagem');
+    botaoLancar().click();
+    h.igual('Lançar desconta a mana na hora', f.pmatual, 1);
+    h.ok('e anota no log como o popup anota', f.log[0].texto === 'Usou "Bênção" (-1 PM)');
+    h.ok('a carta sobe (animação de lançamento)', !!w.state._magiaLancada && w.state._magiaLancada.nome === 'Bênção');
+    h.renderizar(w, 'personagem');
+    h.ok('a barra escoa do valor de antes', !!w.document.querySelector('.mana-previa .resta.escoando'));
+    h.ok('e a linha do log aparece na carta', w.document.querySelector('.log-lancamento').textContent.includes('Lançou "Bênção"'));
+    [...w.document.querySelectorAll('.grimorio-carta.aberta .acoes button')].find((b) => b.textContent === 'Mais opções').click();
+    h.ok('Mais opções abre o popup completo', !!w.state._usarMagiaPopup && w.state._usarMagiaPopup.magia.n === 'Bênção');
     w.state._usarMagiaPopup = null;
 
     const confirmar = w.confirm;
     w.confirm = () => true;
-    w.state._usarMagiaPopup = null;
     h.renderizar(w, 'personagem');
-    const esquecer = [...w.document.querySelectorAll('.grimorio-carta.aberta button')].find((b) => b.textContent === 'Esquecer');
-    esquecer.click();
+    w.document.querySelector('.grimorio-carta.aberta .esquecer').click();
     h.ok('Esquecer remove a magia (com confirmação)', f.magias.length === 1 && f.magias[0].n === 'Bola de Fogo');
     w.confirm = confirmar;
+  }
+
+  // ------------------------------------------------------------ anéis de vida e mana
+  h.secao('Anéis de vida e mana');
+  {
+    const f = h.usarFicha(w, h.fichaBase({ pvatual: 30, pvmax: 30, pmatual: 10, pmmax: 30, pvtemp: 0, pmtemp: 0 }));
+    w.state.personagemTab = 'ficha';
+    h.renderizar(w, 'personagem');
+    const aneis = w.document.querySelectorAll('.anel-caixa');
+    h.igual('dois anéis: vida e mana', aneis.length, 2);
+    h.ok('sem os botões antigos de vida/mana', !w.document.querySelector('.stat-tracker'));
+    const d = w.dadosAnel(f, 'pv');
+    const p1 = w.previaAnel(Object.assign({}, d, { temp: 8 }), 'base', -12);
+    h.ok('dano tira do temporário primeiro', p1.temp === 0 && p1.atual === d.atual - 4);
+    h.igual('cura não passa do máximo', w.previaAnel(d, 'base', 50).atual, d.max);
+    h.igual('girar por fora mexe só no temporário', w.previaAnel(d, 'temp', 5).temp, 5);
+    w.aplicarAnel(f, 'pv', 'temp', 6);
+    h.igual('aplica o temporário', f.pvtemp, 6);
+    w.aplicarAnel(f, 'pv', 'base', -10);
+    h.ok('aplica o dano com o temporário absorvendo', f.pvtemp === 0 && f.pvatual === d.atual - 4);
+    h.ok('anota as duas partes no log', f.log[0].texto.includes('PV (') && f.log[1].texto.includes('PV temporário'));
+    w.desfazerAnel(f);
+    h.ok('segurar o centro desfaz a última mudança', f.pvtemp === 6 && f.pvatual === d.atual);
+    h.renderizar(w, 'personagem');
+    const anelPm = w.document.querySelectorAll('.anel-caixa')[1];
+    anelPm.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+    h.igual('teclado: seta para a esquerda tira 1 de mana', f.pmatual, 9);
+    h.renderizar(w, 'personagem');
+    w.document.querySelectorAll('.anel-caixa')[1].dispatchEvent(new w.KeyboardEvent('keydown', { key: 'ArrowRight', altKey: true, bubbles: true }));
+    h.igual('teclado: Alt + seta mexe no temporário', f.pmtemp, 1);
+    h.ok('o anel anima a partir do valor anterior', !!w.document.querySelector('.anel-temp.anima, .anel-base.anima'));
   }
 
   // ------------------------------------------------------------ resumo da sessão

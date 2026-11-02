@@ -2320,7 +2320,7 @@ function iniciarAtualizacaoAutomaticaJogador(){
   _intervalAtualizacaoJogador = setInterval(async ()=>{
     if(state.screen !== 'ficha' || usandoStorageDoClaude()){ return; }
     const digitando = document.activeElement && ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName);
-    if(digitando || state._arrastandoPersonagemPericias) return;
+    if(digitando || state._arrastandoPersonagemPericias || state._girandoAnel) return; // não redesenha no meio de um gesto
     const mudou = await mesclarPresentesDoServidor();
     if(mudou){ salvarNoLocalStorage(state.perfis); render(); }
   }, 12000);

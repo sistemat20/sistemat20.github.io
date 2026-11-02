@@ -40,7 +40,7 @@ const EXPOSTOS = [
   'limparCodigoJogador', 'confirmarLoginSupabase', 'enviarItemParaOutroPersonagem', 'carregarMapasDoMestre',
   // experiência de jogo
   'separarPresente', 'atmosferaDaFicha', 'renderManaPrevia', 'resumoUltimaSessao', 'fecharResumo',
-  'abrirResumoSessao', 'renderMesaAoVivo',
+  'abrirResumoSessao', 'renderMesaAoVivo', 'dadosAnel', 'previaAnel', 'aplicarAnel', 'desfazerAnel',
 ];
 
 /**

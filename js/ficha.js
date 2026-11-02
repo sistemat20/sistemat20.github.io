@@ -1386,18 +1386,9 @@ function renderPersonagemFicha(){
   // Vida & Mana e Defesa vêm logo aqui, ANTES de Atributos — são os números que você realmente
   // fica olhando toda hora numa sessão de jogo; Atributos você define uma vez e quase nunca
   // mexe de novo, então não precisa disputar espaço com o que importa durante o combate.
-  const pvMax = pvMaxEfetivo(f), pvAtual = parseInt(f.pvatual)||0;
-  const pmMax = pmMaxEfetivo(f), pmAtual = parseInt(f.pmatual)||0;
   wrap.appendChild(el('div',{class:'panel faixa'},
     el('h2',{},'Vida & Mana'),
-    el('div',{class:'stat-tracker-row'},
-      criarStatTracker('pv', 'Vida', pvAtual, pvMax, (delta)=>ajustarPV(f, delta)),
-      criarStatTracker('pm', 'Mana', pmAtual, pmMax, (delta)=>ajustarPM(f, delta)),
-    ),
-    el('div',{class:'stat-tracker-row'},
-      criarStatTrackerSemMax('pv', 'Vida temporária', parseInt(f.pvtemp)||0, (delta)=>ajustarPVTemp(f, delta)),
-      criarStatTrackerSemMax('pm', 'Mana temporária', parseInt(f.pmtemp)||0, (delta)=>ajustarPMTemp(f, delta)),
-    ),
+    renderAneisVidaMana(f)
   ));
 
   wrap.appendChild(el('div',{class:'panel faixa'},
@@ -3511,6 +3502,42 @@ const CATALISADORES_DANO_LEMBRETE = {
   'Líquen lilás': '+1d6 de dano de frio',
   'Terra de cemitério': '+1d6 de dano de trevas',
 };
+// Lança uma magia: confere custo, limite por magia e mana; desconta do PM, consome catalisador,
+// gasta a Liturgia Mágica ligada e anota no log. Usada pelo popup "Usar magia" e pela mesa de
+// lançamento da carta no grimório, para as duas seguirem exatamente a mesma regra.
+// fluxo = {custoTotal, aprimSelecionados, magiaPungenteAtiva, catalisadorEscolhido}.
+function lancarMagia(f, s, fluxo){
+  const limite = limitePMPorMagia(f, s);
+  const total = parseInt(fluxo.custoTotal);
+  if(isNaN(total) || total<0){ flashMsg('Coloca um custo válido primeiro.'); return false; }
+  if(total > limite){ flashMsg('Isso passa do limite de '+limite+' PM numa magia só (seu nível'+((s.trad!=='Divina'&&limitePMExtraArcana(f)>0)?' + itens':'')+'). Escolha menos aprimoramentos.'); return false; }
+  const pmAtual = parseInt(f.pmatual)||0;
+  if(total > pmAtual){ flashMsg('Você não tem '+total+' PM disponíveis (tem '+pmAtual+').'); return false; }
+  f.pmatual = pmAtual - total;
+  // Consome o catalisador escolhido da mochila, se tiver
+  let catalisadorTxt = '';
+  if(fluxo.catalisadorEscolhido){
+    const idxCat = f.equip.findIndex(row=> row.tipo==='geral' && nomeBaseItem(row.item)===fluxo.catalisadorEscolhido);
+    if(idxCat>=0){
+      const rowCat = f.equip[idxCat];
+      const qtdCat = parseInt(rowCat.qtd)||1;
+      if(qtdCat<=1) removerItemMochila(f, idxCat); else rowCat.qtd = String(qtdCat-1);
+      const rotuloCat = CATALISADORES_CD_ESCOLA[fluxo.catalisadorEscolhido] ? '+2 CD' : CATALISADORES_DANO_LEMBRETE[fluxo.catalisadorEscolhido];
+      catalisadorTxt = ' + '+fluxo.catalisadorEscolhido+' ('+rotuloCat+')';
+    }
+  }
+  const sel = fluxo.aprimSelecionados || [];
+  const aprimTxt = sel.length>0 ? ' com '+sel.length+' aprimoramento(s)' : '';
+  const pungenteTxt = fluxo.magiaPungenteAtiva ? ' + Magia Pungente (+2 CD)' : '';
+  const liturgiaTxt = f._liturgiaMagicaAtiva ? ' + Liturgia Mágica (+2 CD)' : '';
+  f._liturgiaMagicaAtiva = false; // é "a próxima habilidade" -- consome sozinha depois de usada
+  const textoLog = 'Usou "'+s.n+'"'+aprimTxt+pungenteTxt+liturgiaTxt+catalisadorTxt+' (-'+total+' PM)';
+  registrarLog(f, textoLog);
+  salvarPerfis();
+  flashMsg('✨ "'+s.n+'" usada! -'+total+' PM.'+(catalisadorTxt?' Catalisador consumido.':''));
+  animarMagiaLancada(s.n, {pmAntes:pmAtual, pmDepois:f.pmatual, texto:textoLog});
+  return true;
+}
 function renderPopupUsarMagia(f){
   const fluxo = state._usarMagiaPopup;
   const s = fluxo.magia;
@@ -3636,33 +3663,8 @@ function renderPopupUsarMagia(f){
   ));
 
   sheet.appendChild(el('button',{class:'btn', style:'margin:14px 14px 0;width:calc(100% - 28px);', onclick:()=>{
-    const total = parseInt(fluxo.custoTotal);
-    if(isNaN(total) || total<0){ flashMsg('Coloca um custo válido primeiro.'); return; }
-    if(total > limite){ flashMsg('Isso passa do limite de '+limite+' PM numa magia só (seu nível'+((s.trad!=='Divina'&&limitePMExtraArcana(f)>0)?' + itens':'')+'). Escolha menos aprimoramentos.'); return; }
-    const pmAtual = parseInt(f.pmatual)||0;
-    if(total > pmAtual){ flashMsg('Você não tem '+total+' PM disponíveis (tem '+pmAtual+').'); return; }
-    f.pmatual = pmAtual - total;
-    // Consome o catalisador escolhido da mochila, se tiver
-    let catalisadorTxt = '';
-    if(fluxo.catalisadorEscolhido){
-      const idxCat = f.equip.findIndex(row=> row.tipo==='geral' && nomeBaseItem(row.item)===fluxo.catalisadorEscolhido);
-      if(idxCat>=0){
-        const rowCat = f.equip[idxCat];
-        const qtdCat = parseInt(rowCat.qtd)||1;
-        if(qtdCat<=1) removerItemMochila(f, idxCat); else rowCat.qtd = String(qtdCat-1);
-        const rotuloCat = CATALISADORES_CD_ESCOLA[fluxo.catalisadorEscolhido] ? '+2 CD' : CATALISADORES_DANO_LEMBRETE[fluxo.catalisadorEscolhido];
-        catalisadorTxt = ' + '+fluxo.catalisadorEscolhido+' ('+rotuloCat+')';
-      }
-    }
-    const aprimTxt = fluxo.aprimSelecionados.length>0 ? ' com '+fluxo.aprimSelecionados.length+' aprimoramento(s)' : '';
-    const pungenteTxt = fluxo.magiaPungenteAtiva ? ' + Magia Pungente (+2 CD)' : '';
-    const liturgiaTxt = f._liturgiaMagicaAtiva ? ' + Liturgia Mágica (+2 CD)' : '';
-    f._liturgiaMagicaAtiva = false; // é "a próxima habilidade" -- consome sozinha depois de usada
-    registrarLog(f, 'Usou "'+s.n+'"'+aprimTxt+pungenteTxt+liturgiaTxt+catalisadorTxt+' (-'+total+' PM)');
-    salvarPerfis();
-    flashMsg('✨ "'+s.n+'" usada! -'+total+' PM.'+(catalisadorTxt?' Catalisador consumido.':''));
+    if(!lancarMagia(f, s, fluxo)) return;
     state._usarMagiaPopup = null;
-    animarMagiaLancada(s.n);
     render();
   }}, '✓ Confirmar uso'));
   sheet.appendChild(el('button',{class:'menu-close', style:'margin-top:10px;', onclick:()=>{ state._usarMagiaPopup=null; render(); }}, 'Cancelar'));

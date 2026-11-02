@@ -92,7 +92,7 @@ function renderGrimorioCartas(f, aoEsquecer){
   f.magias.forEach((s, idx)=>{
     const custo = custoPMAjustado(f, s);
     const aberta = state._cartaMagiaAberta === s.n;
-    const alternar = ()=>{ state._cartaMagiaAberta = aberta ? null : s.n; render(); };
+    const alternar = ()=>{ state._cartaMagiaAberta = aberta ? null : s.n; state._cartaAbertaEm = Date.now(); render(); };
     const selos = [
       s.trad==='Universal' ? el('span',{class:'selo-carta universal'}, 'Universal') : null,
       mago ? el('span',{class:'selo-carta'}, (f.magiasMemorizadas||[]).includes(s.n) ? 'memorizada' : 'não memorizada') : null,
@@ -116,7 +116,9 @@ function renderGrimorioCartas(f, aoEsquecer){
       return;
     }
     const cdEsp = cdMagiaEspecifica(f, s);
-    const carta = el('div',{class:'grimorio-carta aberta'},
+    // A animação de abrir só na hora em que abre (a ficha é redesenhada a cada mudança).
+    const abrindo = Date.now() - (state._cartaAbertaEm||0) < 400;
+    const carta = el('div',{class:'grimorio-carta aberta'+(abrindo?' abrindo':'')},
       el('button',{class:'cabeca', 'aria-expanded':'true', onclick:alternar}, topo, el('span',{class:'nome'}, s.n), escola, el('span',{class:'selos'}, ...selos)),
       el('div',{class:'desc'}, s.d||''),
       el('div',{class:'magia-info-grid'},
@@ -126,14 +128,8 @@ function renderGrimorioCartas(f, aoEsquecer){
         el('div',{}, el('span',{class:'magia-info-ico'},'Duração'), el('span',{}, s.duracao||'—')),
         el('div',{style:'grid-column:1/-1;'}, el('span',{class:'magia-info-ico'},'Resistência'), el('span',{}, (s.resistencia||'—')+(cdEsp!=null && s.resistencia ? ' · CD '+cdEsp : '')))
       ),
-      (s.aprim && s.aprim.length) ? el('div',{class:'aprims'},
-        el('div',{class:'magia-info-ico'}, 'Aprimoramentos'),
-        ...s.aprim.map(a=> el('div',{class:'aprim'}, el('b',{}, a.custo), ' ', a.efeito))
-      ) : null,
-      el('div',{class:'acoes'},
-        el('button',{class:'btn', onclick:()=>abrirUsarMagia(s)}, custo>pm ? 'Lançar (falta mana)' : '✨ Lançar · '+custo+' PM'),
-        aoEsquecer ? el('button',{class:'btn ghost', onclick:()=>aoEsquecer(s, idx)}, 'Esquecer') : null
-      )
+      renderMesaLancamento(f, s, custo),
+      aoEsquecer ? el('button',{class:'esquecer', onclick:()=>aoEsquecer(s, idx)}, 'Esquecer esta magia') : null
     );
     grade.appendChild(carta);
   });
@@ -142,28 +138,69 @@ function renderGrimorioCartas(f, aoEsquecer){
     grade
   );
 }
-// Barra de mana com o gasto listrado ANTES de confirmar: dá pra ver se vai sobrar.
-function renderManaPrevia(f, total){
+// Mesa de lançamento dentro da carta aberta: barra de mana com o gasto listrado, aprimoramentos
+// como selos que somam ao custo, Lançar (mesma regra do popup: lancarMagia) e "Mais opções"
+// (catalisador, Magia Pungente, custo à mão) no popup de sempre.
+function renderMesaLancamento(f, s, custoBase){
+  const sel = (state._grimorioSel && state._grimorioSel.nome===s.n) ? state._grimorioSel.sel : [];
+  const aprims = s.aprim || [];
+  const total = custoBase + sel.reduce((t,i)=> t + extrairCustoPM(aprims[i] && aprims[i].custo), 0);
+  const pm = parseInt(f.pmatual)||0;
+  const ultimo = state._grimorioUltimo && state._grimorioUltimo.nome===s.n ? state._grimorioUltimo : null;
+  const alternarSelo = (i)=>{
+    const atual = sel.includes(i) ? sel.filter(x=>x!==i) : sel.concat(i);
+    state._grimorioSel = {nome:s.n, sel:atual};
+    render();
+  };
+  const fluxo = ()=>({custoTotal:String(total), aprimSelecionados:sel.slice(), magiaPungenteAtiva:false, catalisadorEscolhido:null});
+  return el('div',{class:'mesa-lancamento'},
+    renderManaPrevia(f, total, ultimo),
+    aprims.length ? el('div',{class:'magia-info-ico', style:'margin-top:2px;'}, 'Aprimoramentos: toque para somar') : null,
+    aprims.length ? el('div',{class:'selos-aprim'}, ...aprims.map((a,i)=>{
+      const ativo = sel.includes(i);
+      return el('button',{class:'selo-aprim'+(ativo?' ativo':''), 'aria-pressed':ativo?'true':'false', onclick:()=>alternarSelo(i)},
+        el('span',{class:'disco'}, String(a.custo||'').replace(/\s*PM\b/i,'')),
+        el('span',{class:'efeito'}, a.efeito||'')
+      );
+    })) : null,
+    el('div',{class:'acoes'},
+      el('button',{class:'btn', onclick:()=>{ if(lancarMagia(f, s, fluxo())){ state._grimorioSel = null; render(); } }},
+        total>pm ? 'Falta mana ('+total+' PM)' : '✨ Lançar · '+total+' PM'),
+      el('button',{class:'btn ghost', onclick:()=>{
+        abrirUsarMagia(s);
+        state._usarMagiaPopup.aprimSelecionados = sel.slice();
+        state._usarMagiaPopup.custoTotal = String(total);
+        render();
+      }}, 'Mais opções')
+    ),
+    ultimo ? el('div',{class:'log-lancamento'+(Date.now()-ultimo.marca < 1500 ? ' novo' : '')}, ultimo.texto.replace(/^Usou /,'Lançou ')+' · anotado no log') : null
+  );
+}
+// Barra de mana com o gasto listrado ANTES de confirmar: dá pra ver se vai sobrar. Logo depois
+// de lançar (ultimo), a parte cheia escoa do valor de antes até o de agora.
+function renderManaPrevia(f, total, ultimo){
   const pm = parseInt(f.pmatual)||0;
   const max = pmMaxEfetivo(f) || Math.max(pm, 1);
   const gasto = Math.max(0, total||0);
   const falta = gasto > pm;
   const depois = Math.max(0, pm - gasto);
   const pct = (v)=> Math.max(0, Math.min(100, v/max*100)).toFixed(1)+'%';
+  const escoando = ultimo && Date.now()-ultimo.marca < 1500;
   return el('div',{class:'mana-previa'+(falta?' insuficiente':'')},
     el('div',{class:'linha'},
       el('span',{}, 'MANA'),
       el('span',{class:'valor'}, pm+' / '+max, ' ', el('span',{class:'depois'}, falta ? 'falta '+(gasto-pm)+' PM' : '→ '+depois))
     ),
     el('div',{class:'trilho'},
-      el('div',{class:'resta', style:'width:'+pct(depois)+';'}),
+      el('div',{class:'resta'+(escoando?' escoando':''), style:'width:'+pct(depois)+';'+(escoando?'--de:'+pct(ultimo.pmAntes)+';':'')}),
       el('div',{class:'gasto', style:'left:'+pct(depois)+';width:'+pct(Math.min(gasto, pm))+';'})
     )
   );
 }
-function animarMagiaLancada(nome){
+function animarMagiaLancada(nome, extra){
   const marca = Date.now();
   state._magiaLancada = {nome, marca};
+  if(extra) state._grimorioUltimo = Object.assign({nome, marca}, extra);
   setTimeout(()=>{ if(state._magiaLancada && state._magiaLancada.marca===marca){ state._magiaLancada = null; render(); } }, 1150);
 }
 function renderMagiaLancada(){
