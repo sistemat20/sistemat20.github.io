@@ -8,3 +8,7 @@ livros/
 
 .DS_Store
 Thumbs.db
+
+# Importação da planilha: relatório e correções de nome ficam fora do repositório.
+importacao-relatorio.md
+importacao-*.json

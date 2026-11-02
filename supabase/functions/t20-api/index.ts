@@ -268,6 +268,51 @@ Deno.serve(async (req) => {
       return ok({ _versao: upd[0].versao });
     }
 
+    // Importação da planilha (scripts/importar-planilha.mjs). Temporária: sai junto com o modo
+    // planilha. Só o Mestre. Os códigos já chegam em bcrypt, calculado na máquina de quem importa.
+    // "substituir" (só no primeiro lote) apaga jogadores, fichas e sessões antes, menos o Mestre.
+    if (acao === "importarDados") {
+      if (!ehMestre) return soMestre();
+      const jogs = Array.isArray(p?.jogadores) ? p.jogadores : [];
+      const fichas = Array.isArray(p?.personagens) ? p.personagens : [];
+      if (p?.substituir === true) {
+        const { error: e1 } = await db.from("personagens").delete().neq("id", "");
+        if (e1) throw e1;
+        const { error: e2 } = await db.from("sessoes").delete().neq("jogadorId", jogador.id);
+        if (e2) throw e2;
+        const { error: e3 } = await db.from("jogadores").delete().neq("id", jogador.id);
+        if (e3) throw e3;
+      }
+      const agora = new Date().toISOString();
+      const linhasJog = [];
+      for (const j of jogs) {
+        const id = String(j?.id || "").trim();
+        if (!id || id === "mestre" || !String(j?.codigoHash || "").startsWith("$2")) return falha("DADOS_INVALIDOS", "Jogador inválido na importação.", { id });
+        linhasJog.push({ id, nome: String(j.nome || "").slice(0, 24), chaveNome: String(j.chaveNome || ""), papel: "jogador", codigoHash: j.codigoHash, salt: "bcrypt", ativo: true, criadoEm: agora });
+      }
+      if (linhasJog.length) {
+        const { error } = await db.from("jogadores").upsert(linhasJog, { onConflict: "id" });
+        if (error) throw error;
+      }
+      const linhasFicha = [];
+      for (const f of fichas) {
+        const id = String(f?.id || "").trim();
+        const ficha = fichaLimpa(f?.dados || {});
+        if (!id || !f?.donoId) return falha("DADOS_INVALIDOS", "Ficha inválida na importação.", { id });
+        linhasFicha.push({ id, donoId: String(f.donoId), ...resumo(ficha), versao: 1, criadoEm: f.atualizadoEm || agora, atualizadoEm: f.atualizadoEm || agora, excluido: false, dados: { ...ficha, id } });
+      }
+      if (linhasFicha.length) {
+        const { error } = await db.from("personagens").upsert(linhasFicha, { onConflict: "id" });
+        if (error) throw error;
+      }
+      if (p?.mestreDados && typeof p.mestreDados === "object") {
+        const { error } = await db.from("mestre_dados").upsert({ mestreId: jogador.id, dados: p.mestreDados, versao: 1, atualizadoEm: agora }, { onConflict: "mestreId" });
+        if (error) throw error;
+      }
+      await registrarLog(db, jogador, "importacao", `${linhasJog.length} jogadores, ${linhasFicha.length} fichas`);
+      return ok({ jogadores: linhasJog.length, personagens: linhasFicha.length });
+    }
+
     // Gera (ou troca) o link da grade. O link antigo para de funcionar na hora.
     if (acao === "gerarLinkGrade") {
       if (!ehMestre) return soMestre();
