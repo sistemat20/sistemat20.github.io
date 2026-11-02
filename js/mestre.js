@@ -75,66 +75,42 @@ const CATEGORIAS_MESTRE = {
   recursos: {label:'Recursos', abas:[['tesouro','Tesouro'],['loja','Loja'],['itens','Itens'],['magicos','Itens Mágicos'],['maldicoes','Maldições'],['mapas','Mapas']]},
 };
 
-// Troca o código de Mestre a qualquer momento, sem perder nada — pega tudo que já tá salvo sob
-// o código atual (grupos, encontros, mapas, combate ativo) e salva de novo sob o código NOVO,
-// depois troca o localStorage pra usar ele daqui pra frente. O código antigo continua existindo
-// na planilha (uma linha "órfã"), mas ninguém mais acessa por ele.
+// Troca o código de Mestre (auth-api.trocarCodigo). Pede o código atual porque o aparelho só
+// guarda o token da sessão; a sessão continua valendo, nos outros aparelhos entra com o novo.
 function abrirTrocarCodigoMestre(){
-  state._trocarCodigoMestrePopup = {novoCodigo:'', trocando:false};
+  state._trocarCodigoMestrePopup = {codigoAtual:'', novoCodigo:'', trocando:false};
   render();
 }
 function renderPopupTrocarCodigoMestre(){
   const fluxo = state._trocarCodigoMestrePopup;
-  const codigoAtual = obterCodigoJogador();
   const overlay = el('div',{class:'menu-overlay', onclick:(e)=>{ if(e.target===e.currentTarget && !fluxo.trocando){ state._trocarCodigoMestrePopup=null; render(); } }});
   const sheet = el('div',{class:'menu-sheet'});
   sheet.appendChild(el('div',{class:'wizard-title', style:'padding:6px 14px 0;'}, '🔑 Trocar código de Mestre'));
-  // No Supabase o código atual não fica guardado no aparelho (só o token da sessão), então pede.
-  const supabase = usandoSupabase();
-  if(supabase && fluxo.codigoAtual==null) fluxo.codigoAtual = '';
-  sheet.appendChild(el('div',{class:'tip', style:'margin:6px 14px;'}, supabase
-    ? 'Digite o código atual e o novo. Você continua logado neste aparelho; nos outros, entra com o código novo.'
-    : 'Código atual: "'+codigoAtual+'". Isso renomeia sua linha na planilha — nada é duplicado nem fica pra trás, é só o código que muda.'));
+  sheet.appendChild(el('div',{class:'tip', style:'margin:6px 14px;'}, 'Digite o código atual e o novo. Você continua logado neste aparelho; nos outros, entra com o código novo.'));
   if(fluxo.trocando){
     sheet.appendChild(el('div',{class:'empty', style:'padding:14px;'}, 'Trocando...'));
   } else {
     const conteudo = el('div',{style:'padding:0 14px;'},
-      supabase ? el('label',{},'Código atual') : null,
-      supabase ? el('input',{type:'password', autocomplete:'current-password', value:fluxo.codigoAtual, oninput:(e)=>{fluxo.codigoAtual=e.target.value;}}) : null,
+      el('label',{},'Código atual'),
+      el('input',{type:'password', autocomplete:'current-password', value:fluxo.codigoAtual, oninput:(e)=>{fluxo.codigoAtual=e.target.value;}}),
       el('label',{},'Novo código'),
-      el('input',{type:'text', placeholder:'ex: Rola, ou o que preferir', value:fluxo.novoCodigo, oninput:(e)=>{fluxo.novoCodigo=e.target.value;}})
+      el('input',{type:'text', placeholder:'4 a 32 caracteres', value:fluxo.novoCodigo, oninput:(e)=>{fluxo.novoCodigo=e.target.value;}})
     );
     sheet.appendChild(conteudo);
     sheet.appendChild(el('button',{class:'btn', style:'margin:14px 14px 0;width:calc(100% - 28px);', onclick: async ()=>{
       const novo = fluxo.novoCodigo.trim();
+      const atual = (fluxo.codigoAtual||'').trim();
+      if(!atual){ flashMsg('Digita o código atual.'); return; }
       if(!novo){ flashMsg('Digita o código novo primeiro.'); return; }
-      if(supabase){
-        const atual = (fluxo.codigoAtual||'').trim();
-        if(!atual){ flashMsg('Digita o código atual.'); return; }
-        fluxo.trocando = true; render();
-        const resultado = await trocarCodigoMestreArmazenamento(atual, novo);
-        if(resultado!==true){
-          flashMsg('⚠ ' + (typeof resultado==='string' ? resultado : 'Não consegui trocar agora — tenta de novo em instantes.'));
-          fluxo.trocando = false; render();
-          return;
-        }
-        flashMsg('🔑 Código trocado!');
-        state._trocarCodigoMestrePopup = null;
-        render();
-        return;
-      }
-      if(novo.toLowerCase()===codigoAtual.toLowerCase()){ flashMsg('Esse já é o código atual.'); return; }
       fluxo.trocando = true; render();
-      const resultado = await trocarCodigoMestreArmazenamento(codigoAtual, novo);
+      const resultado = await trocarCodigoMestreArmazenamento(atual, novo);
       if(resultado!==true){
-        flashMsg(resultado==='já existe uma linha com esse código' ? '⚠ Esse código já tá em uso por outra mesa — escolhe outro.' : '⚠ Não consegui trocar agora — tenta de novo em instantes.');
+        flashMsg('⚠ ' + (typeof resultado==='string' ? resultado : 'Não consegui trocar agora — tenta de novo em instantes.'));
         fluxo.trocando = false; render();
         return;
       }
-      localStorage.setItem('painel_aventureiro_codigo_jogador', novo);
-      flashMsg('🔑 Código trocado pra "'+novo+'"!');
+      flashMsg('🔑 Código trocado!');
       state._trocarCodigoMestrePopup = null;
-      await carregarDadosMestreDoServidor();
       render();
     }}, '✓ Confirmar troca'));
   }
@@ -240,7 +216,7 @@ function corPorTipoCriatura(tipo){
 
 // ---- GRUPOS (controlados 100% pelo Mestre — nada muda na ficha do jogador) ----
 // O Mestre cria um grupo com um nome e escolhe, entre os personagens já existentes no banco,
-// quais fazem parte dele. Fica salvo na planilha (aba MestreDados), então sincroniza com
+// quais fazem parte dele. Fica salvo no servidor (dados do Mestre), então sincroniza com
 // qualquer aparelho que entre com o mesmo código de Mestre. As ferramentas (Grupo, Iniciativa,
 // Tesouro) sempre respeitam o grupo selecionado no momento.
 const CHAVE_MESTRE_GRUPO_FILTRO = 'painel_aventureiro_mestre_grupo_filtro';
@@ -269,7 +245,7 @@ async function carregarDadosMestreDoServidor(){
   state._mestreMapas = dados.mapas || [];
   // O combate ativo (combatentes, posições, paredes, terreno — tudo da Grade) só era SALVO no
   // servidor a cada mudança, mas nunca era CARREGADO de volta ao abrir a página — um F5 sempre
-  // reiniciava tudo do zero, mesmo com o dado real intacto na planilha. Restaura aqui, se tiver
+  // reiniciava tudo do zero, mesmo com o dado real intacto no servidor. Restaura aqui, se tiver
   // algo salvo; se não tiver nada ainda (primeira vez usando), deixa vazio normal.
   if(dados.combateCompartilhado && dados.combateCompartilhado.combatentes){
     state._mestreIniciativa = {
@@ -296,7 +272,7 @@ async function salvarDadosMestreNoServidor(){
   // ideia de "grade" vs "gradeParaJogadores" logo abaixo.
   const combatentesCompletos = combate ? (combate.combatentes||[]).map(c=>({
     id:c.id, nome:c.nome, tipo:c.tipo,
-    // Se o upload da foto pro Drive falhou alguma vez, o app guarda a imagem em base64 bruto
+    // Se o upload da foto pro servidor falhou alguma vez, o app guarda a imagem em base64 bruto
     // como reserva (pra não perder a foto) — mas isso pode passar de 50 mil caracteres, e o
     // Google Sheets tem esse limite POR CÉLULA. Mandar isso arriscava estourar o limite e
     // corromper o salvamento inteiro. Só manda a foto se for um link de verdade (curto).
@@ -888,7 +864,7 @@ function renderEncontroAleatorio(combate){
 
 // ---- BIBLIOTECA DE ENCONTROS SALVOS (+ construtor manual) ----
 // O Mestre monta um encontro escolhendo criaturas do bestiário (com quantidade cada), dá um
-// nome, e salva — fica guardado na planilha (junto com Grupos), pra usar em qualquer sessão
+// nome, e salva — fica guardado no servidor (junto com Grupos), pra usar em qualquer sessão
 // futura sem precisar montar tudo de novo. "Usar agora" joga tudo direto na Iniciativa atual.
 function salvarEncontrosLocal(){ sincronizarGradeCompartilhada(); }
 
@@ -1313,7 +1289,7 @@ async function atualizarVisualizacaoGrade(){
   const versaoAntesDaBusca = _verGradeVersaoLocal;
   const dados = await carregarMestreDadosPorCodigo(state._verGradeCodigo);
   if(state._verGradeSalvando || _verGradeVersaoLocal!==versaoAntesDaBusca) return; // mudou algo no meio do caminho, descarta o dado velho
-  // Se a busca falhar (rede instável, Apps Script "dormindo" e demorando pra acordar, etc.),
+  // Se a busca falhar (rede instável, servidor demorando pra responder, etc.),
   // carregarMestreDadosPorCodigo devolve um formato vazio de fallback — sem essa checagem, ISSO
   // sozinho já apagava o tabuleiro inteiro da tela do jogador (o mapa "sumia" por causa de uma
   // falha de rede passageira, mesmo com o dado real intacto no servidor). Agora só substitui o
@@ -1468,7 +1444,7 @@ function renderVisualizacaoGrade(){
     grade.posicoes[combatenteId] = {x,y};
     if(grade.fogAtivo && alvo.tipo==='pj') revelarPorVisaoDosPjs({combatentes}, grade, true);
     // salva em segundo plano (enfileirado) — o token já aparece no lugar novo na hora, sem
-    // esperar a planilha responder. Manda só ESSA mudança de posição (não a grade inteira, que
+    // esperar o servidor responder. Manda só ESSA mudança de posição (não a grade inteira, que
     // do lado do jogador é a versão filtrada, sem monstro escondido — mandar ela de volta
     // apagaria isso pro Mestre também).
     enfileirarMovimentoJogador(state._verGradeCodigo, combatenteId, x, y);
@@ -1784,7 +1760,7 @@ function renderMestreGrade(){
 
     // Mapa próprio: mesma ideia dos terrenos prontos, mas com um mapa de verdade (desenhado à
     // mão, comprado, gerado por IA). Precisa ser um LINK de imagem (não dá pra guardar a imagem
-    // em si, porque a grade sincroniza a cada jogada — um arquivo grande estouraria a planilha).
+    // em si, porque a grade sincroniza a cada jogada — um arquivo grande pesaria demais em cada sincronização).
     conteudo.appendChild(el('h2',{style:'margin-top:14px;'}, '🗺️ Mapa Próprio'));
     conteudo.appendChild(el('div',{class:'tip', style:'font-size:0.75rem;'}, 'Cola o link de uma imagem sua (hospedada no Google Drive, Imgur etc., compartilhada como "qualquer pessoa com o link"). Depois ajusta o encaixe da grade em cima dela com os controles abaixo.'));
     if(!state._gradeMapaUrlTemp) state._gradeMapaUrlTemp = (grade.mapaCustomizado && grade.mapaCustomizado.url) || '';
@@ -1876,7 +1852,7 @@ function renderMestreGrade(){
       sincronizarGradeCompartilhada();
       const codigo = await codigoParaLinkDaGrade();
       if(!codigo){ flashMsg('⚠ Não consegui gerar o link agora — tenta de novo em instantes.'); return; }
-      const url = window.location.origin + window.location.pathname + '?vergrade=' + encodeURIComponent(codigo) + (usandoSupabase() ? '&backend=supabase' : '');
+      const url = window.location.origin + window.location.pathname + '?vergrade=' + encodeURIComponent(codigo);
       state._gradeLinkGerado = url;
       render();
     }}, '🔗 Gerar Link'));
@@ -2490,7 +2466,7 @@ function renderMestreCombate(){
         if(!confirm('Limpar a lista de combatentes e reiniciar a iniciativa? O mapa (paredes, terreno, mapa próprio) continua do jeito que está, pronto pro próximo encontro.')) return;
         // Antes isso trocava state._mestreIniciativa inteiro por um objeto novo sem ".grade"
         // nenhum — junto com um salvamento pendente que disparasse logo depois, isso podia
-        // apagar o mapa inteiro da planilha (paredes, terreno, tudo) sem querer. Agora só limpa
+        // apagar o mapa inteiro do servidor (paredes, terreno, tudo) sem querer. Agora só limpa
         // combatentes/turno, preserva a grade, e sincroniza na hora (não deixa pendente).
         combate.combatentes = [];
         combate.turnoIdx = 0;

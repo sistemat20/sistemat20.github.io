@@ -790,7 +790,7 @@ function ajustarPM(f, delta){
 // Recebe um arquivo de imagem escolhido pelo jogador e abre o ajustador de posição (arrastar
 // pra escolher o que aparece) antes de confirmar — só depois disso é que redimensiona/comprime/envia.
 // Upload de mapa — bem mais simples que o de foto de personagem (sem recorte circular, mapa é
-// retângulo mesmo). Redimensiona se for muito grande (economiza espaço/banda), manda pro Drive
+// retângulo mesmo). Redimensiona se for muito grande (economiza espaço/banda), manda pro servidor
 // (ou guarda direto, no modo Claude) e adiciona na lista de mapas do Mestre.
 function handleMapaUpload(file){
   if(!file || !file.type.startsWith('image/')) return;
@@ -904,7 +904,7 @@ function handleFotoUpload(f, file){
 }
 
 // Depois que o jogador arrasta e confirma a posição, recorta exatamente o que estava visível,
-// redimensiona pra um quadrado final e manda pro backend (Drive) ou guarda direto (modo Claude).
+// redimensiona pra um quadrado final e manda pro servidor (Storage do Supabase) ou guarda direto (modo Claude).
 function confirmarCropFoto(){
   const c = state._cropperFoto;
   if(!c) return;
@@ -2221,7 +2221,7 @@ async function salvarPerfis(){
   }
 }
 async function salvarPerfisInterno(){
-  // Antes de sobrescrever a planilha com a cópia local, busca rapidinho se o servidor tem algum
+  // Antes de sobrescrever o servidor com a cópia local, busca rapidinho se o servidor tem algum
   // presente (item/dinheiro do Mestre) que ainda não vimos — sem isso, salvar logo depois de
   // receber algo (antes do jogador ter atualizado a página) apagava o presente, porque a cópia
   // local (sem ele) ia por cima da versão do servidor (com ele).
@@ -2385,8 +2385,8 @@ async function iniciar(){
     return;
   }
   // Mostra os personagens salvos localmente (se tiver uma cópia de uma visita anterior) na hora,
-  // sem esperar a planilha do Google responder — o Apps Script às vezes demora pra "acordar"
-  // quando fica um tempo sem uso, e isso não deveria deixar a tela parecendo travada/em branco.
+  // sem esperar o servidor responder — rede lenta não deveria deixar a tela parecendo
+  // travada/em branco.
   const temCacheLocal = !usandoStorageDoClaude() && typeof carregarDoLocalStorage==='function' && carregarDoLocalStorage().length>0;
   if(temCacheLocal){
     state.perfis = carregarDoLocalStorage();
@@ -2415,36 +2415,8 @@ async function iniciar(){
   render();
 }
 
-// ---- Tela de entrada de código de jogador (só aparece quando há planilha configurada) ----
+// ---- Tela de entrada: nome + código (ou só o código, para o Mestre) ----
 function renderEntradaCodigoScreen(){
-  if(usandoSupabase()) return renderEntradaSupabaseScreen();
-  const wrap = el('div',{class:'perfis-screen'});
-  wrap.appendChild(el('div',{class:'perfis-title'},'Painel do Aventureiro'));
-  const painel = el('div',{class:'panel faixa', style:'max-width:380px;width:100%;'});
-  painel.appendChild(el('h2',{},'Código de acesso'));
-  painel.appendChild(el('div',{class:'tip'},
-    el('b',{},'O que é isso?'),
-    'Seu código liga seus personagens a você — use o mesmo código em qualquer aparelho pra continuar de onde parou.'
-  ));
-  if(state._codigoInput==null) state._codigoInput = '';
-  painel.appendChild(el('input',{type:'text', placeholder:'ex: LOBO-4821 ou uma frase sua', value:state._codigoInput, oninput:(e)=>{state._codigoInput=e.target.value;}}));
-  if(state._codigoErro) painel.appendChild(el('div',{class:'tip', style:'color:var(--red-bright);'}, state._codigoErro));
-  painel.appendChild(el('button',{class:'btn', onclick:confirmarCodigoJogador}, state._carregandoCodigo?'Entrando...':'Entrar'));
-  painel.appendChild(el('button',{class:'btn ghost', style:'margin-top:8px;', onclick:()=>{ state._codigoInput = sugerirCodigoJogador(); render(); }}, '✨ Sugerir um código'));
-  wrap.appendChild(painel);
-  return wrap;
-}
-
-async function confirmarCodigoJogador(){
-  const codigo = (state._codigoInput||'').trim();
-  if(!codigo){ state._codigoErro = 'Digite um código pra continuar.'; render(); return; }
-  state._codigoErro = null;
-  definirCodigoJogador(codigo);
-  await seguirDepoisDoLogin(ehCodigoMestre(codigo));
-}
-
-// ---- Tela de entrada no modo Supabase: nome + código (ou só o código, para o Mestre) ----
-function renderEntradaSupabaseScreen(){
   if(!state._login) state._login = {modo:'jogador', nome:'', codigo:'', erro:null, carregando:false};
   const L = state._login;
   const wrap = el('div',{class:'perfis-screen'});
@@ -2480,6 +2452,8 @@ async function confirmarLoginSupabase(){
   const L = state._login;
   if(!L || L.carregando) return;
   if(L.modo!=='mestre' && !L.nome.trim()){ L.erro = 'Digite seu nome.'; render(); return; }
+  // Quem digita "Mestre" no campo de nome quer entrar como Mestre (aconteceu no ensaio).
+  if(L.modo==='jogador' && /^[♛\s]*mestre\s*$/i.test(L.nome.trim())) L.modo = 'mestre';
   if(!L.codigo.trim()){ L.erro = 'Digite o código.'; render(); return; }
   L.erro = null; L.carregando = true; render();
   const r = await entrarSupabase(L.modo, L.nome.trim(), L.codigo.trim());
@@ -2493,8 +2467,7 @@ async function confirmarLoginSupabase(){
   await seguirDepoisDoLogin(!!r.dados.jogador.ehMestre);
 }
 
-// Depois de entrar (por código na planilha ou por login no Supabase): Mestre vai para as
-// ferramentas do Mestre, jogador para a lista de personagens.
+// Depois de entrar: Mestre vai para as ferramentas do Mestre, jogador para a lista de personagens.
 async function seguirDepoisDoLogin(ehMestre){
   if(ehMestre){
     state.screen = 'mestre';
@@ -2508,24 +2481,22 @@ async function seguirDepoisDoLogin(ehMestre){
     iniciarAtualizacaoAutomaticaMestre();
     return;
   }
-  state._carregandoCodigo = true;
   state.screen = 'perfis';
   state._carregandoInicial = true;
   render();
   await carregarPerfis();
-  state._carregandoCodigo = false;
   state._carregandoInicial = false;
   render();
 }
 
-// Sai do código atual — volta pra tela de entrada (não apaga nada da planilha, só "desloga" o aparelho)
+// Sai da conta — volta pra tela de entrada (não apaga nada do servidor, só "desloga" o aparelho)
 function sairDoCodigoJogador(){
   pararAtualizacaoAutomaticaMestre();
   limparCodigoJogador();
   state.perfis = [];
   state.perfilAtualId = null;
   state.screen = 'perfis';
-  state._codigoInput = '';
+  state._login = null;
   render();
 }
 
@@ -2627,13 +2598,13 @@ function render(){
 }
 
 // Frases de clima pra tela de carregamento — nada oficial do livro, só pra dar uma cara de
-// Arton enquanto a planilha do Google "acorda". Escolhida uma por sessão, não fica trocando.
+// Arton enquanto o servidor responde. Escolhida uma por sessão, não fica trocando.
 const FRASES_CARREGAMENTO = [
   'Afiando espadas e recarregando mochilas...',
   'Consultando os arquivos de Valkaria...',
   'A Tormenta espera, mas os heróis não...',
   'Rolando iniciativa nos bastidores...',
-  'Acordando o escriba da planilha...',
+  'Acordando o escriba da guilda...',
   'Reunindo os aventureiros na taverna...',
   'Verificando o mapa de Arton...',
 ];
@@ -2682,10 +2653,8 @@ function renderPerfisScreen(){
 
   const grid = el('div',{class:'perfis-grid'});
 
-  // O card fixo do Mestre só faz sentido quando não há um sistema de código de acesso (ex:
-  // dentro do Claude, onde a conversa já é privada). Quando há planilha compartilhada, o acesso
-  // ao Mestre passa a ser só digitando "Mestre" na tela de código — assim outros jogadores que
-  // usam a mesma planilha não veem essa opção à toa.
+  // O card fixo do Mestre só faz sentido quando não há login (dentro do Claude, onde a conversa
+  // já é privada). No site, o Mestre entra pelo "Sou o Mestre" da tela de entrada.
   if(!precisaCodigoJogador()){
     grid.appendChild(el('div',{class:'perfil-card-wrap'},
       el('button',{class:'perfil-card', onclick:()=>{ if(!state.gerenciandoPerfis) abrirTelaMestre(); }},
@@ -2751,7 +2720,7 @@ function renderPerfisScreen(){
   }
   if(precisaCodigoJogador()){
     wrap.appendChild(el('div',{class:'perfil-manage'},
-      el('button',{onclick:sairDoCodigoJogador}, usandoSupabase() ? 'Sair' : 'Trocar código de acesso')
+      el('button',{onclick:sairDoCodigoJogador}, 'Sair')
     ));
   }
   return wrap;

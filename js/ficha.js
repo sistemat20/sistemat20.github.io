@@ -1069,8 +1069,8 @@ function registrarLog(f, texto){
   if(f.log.length > 50) f.log.length = 50;
 }
 
-// Baixa a ficha inteira como um arquivo .json — uma cópia de segurança que não depende da
-// planilha do Mestre. Pode ser reaberta depois com "Importar Cópia de Segurança" na tela de
+// Baixa a ficha inteira como um arquivo .json — uma cópia de segurança que não depende do
+// servidor. Pode ser reaberta depois com "Importar Cópia de Segurança" na tela de
 // Perfis, ou só guardada como backup mesmo.
 function baixarBackupFicha(f){
   const conteudo = JSON.stringify(f, null, 2);
@@ -2349,9 +2349,9 @@ function renderPopupEnviarItem(f){
         const resultado = await enviarItemParaOutroPersonagem(p.id, itemEnviado);
         if(resultado.ok){
           removerItemMochila(f, fluxo.idx);
-          // Na planilha: grava só a ficha do remetente, sem tocar na do destino. No Supabase essa
-          // ação é só do Mestre; o salvamento normal grava as fichas do próprio jogador, com a
-          // mesma proteção de presentes (e a do destino já foi alterada no servidor pelo envio).
+          // Grava as fichas do próprio jogador pelo salvamento normal (com a proteção de
+          // presentes); a do destino o servidor já alterou no envio. Dentro do Claude não há
+          // servidor, então grava só a ficha do remetente direto.
           if(usandoSupabase()) await salvarPerfis();
           else await mestreAtualizarPersonagem(f);
           flashMsg('📤 "'+row.item+'" enviado pra '+(resultado.nomeDestino||p.nome)+'!');
@@ -2424,15 +2424,14 @@ function renderPopupMoeda(f){
   return overlay;
 }
 
-// Busca os mapas que o Mestre enviou (usa o código especial de Mestre, o mesmo que
-// ehCodigoMestre reconhece — funciona mesmo sem o jogador saber qual é o código do Mestre,
-// porque só existe UM Mestre por mesa/planilha).
+// Busca os mapas que o Mestre compartilhou (só existe UM Mestre por mesa; o jogador recebe só
+// os mapas, nada mais dos dados do Mestre).
 function abrirEscolherMapaMestre(){
   state._escolherMapaFluxo = {mapas:null, carregando:true};
   render();
-  carregarMestreDadosPorCodigo(CODIGO_MESTRE_ESPECIAL).then(dados=>{
+  carregarMapasDoMestre().then(mapas=>{
     if(!state._escolherMapaFluxo) return;
-    state._escolherMapaFluxo.mapas = dados.mapas || [];
+    state._escolherMapaFluxo.mapas = mapas;
     state._escolherMapaFluxo.carregando = false;
     render();
   });

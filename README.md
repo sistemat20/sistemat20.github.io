@@ -24,7 +24,7 @@ Não tem build, nem bundler, nem framework: é JavaScript puro carregado por tag
 ```bash
 npm install
 npm run check   # sintaxe de todos os arquivos + conferir se o index.html está consistente
-npm test        # regressão: todas as telas montam e os cálculos batem
+npm test        # regressão (telas e cálculos) + armazenamento no Supabase (servidor simulado)
 ```
 
 ## Estrutura
@@ -34,7 +34,7 @@ index.html              ordem de carregamento de tudo (arquivo novo precisa entr
 css/style.css           tokens de cor, tipografia e espaçamento, mais os temas
 js/                     lógica: cálculo, telas do jogador e do Mestre, criação, nível, itens
 data/                   base de regras extraída dos livros
-google-apps-script/     backend: Apps Script sobre uma planilha do Google Sheets
+supabase/               backend: migrações do banco e Edge Functions (auth-api, t20-api)
 test/                   ambiente de teste (jsdom) e suíte de regressão
 docs/                   regras já conferidas contra o livro oficial
 livros/                 PDFs dos livros, fora do git (ver livros/LEIA-ME.md)
@@ -44,8 +44,8 @@ livros/                 PDFs dos livros, fora do git (ver livros/LEIA-ME.md)
 
 O site é estático e vai para o GitHub Pages: subir para a branch publicada já publica.
 
-O backend é separado. Se mudar `google-apps-script/Code.gs`, é preciso colar o arquivo no editor
-do Apps Script e criar uma implantação nova. Ver `DEPLOY.md`.
+O backend é separado: Supabase (banco, login e fotos). Mudanças em `supabase/` precisam ser
+publicadas no Supabase à parte. Ver `DEPLOY.md`.
 
 ## Para quem for mexer no código
 

@@ -32,12 +32,12 @@ const EXPOSTOS = [
   // estado e telas
   'state', 'render', 'fichaAtual', 'removerItemMochila', 'migrarMelhoriasSubstituidas',
   'aplicarMigracoesPerfis',
-  // armazenamento (modo planilha e modo Supabase)
+  // armazenamento (Supabase)
   'carregarPerfisArmazenamento', 'salvarPerfisArmazenamento', 'carregarTodosPersonagensMestre',
   'mestreAtualizarPersonagem', 'listaLeveDeTodosPersonagens', 'carregarMestreDadosPorCodigo',
   'carregarMestreDadosArmazenamento', 'salvarMestreDadosArmazenamento', 'codigoParaLinkDaGrade',
   'ehCodigoMestre', 'obterCodigoJogador', 'obterSessao', 'usandoSupabase', 'precisaCodigoJogador',
-  'limparCodigoJogador', 'confirmarLoginSupabase', 'enviarItemParaOutroPersonagem',
+  'limparCodigoJogador', 'confirmarLoginSupabase', 'enviarItemParaOutroPersonagem', 'carregarMapasDoMestre',
 ];
 
 /**
@@ -53,12 +53,11 @@ function carregarApp(opcoes) {
   const w = dom.window;
   const erros = [];
 
-  // Sem o código de acesso, toda tela cai na tela de login e o teste falha pelo motivo errado.
+  // Sem sessão toda tela cai no login e o teste falha pelo motivo errado, então por padrão o
+  // teste já entra logado como jogador. opcoes.sessao troca a sessão; sessao: null testa o login.
+  // opcoes.localStorage põe chaves extras antes de o app carregar.
   w.localStorage.clear();
-  w.localStorage.setItem('painel_aventureiro_codigo_jogador', 'TESTE-1234');
-  // Modo Supabase (o padrão desde a virada): sem sessão toda tela cai no login, então por padrão
-  // o teste já entra logado como jogador. opcoes.sessao troca a sessão; sessao: null testa o login.
-  if (opcoes.backend) w.localStorage.setItem('painel_aventureiro_backend', opcoes.backend);
+  Object.entries(opcoes.localStorage || {}).forEach(([k, v]) => w.localStorage.setItem(k, v));
   const sessao = opcoes.sessao === undefined
     ? { token: 'TESTE-SESSAO', jogador: { id: 'teste', nome: 'Teste', papel: 'jogador', ehMestre: false } }
     : opcoes.sessao;
@@ -84,7 +83,7 @@ function carregarApp(opcoes) {
 
   w.eval(bundle + '\n;(function(){' + reexporta + '})();');
 
-  // Nos testes não queremos tocar na planilha nem redesenhar sem pedir.
+  // Nos testes não queremos tocar no servidor nem redesenhar sem pedir.
   w.salvarPerfis = () => {};
   w.flashMsg = () => {};
 

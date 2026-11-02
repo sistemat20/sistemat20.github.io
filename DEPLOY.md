@@ -1,55 +1,42 @@
-# Como colocar o Painel do Aventureiro na internet
+# Como o Painel do Aventureiro fica na internet
 
-Este guia cobre os 3 passos: banco de dados (Google Sheets), repositório (GitHub) e publicação (Netlify).
+Duas partes, publicadas separadamente:
 
-## 1. Banco de dados — Google Sheets
+- **Site** (HTML, CSS, JS): GitHub Pages, em `sistemat20.github.io`, a partir da branch `main`.
+- **Backend**: Supabase, projeto `SistemaT20` (ref `wosdybamqyisdtfpnvly`, região São Paulo), na
+  organização `SistemaT20`. Tem o banco (Postgres), duas Edge Functions e o Storage das fotos.
 
-1. Crie uma planilha nova no Google Sheets (pode chamar de "Painel Aventureiro — Dados").
-2. Vá em **Extensões → Apps Script**.
-3. Apague o conteúdo padrão do arquivo `Code.gs` e cole o conteúdo do arquivo `google-apps-script/Code.gs` deste projeto.
-4. Clique em **Implantar → Nova implantação**.
-   - Tipo: **App da Web**.
-   - Executar como: **Eu** (sua conta).
-   - Quem pode acessar: **Qualquer pessoa**.
-5. Autorize as permissões pedidas (é a sua própria planilha, então é seguro).
-6. Copie a URL que termina em `/exec` — é a URL do seu backend.
-7. Abra o arquivo `js/storage-adapter.js` do projeto e cole essa URL na linha:
-   ```js
-   const SHEETS_API_URL = 'https://script.google.com/macros/s/SEU_ID_AQUI/exec';
-   ```
-8. Pronto — a planilha cria sozinha a aba "Personagens" na primeira vez que alguém salvar um personagem pelo site.
+Até 01/11/2026 o backend era uma planilha do Google com um Apps Script; os dados foram
+importados para o Supabase nesse dia.
 
-**Sobre "cada jogador vê só os seus personagens":** cada jogador escolhe (ou aceita uma sugestão do app) um **código de acesso** na primeira vez que abre o site — algo como `LOBO-4821` ou uma frase própria. Esse código é salvo junto de cada personagem na planilha e usado pra filtrar o que aparece pra cada um. Digitando o mesmo código em outro aparelho, os personagens aparecem lá também — não precisa ficar preso a um único celular. Quem digitar **"Mestre"** como código cai direto nas ferramentas de mestre (bestiário, tesouro, lojas etc.), em vez da lista de personagens — assim essa opção não fica visível à toa pros outros jogadores que usam a mesma planilha. Não existe senha de verdade nem conta — é só um código combinado, suficiente pra um app de mesa entre amigos.
+## Site
 
-Se algum dia quiser ver todos os personagens de todos os jogadores (visão de mestre/admin), é só abrir a planilha diretamente no Google Sheets — cada linha tem o JSON completo do personagem na coluna "DadosJSON".
+Subir para a `main` publica sozinho, em cerca de um minuto. O navegador pode guardar o
+`style.css` antigo por alguns minutos depois de cada publicação.
 
-## 2. Repositório — GitHub
+## Backend (pasta `supabase/`)
 
-1. Crie um repositório novo no GitHub (pode ser privado ou público).
-2. Suba todos os arquivos deste projeto pra ele (mantendo a estrutura de pastas: `index.html`, `css/`, `js/`, `data/`, `google-apps-script/`).
-   - Pelo site do GitHub: "Add file → Upload files", arraste tudo.
-   - Ou por linha de comando, se preferir:
-     ```
-     git init
-     git add .
-     git commit -m "Painel do Aventureiro"
-     git branch -M main
-     git remote add origin https://github.com/SEU_USUARIO/SEU_REPOSITORIO.git
-     git push -u origin main
-     ```
+| O quê | Onde | Como publicar |
+|---|---|---|
+| Tabelas, regras de acesso, funções atômicas, bucket de fotos | `supabase/migrations/` | aplicar a migração nova no projeto |
+| Login (nome + código, Mestre, troca de código) | `supabase/functions/auth-api` | deploy da Edge Function, `verify_jwt` desligado |
+| Fichas, dados do Mestre, grade, fotos | `supabase/functions/t20-api` | deploy da Edge Function, `verify_jwt` desligado |
 
-## 3. Publicação — Netlify
+As duas funções fazem a própria autenticação (token da sessão do `auth-api`, ou o token do link
+da grade), por isso `verify_jwt` fica desligado. O banco não tem nenhuma regra pública: só as
+funções, com a chave de serviço, leem e gravam.
 
-1. Crie uma conta em [netlify.com](https://www.netlify.com) (pode entrar direto com sua conta do GitHub).
-2. Clique em **Add new site → Import an existing project**.
-3. Escolha **GitHub** e selecione o repositório que você criou.
-4. Configurações de build: deixe **em branco** (não precisa de comando de build nem pasta de publicação especial — é um site estático puro, a pasta raiz já serve).
-5. Clique em **Deploy site**.
-6. Em alguns segundos o Netlify te dá uma URL tipo `nome-aleatorio.netlify.app` — é isso que você compartilha com o grupo.
-7. (Opcional) Em **Site settings → Domain management**, você pode trocar esse nome por algo mais fácil de lembrar, tipo `mesa-tormenta.netlify.app`.
+**Publicar o site não atualiza o backend**, e vice-versa. Mudou algo em `supabase/`, a função ou
+a migração precisa ser publicada à parte.
 
-A partir daí, qualquer alteração que você fizer no código e enviar pro GitHub (`git push`) publica automaticamente no Netlify em menos de um minuto.
+## Chaves
 
-## Testando antes de divulgar
+- `SUPABASE_URL` e `SUPABASE_CHAVE_PUBLICA` ficam em `js/storage-adapter.js`. A chave publicável
+  é pública por natureza.
+- A chave de serviço (`service_role`) **nunca** vai para o site nem para o repositório: só as
+  Edge Functions a usam, pelo ambiente do próprio Supabase.
 
-Depois de publicado, abra o link, crie um personagem de teste, feche a aba, abra de novo — se o personagem continuar lá, o backend da planilha está funcionando. Se sumir, confira se a `SHEETS_API_URL` foi colada certinha e se a implantação do Apps Script está com "Quem pode acessar: Qualquer pessoa".
+## Plano gratuito
+
+Projeto parado 7 dias sem uso é pausado pelo Supabase; reativar é um clique no painel. O limite
+de 2 projetos gratuitos ativos vale para a conta inteira, somando as organizações.

@@ -33,22 +33,27 @@ Arquivo novo em `data/` ou `js/` só funciona depois de ser adicionado ao `index
 | `js/wizard.js` | Criação de personagem |
 | `js/levelup.js` | Subir e descer de nível |
 | `js/item-superior.js` | Construtor de item superior (melhorias e materiais) |
-| `js/storage-adapter.js` | Conversa com o backend, código de acesso do jogador, merge de dados |
+| `js/storage-adapter.js` | Conversa com o Supabase (Edge Functions), sessão de login, versões das fichas, merge de dados |
 | `data/*.js` | Base de regras extraída dos livros (raças, classes, poderes, magias, itens, criaturas) |
-| `google-apps-script/Code.gs` | Backend: Google Apps Script sobre uma planilha do Google Sheets |
+| `supabase/migrations/` | Esquema do banco: tabelas, RLS sem policy pública, funções `enviar_item`/`enviar_dinheiro`, bucket de fotos |
+| `supabase/functions/auth-api` | Login por nome + código (bcrypt), Mestre, troca de código, sair |
+| `supabase/functions/t20-api` | Fichas (com versão), dados do Mestre, mapas, link da grade, fotos |
 
-**Backend.** Google Sheets é o banco. Cada personagem é uma linha com o JSON completo na coluna
-`DadosJSON`. O `Code.gs` roda como app da web. Ver `DEPLOY.md`.
+**Backend.** Supabase, projeto `SistemaT20` (ref `wosdybamqyisdtfpnvly`). Cada ficha é uma linha
+de `personagens` com o JSON completo em `dados` e um número `versao`: salvar com versão velha
+volta como conflito, e o app mescla sem perder item/dinheiro antes de tentar de novo. O banco
+não tem regra pública; só as Edge Functions gravam. Ver `DEPLOY.md`. (Até 01/11/2026 era uma
+planilha do Google com Apps Script.)
 
-> **Se você mexer em `google-apps-script/Code.gs`, avise a usuária explicitamente.** Publicar o
-> site não atualiza o Apps Script: ela precisa colar o arquivo novo no editor do Apps Script e
-> criar uma implantação nova. Se não mexeu no backend, vale dizer isso também.
+> **Se você mexer em `supabase/`, avise a usuária explicitamente.** Publicar o site não atualiza
+> o backend: migração e Edge Function são publicadas à parte, e cada uma precisa do "pode" dela.
+> Se não mexeu no backend, vale dizer isso também.
 
 ## Testes
 
 ```bash
 npm install   # instala jsdom (única dependência, só de desenvolvimento)
-npm test
+npm test      # regressao.test.js + supabase.test.js
 ```
 
 `test/harness.js` carrega `index.html`, concatena todos os scripts na ordem certa e avalia tudo

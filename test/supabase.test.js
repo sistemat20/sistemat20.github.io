@@ -21,8 +21,8 @@ function servidorFalso(w) {
 const okDados = (dados) => ({ status: 200, json: { ok: true, dados } });
 
 (async () => {
-  // ------------------------------------------------------------ padrão continua planilha
-  h.secao('Supabase é o padrão (virada)');
+  // ------------------------------------------------------------ só Supabase
+  h.secao('Só existe o Supabase (a planilha saiu)');
   {
     const { window: w } = h.carregarApp();
     h.ok('modo Supabase ligado sem escolher nada', w.usandoSupabase());
@@ -30,8 +30,10 @@ const okDados = (dados) => ({ status: 200, json: { ok: true, dados } });
     h.igual('o "código" do app é o token da sessão', w.obterCodigoJogador(), 'TESTE-SESSAO');
   }
   {
-    const { window: w } = h.carregarApp({ backend: 'planilha' });
-    h.ok('quem guardou ?backend=planilha no ensaio também vai para o Supabase', w.usandoSupabase());
+    const { window: w } = h.carregarApp({ localStorage: { painel_aventureiro_codigo_jogador: 'LOBO-1234', painel_aventureiro_backend: 'planilha' } });
+    h.ok('apaga o código de acesso antigo que a planilha guardava em texto puro', w.localStorage.getItem('painel_aventureiro_codigo_jogador') === null);
+    h.ok('e a escolha de backend do ensaio', w.localStorage.getItem('painel_aventureiro_backend') === null);
+    h.ok('quem tinha ?backend=planilha guardado também usa o Supabase', w.usandoSupabase());
   }
 
   // ------------------------------------------------------------ tela de login
@@ -63,6 +65,14 @@ const okDados = (dados) => ({ status: 200, json: { ok: true, dados } });
     await w.confirmarLoginSupabase();
     h.igual('código errado mostra o erro do servidor', w.state._login.erro, 'Nome ou código incorreto.');
     h.ok('e não guarda sessão', !w.obterSessao());
+
+    srv.respostas.entrarMestre = okDados({ token: 'tok-m', jogador: { id: 'mestre', nome: 'Mestre', papel: 'mestre', ehMestre: true } });
+    srv.respostas.todosPersonagens = okDados({ personagens: [] });
+    srv.respostas.lerMestreDados = okDados({ dados: { grupos: [], encontrosSalvos: [] } });
+    w.state._login = { modo: 'jogador', nome: '  mestre ', codigo: 'segredo-m', erro: null, carregando: false };
+    await w.confirmarLoginSupabase();
+    h.ok('"Mestre" digitado no campo de nome entra como Mestre', !!srv.ultima('entrarMestre') && srv.ultima('entrarMestre').corpo.codigo === 'segredo-m');
+    h.igual('e vai para a tela do Mestre', w.state.screen, 'mestre');
   }
 
   // ------------------------------------------------------------ fichas
@@ -153,8 +163,8 @@ const okDados = (dados) => ({ status: 200, json: { ok: true, dados } });
     h.ok('Mestre salva pelo salvarMestreDados', !!srv.ultima('salvarMestreDados'));
 
     srv.respostas.mapasDoMestre = okDados({ mapas: [{ nome: 'Masmorra' }] });
-    const mapas = await w.carregarMestreDadosPorCodigo(w.CODIGO_MESTRE_ESPECIAL || 'Rola');
-    h.ok('mapas do Mestre vêm pela ação própria', mapas.mapas.length === 1 && !!srv.ultima('mapasDoMestre'));
+    const mapas = await w.carregarMapasDoMestre();
+    h.ok('mapas do Mestre vêm pela ação própria', mapas.length === 1 && !!srv.ultima('mapasDoMestre'));
 
     srv.respostas.gerarLinkGrade = okDados({ tokenGrade: 'grade-abc' });
     const t1 = await w.codigoParaLinkDaGrade();
