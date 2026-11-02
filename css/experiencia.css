@@ -1,0 +1,128 @@
+/* ===================== Experiência de jogo (js/experiencia.js) =====================
+   Atmosfera por condição, grimório em cartas, presente voando até o aliado, resumo da
+   última sessão e mesa ao vivo do Mestre. Tudo para de se mexer com prefers-reduced-motion. */
+
+/* --- Atmosfera: a ficha sente a condição do personagem --- */
+.atm-camada{ position:fixed; inset:0; pointer-events:none; z-index:4; }
+.atm-abalado header.top{ animation: atm-tremor 0.55s linear infinite; }
+@keyframes atm-tremor{ 0%,100%{transform:translateX(0)} 20%{transform:translateX(-1.5px)} 40%{transform:translateX(1.5px)} 60%{transform:translateX(-1px)} 80%{transform:translateX(0.8px)} }
+.atm-veneno{ background: radial-gradient(70% 45% at 50% 100%, rgba(110,190,90,0.42), rgba(110,190,90,0) 70%); animation: atm-onda 3.4s ease-in-out infinite; }
+@keyframes atm-onda{ 0%,100%{ opacity:0.55; transform:translateY(0); } 50%{ opacity:1; transform:translateY(-14px); } }
+.atm-fadiga{ background:#000; animation: atm-pesar 3.8s ease-in-out infinite; }
+@keyframes atm-pesar{ 0%,100%{ opacity:0; } 50%{ opacity:0.28; } }
+.atm-fio{ background: radial-gradient(75% 60% at 50% 45%, rgba(201,74,58,0) 45%, rgba(201,74,58,0.55) 100%); animation: atm-batida 1.15s ease-in-out infinite; }
+@keyframes atm-batida{ 0%,100%{ opacity:0.3; } 12%{ opacity:0.9; } 24%{ opacity:0.4; } 36%{ opacity:0.75; } }
+.atm-faixa{ margin:0 0 10px; padding:9px 12px; border-radius:var(--radius-sm); background:var(--card-2); border:1px solid var(--line); font-size:var(--fs-sm); line-height:1.4; }
+.atm-faixa b{ font-family:'Cinzel',serif; }
+
+/* --- Selo de presente no lugar de "(recebido de X)" grudado no nome --- */
+.selo-presente{ display:inline-block; margin-left:6px; padding:1px 8px; border-radius:var(--radius-pill); background:rgba(216,189,116,0.14); border:1px solid rgba(216,189,116,0.5); color:var(--gold); font-size:var(--fs-2xs); font-weight:700; font-family:'Inter',sans-serif; vertical-align:middle; white-space:nowrap; }
+
+/* --- Presente voando até o aliado --- */
+.presente-avatares{ display:grid; grid-template-columns:repeat(auto-fill, minmax(84px, 1fr)); gap:10px; padding:4px 14px 6px; }
+.presente-avatar{ display:flex; flex-direction:column; align-items:center; gap:6px; padding:8px 4px; border:0; background:transparent; color:var(--ink); cursor:pointer; font-family:'Inter',sans-serif; }
+.presente-avatar .rosto{ width:62px; height:62px; border-radius:50%; border:2px solid var(--gold-deep); background:var(--bg-2); display:flex; align-items:center; justify-content:center; overflow:hidden; font-family:'Cinzel',serif; font-weight:800; font-size:1.3rem; color:var(--gold); transition:transform 150ms ease, border-color 150ms ease; }
+.presente-avatar .rosto img{ width:100%; height:100%; object-fit:cover; }
+.presente-avatar:active .rosto, .presente-avatar:hover .rosto{ transform:scale(1.07); border-color:var(--gold); }
+.presente-avatar .nome{ font-size:var(--fs-xs); font-weight:600; text-align:center; line-height:1.2; }
+.presente-avatar .jogador{ font-size:var(--fs-2xs); color:var(--ink-soft); }
+.presente-voo{ position:fixed; inset:0; pointer-events:none; z-index:60; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; padding-bottom:90px; }
+.presente-voo .item{ position:absolute; top:38%; left:50%; padding:10px 16px; border-radius:var(--radius-md); background:var(--bg-2); border:1px solid var(--gold); color:var(--ink); font-weight:600; box-shadow:0 10px 24px var(--shadow); animation: presente-voar 0.9s cubic-bezier(.45,-0.2,.6,1) forwards; white-space:nowrap; }
+@keyframes presente-voar{ 0%{ transform:translate(-50%,0) scale(1); opacity:1; } 60%{ opacity:1; } 100%{ transform:translate(-50%,44vh) scale(0.3); opacity:0; } }
+.presente-voo .rosto{ width:76px; height:76px; border-radius:50%; border:2px solid var(--gold); background:var(--bg-2); display:flex; align-items:center; justify-content:center; overflow:hidden; font-family:'Cinzel',serif; font-weight:800; font-size:1.5rem; color:var(--gold); animation: presente-brilho 0.8s ease-out 0.85s 2; }
+.presente-voo .rosto img{ width:100%; height:100%; object-fit:cover; }
+@keyframes presente-brilho{ 0%{ box-shadow:0 0 0 0 rgba(216,189,116,0.9); } 100%{ box-shadow:0 0 0 22px rgba(216,189,116,0); } }
+.presente-voo .aviso{ margin-top:12px; padding:9px 14px; border-radius:var(--radius-sm); background:var(--gold); color:#1a0f0a; font-weight:700; font-size:var(--fs-sm); animation: presente-aviso 1.9s ease-out 0.8s both; }
+@keyframes presente-aviso{ 0%{ opacity:0; transform:translateY(8px); } 15%{ opacity:1; transform:none; } 85%{ opacity:1; } 100%{ opacity:0; } }
+
+/* --- Grimório em cartas e prévia de mana --- */
+.grimorio-cartas{ display:flex; gap:10px; overflow-x:auto; scroll-snap-type:x mandatory; padding:6px 2px 12px; margin:0 0 6px; }
+.grimorio-carta{ flex:0 0 132px; scroll-snap-align:start; min-height:186px; border-radius:var(--radius-md); border:1.5px solid rgba(216,189,116,0.35); background:linear-gradient(170deg, #2b2036 0%, #17111d 55%, #120c09 100%); color:#f0e9da; padding:12px 10px; display:flex; flex-direction:column; align-items:center; gap:6px; text-align:center; cursor:pointer; font-family:'Inter',sans-serif; box-shadow:0 8px 18px var(--shadow); transition:transform 160ms ease, border-color 160ms ease; }
+.grimorio-carta:hover, .grimorio-carta:active{ transform:translateY(-4px); border-color:var(--pm-accent); }
+.grimorio-carta.sem-mana{ opacity:0.4; }
+.grimorio-carta .circulo{ font-size:var(--fs-2xs); letter-spacing:0.12em; color:#c7b998; }
+.grimorio-carta .selo-escola{ width:44px; height:44px; border-radius:50%; border:1.5px solid var(--pm-accent); display:flex; align-items:center; justify-content:center; font-family:'Cinzel',serif; font-weight:800; color:var(--pm-accent); }
+.grimorio-carta .nome{ font-family:'Cinzel',serif; font-weight:800; font-size:0.92rem; line-height:1.15; }
+.grimorio-carta .escola{ font-family:'Cormorant Garamond',serif; font-size:0.95rem; color:#c7b998; }
+.grimorio-carta .custo{ margin-top:auto; padding:3px 10px; border-radius:var(--radius-pill); background:rgba(156,199,232,0.15); color:var(--pm-accent); font-family:'Cinzel',serif; font-weight:800; font-size:0.85rem; }
+.mana-previa{ margin:6px 14px 4px; padding:10px 12px; border-radius:var(--radius-sm); background:var(--card-2); border:1px solid rgba(156,199,232,0.3); }
+.mana-previa .linha{ display:flex; justify-content:space-between; align-items:baseline; font-size:var(--fs-xs); color:var(--ink-soft); }
+.mana-previa .valor{ font-family:'Cinzel',serif; font-weight:800; font-size:1.05rem; color:var(--pm-accent); }
+.mana-previa .valor .depois{ color:var(--pv-accent); font-size:0.9rem; }
+.mana-previa .trilho{ position:relative; margin-top:7px; height:11px; border-radius:6px; background:rgba(156,199,232,0.12); overflow:hidden; }
+.mana-previa .resta{ position:absolute; left:0; top:0; bottom:0; background:var(--pm-accent); border-radius:6px; }
+.mana-previa .gasto{ position:absolute; top:0; bottom:0; background-image:repeating-linear-gradient(135deg, rgba(156,199,232,0.85) 0 6px, rgba(156,199,232,0.25) 6px 12px); background-size:24px 100%; animation: mana-listras 0.8s linear infinite; }
+.mana-previa.insuficiente{ border-color:var(--red-bright); }
+.mana-previa.insuficiente .gasto{ background-image:repeating-linear-gradient(135deg, rgba(224,69,58,0.85) 0 6px, rgba(224,69,58,0.25) 6px 12px); }
+@keyframes mana-listras{ 0%{ background-position:0 0; } 100%{ background-position:24px 0; } }
+.magia-lancada{ position:fixed; left:50%; top:46%; z-index:60; pointer-events:none; width:150px; height:210px; margin-left:-75px; border-radius:var(--radius-md); border:1.5px solid var(--pm-accent); background:linear-gradient(170deg, #36506b, #17111d); box-shadow:0 0 40px rgba(156,199,232,0.6); display:flex; align-items:center; justify-content:center; text-align:center; padding:10px; box-sizing:border-box; font-family:'Cinzel',serif; font-weight:800; color:#f0e9da; animation: magia-voar 1.05s cubic-bezier(.3,.6,.3,1) forwards; }
+@keyframes magia-voar{ 0%{ opacity:0; transform:translateY(30px) scale(0.85); } 25%{ opacity:1; transform:translateY(0) scale(1.04) rotate(-3deg); } 100%{ opacity:0; transform:translateY(-60vh) scale(0.6) rotate(8deg); } }
+
+/* --- Resumo da última sessão (stories) --- */
+.resumo-sessao{ position:fixed; inset:0; z-index:70; display:flex; flex-direction:column; background: radial-gradient(110% 80% at 50% 20%, #3a1d16 0%, #160d09 55%, #0b0706 100%); color:#f0e9da; }
+.resumo-sessao .barras{ display:flex; gap:5px; padding:16px 14px 0; }
+.resumo-sessao .barra{ flex:1; height:4px; border-radius:2px; background:rgba(240,233,218,0.22); overflow:hidden; }
+.resumo-sessao .barra > div{ height:100%; background:#f0e9da; width:0; }
+.resumo-sessao .barra.feita > div{ width:100%; }
+.resumo-sessao .barra.atual > div{ animation: resumo-encher 5s linear forwards; }
+@keyframes resumo-encher{ 0%{ width:0; } 100%{ width:100%; } }
+.resumo-sessao .topo{ display:flex; align-items:center; gap:10px; padding:10px 14px 0 18px; font-size:var(--fs-sm); }
+.resumo-sessao .rosto-mini{ width:36px; height:36px; border-radius:50%; border:2px solid var(--gold-deep); overflow:hidden; display:flex; align-items:center; justify-content:center; background:var(--bg-2); font-family:'Cinzel',serif; font-weight:800; color:var(--gold); flex-shrink:0; }
+.resumo-sessao .rosto-mini img{ width:100%; height:100%; object-fit:cover; }
+.resumo-sessao .topo .x{ margin-left:auto; width:44px; height:44px; border:0; background:transparent; color:#f0e9da; font-size:1.4rem; cursor:pointer; }
+.resumo-sessao .palco{ flex:1; position:relative; }
+.resumo-sessao .lados{ position:absolute; inset:0; display:flex; }
+.resumo-sessao .lados button{ flex:1; border:0; background:transparent; cursor:pointer; }
+.resumo-sessao .corpo{ position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center; padding:0 26px; gap:14px; max-width:520px; margin:0 auto; pointer-events:none; }
+.resumo-sessao .corpo .btn{ pointer-events:auto; }
+.resumo-sessao .rotulo{ font-size:var(--fs-xs); letter-spacing:0.16em; color:var(--gold); animation: resumo-entrar 0.5s ease-out both; }
+.resumo-sessao .grande{ font-family:'Cinzel',serif; font-weight:800; font-size:2.5rem; line-height:1.08; animation: resumo-estalo 0.6s ease-out 0.12s both; }
+.resumo-sessao .medio{ font-size:1.05rem; color:#c7b998; animation: resumo-entrar 0.5s ease-out 0.25s both; }
+.resumo-sessao .citacao{ font-family:'Cormorant Garamond',serif; font-style:italic; font-size:1.3rem; line-height:1.35; animation: resumo-entrar 0.5s ease-out 0.35s both; }
+.resumo-sessao .lista{ display:flex; flex-direction:column; gap:9px; animation: resumo-entrar 0.5s ease-out 0.35s both; }
+.resumo-sessao .lista .lin{ display:flex; justify-content:space-between; font-size:var(--fs-sm); margin-bottom:3px; }
+.resumo-sessao .lista .trilho{ height:9px; border-radius:5px; background:rgba(156,199,232,0.14); }
+.resumo-sessao .lista .trilho > div{ height:100%; border-radius:5px; background:var(--pm-accent); animation: resumo-crescer 0.9s cubic-bezier(.2,.8,.2,1) 0.45s both; }
+.resumo-sessao .dupla{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px; animation: resumo-entrar 0.5s ease-out 0.25s both; }
+.resumo-sessao .dupla > div{ padding:14px; border-radius:var(--radius-md); background:rgba(20,15,11,0.8); border:1px solid var(--line); }
+.resumo-sessao .dupla .n{ font-family:'Cinzel',serif; font-weight:800; font-size:1.9rem; }
+.resumo-sessao .rodape{ padding:0 18px 22px; font-size:var(--fs-2xs); color:#c7b998; text-align:center; }
+@keyframes resumo-entrar{ 0%{ opacity:0; transform:translateY(20px); } 100%{ opacity:1; transform:none; } }
+@keyframes resumo-estalo{ 0%{ opacity:0; transform:scale(0.7); } 70%{ transform:scale(1.05); } 100%{ opacity:1; transform:scale(1); } }
+@keyframes resumo-crescer{ 0%{ width:0; } }
+
+/* --- Mesa ao vivo (Mestre) --- */
+.mesa-vivo{ display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:10px; margin-bottom:10px; }
+.mesa-card{ padding:12px 14px; border-radius:var(--radius-md); background:var(--card); border:1.5px solid var(--line); display:flex; flex-direction:column; gap:8px; }
+.mesa-card.na-vez{ border-color:var(--gold); animation: mesa-halo 1.6s ease-in-out infinite; }
+.mesa-card.levou{ animation: mesa-treme 0.45s ease-out; }
+.mesa-card .cab{ display:flex; align-items:center; gap:10px; }
+.mesa-card .rosto{ width:42px; height:42px; border-radius:50%; border:2px solid var(--gold-deep); overflow:hidden; display:flex; align-items:center; justify-content:center; background:var(--bg-2); font-family:'Cinzel',serif; font-weight:800; color:var(--gold); flex-shrink:0; }
+.mesa-card .rosto img{ width:100%; height:100%; object-fit:cover; }
+.mesa-card .nome{ font-family:'Cinzel',serif; font-weight:800; font-size:0.95rem; }
+.mesa-card .sub{ font-size:var(--fs-2xs); color:var(--ink-soft); }
+.mesa-card .def{ margin-left:auto; font-family:'Cinzel',serif; font-weight:800; font-size:1.15rem; color:var(--gold); }
+.mesa-card .def small{ font-size:0.6rem; color:var(--ink-soft); }
+.mesa-card .rot{ display:flex; justify-content:space-between; font-size:var(--fs-2xs); color:var(--ink-soft); margin-bottom:3px; }
+.mesa-card .rot b{ color:var(--ink); }
+.mesa-card .trilho{ height:9px; border-radius:5px; background:rgba(240,168,168,0.14); overflow:hidden; }
+.mesa-card .trilho.pm{ height:7px; background:rgba(156,199,232,0.14); }
+.mesa-card .trilho > div{ height:100%; border-radius:5px; }
+.mesa-card .trilho > div.anima{ animation: mesa-barra 0.9s cubic-bezier(.2,.8,.2,1); }
+@keyframes mesa-barra{ from{ width:var(--de); } }
+.mesa-card .conds{ display:flex; flex-wrap:wrap; gap:4px; }
+.mesa-card .conds span{ padding:2px 8px; border-radius:var(--radius-pill); background:rgba(201,162,58,0.16); border:1px solid rgba(201,162,58,0.5); color:#e2c46a; font-size:var(--fs-2xs); font-weight:600; }
+.mesa-feed{ display:flex; flex-direction:column; gap:6px; }
+.mesa-feed .ev{ display:flex; gap:8px; align-items:flex-start; padding:7px 10px; border-radius:var(--radius-sm); background:var(--card-2); font-size:var(--fs-sm); line-height:1.35; }
+.mesa-feed .ev.novo{ animation: mesa-entrar 0.45s ease-out; }
+.mesa-feed .ev .ponto{ flex-shrink:0; margin-top:6px; width:7px; height:7px; border-radius:50%; }
+.mesa-feed .ev .quando{ display:block; font-size:var(--fs-2xs); color:var(--ink-soft); }
+.iniciativa-chip.atual{ animation: mesa-halo 1.6s ease-in-out infinite; }
+@keyframes mesa-halo{ 0%,100%{ box-shadow:0 0 0 0 rgba(216,189,116,0.5); } 50%{ box-shadow:0 0 0 8px rgba(216,189,116,0); } }
+@keyframes mesa-treme{ 0%,100%{ transform:translateX(0); } 25%{ transform:translateX(-5px); } 50%{ transform:translateX(4px); } 75%{ transform:translateX(-2px); } }
+@keyframes mesa-entrar{ 0%{ opacity:0; transform:translateX(16px); } 100%{ opacity:1; transform:none; } }
+
+@media (prefers-reduced-motion: reduce){
+  .atm-abalado header.top, .atm-veneno, .atm-fadiga, .atm-fio, .presente-voo .item, .presente-voo .rosto, .presente-voo .aviso,
+  .mana-previa .gasto, .magia-lancada, .resumo-sessao *, .mesa-card, .mesa-card .trilho > div, .mesa-feed .ev, .iniciativa-chip.atual{ animation:none !important; }
+}

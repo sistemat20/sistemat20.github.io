@@ -38,6 +38,9 @@ const EXPOSTOS = [
   'carregarMestreDadosArmazenamento', 'salvarMestreDadosArmazenamento', 'codigoParaLinkDaGrade',
   'ehCodigoMestre', 'obterCodigoJogador', 'obterSessao', 'usandoSupabase', 'precisaCodigoJogador',
   'limparCodigoJogador', 'confirmarLoginSupabase', 'enviarItemParaOutroPersonagem', 'carregarMapasDoMestre',
+  // experiência de jogo
+  'separarPresente', 'atmosferaDaFicha', 'renderManaPrevia', 'resumoUltimaSessao', 'fecharResumo',
+  'abrirResumoSessao', 'renderMesaAoVivo',
 ];
 
 /**

@@ -2445,6 +2445,8 @@ function renderMestreCombate(){
   const wrap = el('div',{});
   if(!state._mestreIniciativa) state._mestreIniciativa = {combatentes:[], turnoIdx:0, rodada:1};
   const combate = state._mestreIniciativa;
+  const mesaVivo = renderMesaAoVivo();
+  if(mesaVivo) wrap.appendChild(mesaVivo);
 
   if(combate.combatentes.length===0){
     wrap.appendChild(el('div',{class:'tip'}, el('b',{},'Nada em combate ainda'), 'Monte o encontro na aba "Preparar Encontro" e toque em "Enviar pro Combate" quando estiver pronto pra começar.'));

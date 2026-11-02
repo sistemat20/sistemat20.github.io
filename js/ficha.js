@@ -89,6 +89,9 @@ function renderMenuOverlay(){
   sheet.appendChild(el('button',{class:'menu-item', onclick:()=>{ state._menuAberto=false; state._logAberto=true; render(); }},
     el('span',{class:'ico'}, '📜'), el('span',{}, 'Log de Alterações')
   ));
+  sheet.appendChild(el('button',{class:'menu-item', onclick:()=>{ state._menuAberto=false; abrirResumoSessao(fichaAtual()); }},
+    el('span',{class:'ico'}, '🎞️'), el('span',{}, 'Resumo da Última Sessão')
+  ));
   const temParaDesfazer = !!(state._paraDesfazer && state._paraDesfazer[fichaAtual().id]);
   sheet.appendChild(el('button',{class:'menu-item', style: temParaDesfazer ? '' : 'opacity:0.45;', onclick:()=>{
     if(!temParaDesfazer){ flashMsg('Não tem nada recente pra desfazer.'); return; }
@@ -121,6 +124,9 @@ function renderMenuOverlay(){
   sheet.appendChild(el('div',{class:'lista-secao-titulo'}, 'Preferências'));
   sheet.appendChild(el('button',{class:'menu-item', onclick:()=>{ alternarNotificacaoSom(); render(); }},
     el('span',{class:'ico'}, notificacaoSomAtiva()?'🔔':'🔕'), el('span',{}, notificacaoSomAtiva()?'Aviso Sonoro/Vibração: Ligado':'Aviso Sonoro/Vibração: Desligado')
+  ));
+  sheet.appendChild(el('button',{class:'menu-item', onclick:()=>{ alternarAtmosfera(); render(); }},
+    el('span',{class:'ico'}, '🌫️'), el('span',{}, atmosferaAtiva()?'Efeitos de Atmosfera: Ligados':'Efeitos de Atmosfera: Desligados')
   ));
   sheet.appendChild(el('button',{class:'menu-item', onclick:alternarTemaMesa},
     el('span',{class:'ico'}, document.documentElement.dataset.tema==='mesa'?'☀️':'🌓'), el('span',{}, document.documentElement.dataset.tema==='mesa'?'Modo Padrão':'Modo Mesa (alto contraste)')
@@ -531,7 +537,10 @@ function renderFichaScreen(){
   // fio". Só aparece morto ou sangrando à beira da morte (não em qualquer PV baixo — isso
   // ficaria cansativo de olhar durante um combate normal).
   const emPerigoDeMorte = estaMorto(f) || (estaInconsciente(f) && !f.estabilizado);
-  const wrap = el('div',{class: emPerigoDeMorte ? 'vinheta-tormenta' : ''});
+  const atmosfera = atmosferaDaFicha(f);
+  const wrap = el('div',{class: (emPerigoDeMorte ? 'vinheta-tormenta' : '') + (atmosfera && atmosfera.classe ? ' '+atmosfera.classe : '')});
+  if(atmosfera && atmosfera.camada) wrap.appendChild(el('div',{class:'atm-camada '+atmosfera.camada, 'aria-hidden':'true'}));
+  verificarResumoAoAbrir(f);
   const secaoAtual = MENU_SECOES.find(s=>s[0]===state.tab) || MENU_SECOES[0];
 
   wrap.appendChild(el('header',{class:'top'},
@@ -609,6 +618,9 @@ function renderFichaScreen(){
   if(state._logAberto){
     wrap.appendChild(renderPopupLog(fichaAtual()));
   }
+  if(state._presenteVoo) wrap.appendChild(renderPresenteVoo());
+  if(state._magiaLancada) wrap.appendChild(renderMagiaLancada());
+  if(state._resumo && state._resumo.fid===f.id) wrap.appendChild(renderResumoSessao(f));
   const semMenuAberto = !state._menuAberto && !state._divindadeFluxo && !state._cropperFoto && !(state.levelUp&&state.levelUp.aberto) && !state._enviarItemFluxo && !state._enviarDinheiroFluxo && !state._moedaPopup && !state._escolherJogadorRelFluxo && !state._escolherMapaFluxo && !state._perfilJogadorPopup && !state._usarMagiaPopup && !state._efeitoItemPopup && !state._golpePessoalPopup && !state._itemPersonalizadoPopup && !state._adicionarParceiroPopup && !state._visualizarMapaPopup && !state._pendenciasAberto && !state._logAberto;
   if(estaMorto(f) && semMenuAberto){
     wrap.appendChild(el('div',{class:'aviso-sobrecarga aviso-morte'}, '💀 '+(f.nome||'Personagem')+' morreu.'));
@@ -2333,7 +2345,7 @@ function renderPopupEnviarItem(f){
     overlay.appendChild(sheet);
     return overlay;
   }
-  sheet.appendChild(el('div',{class:'wizard-title', style:'padding:6px 14px 0;'}, 'Enviar "'+row.item+'"'));
+  sheet.appendChild(el('div',{class:'wizard-title', style:'padding:6px 14px 0;'}, 'Enviar "'+separarPresente(row.item).base+'"'));
   sheet.appendChild(el('div',{class:'tip', style:'margin:6px 14px;'}, 'Escolha pra quem enviar — o item some da sua mochila e vai direto pra mochila da pessoa escolhida.'));
   if(fluxo.enviando){
     sheet.appendChild(el('div',{class:'empty'}, 'Enviando...'));
@@ -2342,29 +2354,26 @@ function renderPopupEnviarItem(f){
   } else if(!fluxo.lista || fluxo.lista.length===0){
     sheet.appendChild(el('div',{class:'empty'}, 'Nenhum outro personagem encontrado.'));
   } else {
-    fluxo.lista.forEach(p=>{
-      sheet.appendChild(el('button',{class:'menu-item', onclick: async ()=>{
+    sheet.appendChild(renderAvataresDestino(fluxo.lista, async (p)=>{
         fluxo.enviando = true; render();
         const itemEnviado = Object.assign({}, row, {item: row.item+' (recebido de '+(f.nome||'alguém')+')'});
         const resultado = await enviarItemParaOutroPersonagem(p.id, itemEnviado);
         if(resultado.ok){
+          animarPresente(separarPresente(row.item).base, p);
           removerItemMochila(f, fluxo.idx);
           // Grava as fichas do próprio jogador pelo salvamento normal (com a proteção de
           // presentes); a do destino o servidor já alterou no envio. Dentro do Claude não há
           // servidor, então grava só a ficha do remetente direto.
           if(usandoSupabase()) await salvarPerfis();
           else await mestreAtualizarPersonagem(f);
-          flashMsg('📤 "'+row.item+'" enviado pra '+(resultado.nomeDestino||p.nome)+'!');
+          flashMsg('📤 "'+separarPresente(row.item).base+'" enviado pra '+(resultado.nomeDestino||p.nome)+'!');
           state._enviarItemFluxo = null;
         } else {
           flashMsg('⚠ Não consegui enviar agora — tenta de novo em instantes.');
           fluxo.enviando = false;
         }
         render();
-      }},
-        el('span',{class:'ico'},'👤'), el('span',{}, p.nome+(p.jogador?' ('+p.jogador+')':''))
-      ));
-    });
+    }));
   }
   sheet.appendChild(el('button',{class:'menu-close', onclick:()=>{ if(!fluxo.enviando){ state._enviarItemFluxo=null; render(); } }}, 'Cancelar'));
   overlay.appendChild(sheet);
@@ -2656,8 +2665,7 @@ function renderPopupEnviarDinheiro(f){
   } else if(!fluxo.lista || fluxo.lista.length===0){
     sheet.appendChild(el('div',{class:'empty'}, 'Nenhum outro personagem encontrado.'));
   } else {
-    fluxo.lista.forEach(p=>{
-      sheet.appendChild(el('button',{class:'menu-item', onclick: async ()=>{
+    sheet.appendChild(renderAvataresDestino(fluxo.lista, async (p)=>{
         const valor = parseInt(fluxo.valor);
         if(!valor || valor<=0){ flashMsg('Digita uma quantidade válida primeiro.'); return; }
         if(valor > disponivel){ flashMsg('Você não tem '+valor+' '+rotuloMoeda[fluxo.campo]+' pra enviar.'); return; }
@@ -2668,16 +2676,14 @@ function renderPopupEnviarDinheiro(f){
           registrarLog(f, 'Enviou '+valor+' '+rotuloMoeda[fluxo.campo]+' pra '+(resultado.nomeDestino||p.nome));
           await salvarPerfis();
           flashMsg('💰 '+valor+' '+rotuloMoeda[fluxo.campo]+' enviado(s) pra '+(resultado.nomeDestino||p.nome)+'!');
+          animarPresente(valor+' '+rotuloMoeda[fluxo.campo].split(' ')[0], p);
           state._enviarDinheiroFluxo = null;
         } else {
           flashMsg('⚠ Não consegui enviar agora — tenta de novo em instantes.');
           fluxo.enviando = false;
         }
         render();
-      }},
-        el('span',{class:'ico'},'👤'), el('span',{}, p.nome+(p.jogador?' ('+p.jogador+')':''))
-      ));
-    });
+    }));
   }
   sheet.appendChild(el('button',{class:'menu-close', onclick:()=>{ if(!fluxo.enviando){ state._enviarDinheiroFluxo=null; render(); } }}, 'Cancelar'));
   overlay.appendChild(sheet);
@@ -2794,7 +2800,7 @@ function renderPersonagemMochila(){
         );
       }
       const ehMochilaAventureiroUpgradeAtiva = row.tipo==='geral' && nomeBaseItem(row.item)==='Mochila de aventureiro' && f.mochilaAventureiroUpgrade;
-      const tituloExibido = ehMochilaAventureiroUpgradeAtiva ? row.item+' ⭐ (Upgrade)' : row.item;
+      const tituloExibido = nomeItemComSelo(row.item, ehMochilaAventureiroUpgradeAtiva ? ' ⭐ (Upgrade)' : '');
       // Inventário Organizado reduz item de meio espaço (0.5) pra 1/4 (0.125) — mostra o valor
       // JÁ reduzido aqui (com notinha), senão o número exibido não bateria com o total somado.
       const cargaExibida = (poderesAtivos(f).includes('Inventário Organizado') && parseFloat(row.carga)===0.5)
@@ -3514,6 +3520,7 @@ function renderPopupUsarMagia(f){
   const sheet = el('div',{class:'menu-sheet'});
   sheet.appendChild(el('div',{class:'wizard-title', style:'padding:6px 14px 0;'}, '✨ Usar: '+s.n));
   const totalAtual = parseInt(fluxo.custoTotal)||0;
+  sheet.appendChild(renderManaPrevia(f, totalAtual));
   const passouLimite = totalAtual > limite;
   const nivelBaseLimite = nivelParaLimitePM(f);
   const ehNivelDeClasse = nivelBaseLimite !== nivelTotal(f);
@@ -3655,6 +3662,7 @@ function renderPopupUsarMagia(f){
     salvarPerfis();
     flashMsg('✨ "'+s.n+'" usada! -'+total+' PM.'+(catalisadorTxt?' Catalisador consumido.':''));
     state._usarMagiaPopup = null;
+    animarMagiaLancada(s.n);
     render();
   }}, '✓ Confirmar uso'));
   sheet.appendChild(el('button',{class:'menu-close', style:'margin-top:10px;', onclick:()=>{ state._usarMagiaPopup=null; render(); }}, 'Cancelar'));
@@ -3704,6 +3712,7 @@ function renderPersonagemMagias(){
   if(f.magias.length===0){
     magPanel.appendChild(el('div',{class:'empty'},'Nenhuma magia adicionada ainda. Vá no Menu → Magias pra buscar e adicionar.'));
   } else {
+    magPanel.appendChild(renderGrimorioCartas(f));
     f.magias.forEach((s,idx)=>{
       const card = renderCardMagia(s, 'minhas', null, ()=>{ if(!confirm('Remover "'+s.n+'" das suas magias conhecidas? Não tem como desfazer.')) return; registrarLog(f, 'Esqueceu a magia: '+s.n); f.magias.splice(idx,1); salvarPerfis(); render(); }, f, ()=>abrirUsarMagia(s));
       if(f.arcanistaCaminho==='Mago'){

@@ -122,7 +122,7 @@ const okDados = (dados) => ({ status: 200, json: { ok: true, dados } });
     const f = h.usarFicha(w, h.fichaBase({ nome: 'Aeon', equip: [{ item: 'Ácido', qtd: '1', tipo: 'geral', carga: '0.5' }] }));
     w.state._enviarItemFluxo = { idx: 0, lista: [{ id: 'p2', nome: 'Ravena', jogador: 'Vanessa' }], carregando: false, enviando: false };
     h.renderizar(w);
-    const botao = [...w.document.querySelectorAll('button.menu-item')].find((b) => b.textContent.includes('Ravena'));
+    const botao = [...w.document.querySelectorAll('button.presente-avatar')].find((b) => b.textContent.includes('Ravena'));
     h.ok('o popup de envio mostra o destino', !!botao);
     if (botao) {
       botao.click();
