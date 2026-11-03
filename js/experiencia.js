@@ -138,41 +138,63 @@ function renderGrimorioCartas(f, aoEsquecer){
     grade
   );
 }
-// Mesa de lançamento dentro da carta aberta: barra de mana com o gasto listrado, aprimoramentos
-// como selos que somam ao custo, Lançar (mesma regra do popup: lancarMagia) e "Mais opções"
-// (catalisador, Magia Pungente, custo à mão) no popup de sempre.
+// Mesa de lançamento dentro da carta aberta: barra de mana com o gasto listrado e o limite por
+// magia, aprimoramentos como selos que somam ao custo, e os selos que só aparecem para quem tem
+// (Magia Pungente; catalisador da mochila que serve para esta magia). O custo pode ser digitado
+// à mão. Lançar usa lancarMagia, a mesma regra do popup antigo.
+function catalisadoresParaMagia(f, s){
+  const vistos = new Set();
+  return (f.equip||[]).filter(row=> row.tipo==='geral').map(row=> nomeBaseItem(row.item)).filter(nome=>{
+    if(vistos.has(nome)) return false;
+    const serve = CATALISADORES_CD_ESCOLA[nome] ? CATALISADORES_CD_ESCOLA[nome]===s.e : !!CATALISADORES_DANO_LEMBRETE[nome];
+    if(serve) vistos.add(nome);
+    return serve;
+  });
+}
 function renderMesaLancamento(f, s, custoBase){
-  const sel = (state._grimorioSel && state._grimorioSel.nome===s.n) ? state._grimorioSel.sel : [];
+  const g = (state._grimorioSel && state._grimorioSel.nome===s.n) ? state._grimorioSel : {nome:s.n, sel:[], pungente:false, catalisador:null, custoManual:null};
+  const mudar = (campos)=>{ state._grimorioSel = Object.assign({}, g, campos); render(); };
   const aprims = s.aprim || [];
-  const total = custoBase + sel.reduce((t,i)=> t + extrairCustoPM(aprims[i] && aprims[i].custo), 0);
+  const temPungente = nomesPoderesConhecidos(f).includes('Magia Pungente');
+  const catalisadores = catalisadoresParaMagia(f, s);
+  const calculado = custoBase + g.sel.reduce((t,i)=> t + extrairCustoPM(aprims[i] && aprims[i].custo), 0) + (g.pungente ? 1 : 0);
+  const total = g.custoManual!=null ? g.custoManual : calculado;
   const pm = parseInt(f.pmatual)||0;
+  const limite = limitePMPorMagia(f, s);
+  const cdBase = cdMagiaEspecifica(f, s);
+  const cdFinal = cdBase!=null ? cdBase + (g.pungente?2:0) + (f._liturgiaMagicaAtiva?2:0) + (g.catalisador && CATALISADORES_CD_ESCOLA[g.catalisador]===s.e ? 2 : 0) : null;
   const ultimo = state._grimorioUltimo && state._grimorioUltimo.nome===s.n ? state._grimorioUltimo : null;
-  const alternarSelo = (i)=>{
-    const atual = sel.includes(i) ? sel.filter(x=>x!==i) : sel.concat(i);
-    state._grimorioSel = {nome:s.n, sel:atual};
-    render();
-  };
-  const fluxo = ()=>({custoTotal:String(total), aprimSelecionados:sel.slice(), magiaPungenteAtiva:false, catalisadorEscolhido:null});
+  const selo = (ativo, disco, efeito, aoTocar)=> el('button',{class:'selo-aprim'+(ativo?' ativo':''), 'aria-pressed':ativo?'true':'false', onclick:aoTocar},
+    el('span',{class:'disco'}, disco), el('span',{class:'efeito'}, efeito));
+  const selos = [
+    ...aprims.map((a,i)=> selo(g.sel.includes(i), String(a.custo||'').replace(/\s*PM\b/i,''), a.efeito||'',
+      ()=> mudar({sel: g.sel.includes(i) ? g.sel.filter(x=>x!==i) : g.sel.concat(i), custoManual:null}))),
+    temPungente ? selo(g.pungente, '+1', 'Magia Pungente: +2 na CD', ()=> mudar({pungente:!g.pungente, custoManual:null})) : null,
+    ...catalisadores.map(nome=> selo(g.catalisador===nome, '◆',
+      nome+': '+(CATALISADORES_CD_ESCOLA[nome] ? '+2 na CD' : CATALISADORES_DANO_LEMBRETE[nome])+' (sai da mochila)',
+      ()=> mudar({catalisador: g.catalisador===nome ? null : nome}))),
+  ].filter(Boolean);
+  const passaLimite = total > limite;
+  const fluxo = ()=>({custoTotal:String(total), aprimSelecionados:g.sel.slice(), magiaPungenteAtiva:g.pungente, catalisadorEscolhido:g.catalisador});
   return el('div',{class:'mesa-lancamento'},
     renderManaPrevia(f, total, ultimo),
-    aprims.length ? el('div',{class:'magia-info-ico', style:'margin-top:2px;'}, 'Aprimoramentos: toque para somar') : null,
-    aprims.length ? el('div',{class:'selos-aprim'}, ...aprims.map((a,i)=>{
-      const ativo = sel.includes(i);
-      return el('button',{class:'selo-aprim'+(ativo?' ativo':''), 'aria-pressed':ativo?'true':'false', onclick:()=>alternarSelo(i)},
-        el('span',{class:'disco'}, String(a.custo||'').replace(/\s*PM\b/i,'')),
-        el('span',{class:'efeito'}, a.efeito||'')
-      );
-    })) : null,
+    el('div',{class:'mesa-linha'},
+      el('span',{class:passaLimite?'alerta':''}, 'Limite por magia: '+limite+' PM'),
+      cdFinal!=null && s.resistencia ? el('span',{}, 'CD '+cdFinal+(cdFinal!==cdBase?' (era '+cdBase+')':'')) : null,
+      f._liturgiaMagicaAtiva ? el('span',{style:'color:var(--gold);'}, 'Liturgia Mágica: +2 CD') : null
+    ),
+    selos.length ? el('div',{class:'magia-info-ico', style:'margin-top:2px;'}, 'Toque para somar') : null,
+    selos.length ? el('div',{class:'selos-aprim'}, ...selos) : null,
     el('div',{class:'acoes'},
       el('button',{class:'btn', onclick:()=>{ if(lancarMagia(f, s, fluxo())){ state._grimorioSel = null; render(); } }},
-        total>pm ? 'Falta mana ('+total+' PM)' : '✨ Lançar · '+total+' PM'),
-      el('button',{class:'btn ghost', onclick:()=>{
-        abrirUsarMagia(s);
-        state._usarMagiaPopup.aprimSelecionados = sel.slice();
-        state._usarMagiaPopup.custoTotal = String(total);
-        render();
-      }}, 'Mais opções')
+        passaLimite ? 'Passa do limite ('+total+' PM)' : total>pm ? 'Falta mana ('+total+' PM)' : '✨ Lançar · '+total+' PM'),
+      el('label',{class:'custo-mao', title:'Digite outro custo se a mesa combinar'},
+        el('span',{}, 'PM'),
+        el('input',{type:'number', min:'0', inputmode:'numeric', value:String(total), 'aria-label':'Custo em PM',
+          onchange:(e)=>{ const v = parseInt(e.target.value); mudar({custoManual: isNaN(v) || v===calculado ? null : Math.max(0, v)}); }})
+      )
     ),
+    g.custoManual!=null ? el('button',{class:'esquecer', onclick:()=> mudar({custoManual:null})}, 'Custo à mão: '+g.custoManual+' PM · voltar ao calculado ('+calculado+')') : null,
     ultimo ? el('div',{class:'log-lancamento'+(Date.now()-ultimo.marca < 1500 ? ' novo' : '')}, ultimo.texto.replace(/^Usou /,'Lançou ')+' · anotado no log') : null
   );
 }

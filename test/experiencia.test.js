@@ -80,9 +80,9 @@ const HORA = 60 * 60 * 1000;
     h.renderizar(w, 'personagem');
     h.ok('a barra escoa do valor de antes', !!w.document.querySelector('.mana-previa .resta.escoando'));
     h.ok('e a linha do log aparece na carta', w.document.querySelector('.log-lancamento').textContent.includes('Lançou "Bênção"'));
-    [...w.document.querySelectorAll('.grimorio-carta.aberta .acoes button')].find((b) => b.textContent === 'Mais opções').click();
-    h.ok('Mais opções abre o popup completo', !!w.state._usarMagiaPopup && w.state._usarMagiaPopup.magia.n === 'Bênção');
-    w.state._usarMagiaPopup = null;
+    h.ok('não existe mais o botão Mais opções', ![...w.document.querySelectorAll('.grimorio-carta.aberta button')].some((x) => x.textContent === 'Mais opções'));
+    h.ok('sem o poder, nada de selo de Magia Pungente', !w.document.querySelector('.grimorio-carta.aberta').textContent.includes('Magia Pungente'));
+    h.ok('mostra o limite por magia', w.document.querySelector('.mesa-linha').textContent.includes('Limite por magia'));
 
     const confirmar = w.confirm;
     w.confirm = () => true;
@@ -90,6 +90,45 @@ const HORA = 60 * 60 * 1000;
     w.document.querySelector('.grimorio-carta.aberta .esquecer').click();
     h.ok('Esquecer remove a magia (com confirmação)', f.magias.length === 1 && f.magias[0].n === 'Bola de Fogo');
     w.confirm = confirmar;
+  }
+
+  h.secao('Grimório: Magia Pungente, catalisador, custo à mão e limite na própria carta');
+  {
+    const f = h.usarFicha(w, h.fichaBase({
+      pmatual: 20,
+      poderesClasse: [{ nome: 'Magia Pungente', classe: 'Arcanista', nivel: 2 }],
+      equip: [{ item: 'Musgo púrpura', qtd: '2', tipo: 'geral', carga: '0.5' }],
+      magias: [{ n: 'Imagem Espelhada', c: 1, e: 'Ilusão', trad: 'Arcana', alcance: 'pessoal', resistencia: 'Vontade desacredita', d: 'Cópias ilusórias suas aparecem.', aprim: [{ custo: '+1 PM', efeito: 'mais uma cópia.' }] }],
+    }));
+    w.state.personagemTab = 'magias';
+    w.state._cartaMagiaAberta = 'Imagem Espelhada';
+    w.state._grimorioSel = null; w.state._grimorioUltimo = null;
+    h.renderizar(w, 'personagem');
+    const carta = () => w.document.querySelector('.grimorio-carta.aberta');
+    const selo = (txt) => [...carta().querySelectorAll('.selo-aprim')].find((b) => b.textContent.includes(txt));
+    const lancar = () => [...carta().querySelectorAll('.acoes button')][0];
+    h.ok('quem tem o poder vê o selo de Magia Pungente', !!selo('Magia Pungente'));
+    h.ok('o catalisador da mochila que serve para a escola aparece', !!selo('Musgo púrpura'));
+    const cdAntes = w.cdMagiaEspecifica(f, f.magias[0]);
+    selo('Magia Pungente').click(); h.renderizar(w, 'personagem');
+    h.ok('Pungente soma 1 PM no custo', lancar().textContent.includes('2 PM'));
+    h.ok('e +2 na CD mostrada', carta().querySelector('.mesa-linha').textContent.includes('CD ' + (cdAntes + 2)));
+    selo('Musgo púrpura').click(); h.renderizar(w, 'personagem');
+    h.ok('catalisador de CD soma mais 2', carta().querySelector('.mesa-linha').textContent.includes('CD ' + (cdAntes + 4)));
+    const campo = carta().querySelector('.custo-mao input');
+    campo.value = '5'; campo.dispatchEvent(new w.Event('change', { bubbles: true }));
+    h.renderizar(w, 'personagem');
+    h.ok('custo à mão muda o botão', lancar().textContent.includes('5 PM') && carta().textContent.includes('voltar ao calculado'));
+    campo.value = '99'; carta().querySelector('.custo-mao input').value = '99';
+    carta().querySelector('.custo-mao input').dispatchEvent(new w.Event('change', { bubbles: true }));
+    h.renderizar(w, 'personagem');
+    h.ok('passar do limite por magia avisa no botão', lancar().textContent.includes('Passa do limite') && !!carta().querySelector('.mesa-linha .alerta'));
+    [...carta().querySelectorAll('button')].find((b) => b.textContent.includes('voltar ao calculado')).click();
+    h.renderizar(w, 'personagem');
+    lancar().click();
+    h.igual('lança com Pungente e catalisador pelo custo calculado', f.pmatual, 18);
+    h.ok('o log registra os dois', f.log[0].texto.includes('Magia Pungente') && f.log[0].texto.includes('Musgo púrpura'));
+    h.igual('o catalisador sai da mochila', f.equip[0].qtd, '1');
   }
 
   // ------------------------------------------------------------ anéis de vida e mana

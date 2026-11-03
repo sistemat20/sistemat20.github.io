@@ -76,6 +76,10 @@ button.grimorio-carta:hover, button.grimorio-carta:active{ transform:translateY(
 .selo-aprim.ativo{ border-color:var(--pm-accent); background:rgba(156,199,232,0.12); }
 .selo-aprim.ativo .disco{ border-color:var(--pm-accent); box-shadow:0 0 10px rgba(156,199,232,0.6); animation: selo-pop 0.3s ease-out; }
 @keyframes selo-pop{ 0%{ transform:scale(0.8); } 60%{ transform:scale(1.15); } 100%{ transform:scale(1); } }
+.mesa-linha{ display:flex; flex-wrap:wrap; justify-content:space-between; gap:4px 12px; font-size:var(--fs-2xs); color:var(--ink-soft); }
+.mesa-linha .alerta{ color:var(--red-bright); font-weight:700; }
+.custo-mao{ flex:0 0 auto; display:flex; align-items:center; gap:4px; padding:0 8px; border-radius:var(--radius-sm); border:1px solid var(--line); background:var(--card-2); font-size:var(--fs-2xs); color:var(--ink-soft); }
+.custo-mao input{ width:46px; margin:0; padding:6px 2px; border:0; background:transparent; text-align:center; font-family:'Cinzel',serif; font-weight:800; font-size:1rem; color:var(--pm-accent); }
 .log-lancamento{ font-size:var(--fs-xs); color:var(--ink-soft); text-align:center; }
 .log-lancamento.novo{ animation: log-entrar 0.4s ease-out; }
 @keyframes log-entrar{ from{ opacity:0; transform:translateY(6px); } }
