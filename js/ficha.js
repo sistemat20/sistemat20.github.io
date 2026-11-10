@@ -1437,7 +1437,7 @@ function renderPersonagemFicha(){
       )
     ),
     penalidadeCarismaTormenta(f)>0 ? el('div',{class:'tip', style:'margin-top:8px;border:1px solid var(--red-bright);'},
-      '☣️ Carisma efetivo: '+atributoEfetivo(f,'car')+' (o '+f.car+' digitado acima −'+penalidadeCarismaTormenta(f)+' pelos '+qtdPoderesTormenta(f)+' Poder(es) da Tormenta que você tem — já aplicado nas perícias baseadas em Carisma).'
+      '☣️ Carisma efetivo: '+atributoEfetivo(f,'car')+' (o '+f.car+' digitado acima −'+penalidadeCarismaTormenta(f)+' pelos '+qtdPoderesTormentaParaCarisma(f)+' Poder(es) da Tormenta que você tem (os da Deformidade não contam) — já aplicado nas perícias baseadas em Carisma).'
     ) : null
   ));
 
@@ -3497,6 +3497,18 @@ const CATALISADORES_CD_ESCOLA = {
   'Ossos de monstro': 'Necromancia',
   'Saco de sal': 'Abjuração',
 };
+// Os que baratearam uma escola (Livro Básico pág. 92): -1 PM no custo da magia daquela escola.
+const CATALISADORES_CUSTO_ESCOLA = {
+  'Pó de cristal': 'Encantamento',
+  'Pó de giz': 'Convocação',
+  'Seixo de âmbar': 'Transmutação',
+};
+// Rótulo curto do efeito de um catalisador, para o log e os selos.
+function rotuloCatalisador(nome){
+  if(CATALISADORES_CD_ESCOLA[nome]) return '+2 CD';
+  if(CATALISADORES_CUSTO_ESCOLA[nome]) return '-1 PM';
+  return CATALISADORES_DANO_LEMBRETE[nome];
+}
 const CATALISADORES_DANO_LEMBRETE = {
   'Baga-de-fogo': '+1d6 de dano de fogo',
   'Líquen lilás': '+1d6 de dano de frio',
@@ -3522,8 +3534,7 @@ function lancarMagia(f, s, fluxo){
       const rowCat = f.equip[idxCat];
       const qtdCat = parseInt(rowCat.qtd)||1;
       if(qtdCat<=1) removerItemMochila(f, idxCat); else rowCat.qtd = String(qtdCat-1);
-      const rotuloCat = CATALISADORES_CD_ESCOLA[fluxo.catalisadorEscolhido] ? '+2 CD' : CATALISADORES_DANO_LEMBRETE[fluxo.catalisadorEscolhido];
-      catalisadorTxt = ' + '+fluxo.catalisadorEscolhido+' ('+rotuloCat+')';
+      catalisadorTxt = ' + '+fluxo.catalisadorEscolhido+' ('+rotuloCatalisador(fluxo.catalisadorEscolhido)+')';
     }
   }
   const sel = fluxo.aprimSelecionados || [];

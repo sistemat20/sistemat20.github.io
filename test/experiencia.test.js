@@ -131,6 +131,49 @@ const HORA = 60 * 60 * 1000;
     h.igual('o catalisador sai da mochila', f.equip[0].qtd, '1');
   }
 
+  h.secao('Deformidade (Lefou): conta como poder da Tormenta, mas não tira Carisma');
+  {
+    // Caso da Lucéa (relato da Stela): Lefou nível 5, Car 0, Intimidação treinada, Deformidade
+    // trocada por Olhos Vermelhos (+1 Intimidação) e +2 em Misticismo. O certo é +5.
+    const f = h.usarFicha(w, h.fichaBase({
+      raca: 'Lefou', car: '0', periciasTreinadas: ['Intimidação', 'Misticismo'],
+      deformidadeEscolhas: [{ tipo: 'tormenta', valor: 'Olhos Vermelhos' }, { tipo: 'pericia', valor: 'Misticismo' }],
+    }));
+    const per = (n) => w.periciaValor(f, w.PERICIAS.find((p) => p.nome === n));
+    h.igual('poder trocado na Deformidade não tira Carisma', w.atributoEfetivo(f, 'car'), 0);
+    h.igual('Intimidação da Lucéa = 2 + 0 + 2 + 1 (Olhos Vermelhos)', per('Intimidação'), 5);
+    h.igual('os dois bônus da Deformidade contam como poderes da Tormenta', w.qtdPoderesTormenta(f), 2);
+    f.poderGeral = { nome: 'Antenas', sub: null };
+    h.igual('um poder da Tormenta de fora da Deformidade tira 1 de Carisma', w.penalidadeCarismaTormenta(f), 1);
+    h.igual('e Olhos Vermelhos escala com os outros dois (+2)', per('Intimidação'), 2 + (-1) + 2 + 2);
+  }
+
+  h.secao('Grimório: catalisadores que diminuem o custo (Seixo de âmbar, Pó de giz, Pó de cristal)');
+  {
+    const f = h.usarFicha(w, h.fichaBase({
+      pmatual: 20,
+      equip: [{ item: 'Seixo de âmbar', qtd: '1', tipo: 'geral', carga: '0.5' }, { item: 'Pó de giz', qtd: '2', tipo: 'geral', carga: '0.5' }],
+      magias: [{ n: 'Transmutar Objetos', c: 1, e: 'Transmutação', trad: 'Arcana', alcance: 'toque', resistencia: '', d: 'Molda um objeto.', aprim: [{ custo: '+2 PM', efeito: 'objeto maior.' }] }],
+    }));
+    w.state.personagemTab = 'magias';
+    w.state._cartaMagiaAberta = 'Transmutar Objetos';
+    w.state._grimorioSel = null; w.state._grimorioUltimo = null;
+    h.renderizar(w, 'personagem');
+    const carta = () => w.document.querySelector('.grimorio-carta.aberta');
+    const selo = (txt) => [...carta().querySelectorAll('.selo-aprim')].find((b) => b.textContent.includes(txt));
+    const lancar = () => [...carta().querySelectorAll('.acoes button')][0];
+    h.ok('o Seixo de âmbar aparece na magia de transmutação', !!selo('Seixo de âmbar'));
+    h.ok('o Pó de giz (convocação) não aparece aqui', !selo('Pó de giz'));
+    selo('objeto maior').click(); h.renderizar(w, 'personagem');
+    h.ok('sem o seixo: 1 + 2 = 3 PM', lancar().textContent.includes('3 PM'));
+    selo('Seixo de âmbar').click(); h.renderizar(w, 'personagem');
+    h.ok('com o seixo: 2 PM', lancar().textContent.includes('2 PM'));
+    lancar().click();
+    h.igual('desconta 2 PM', f.pmatual, 18);
+    h.ok('o log registra o seixo', f.log[0].texto.includes('Seixo de âmbar (-1 PM)'));
+    h.ok('o seixo sai da mochila', !f.equip.some((r) => r.item === 'Seixo de âmbar'));
+  }
+
   // ------------------------------------------------------------ anéis de vida e mana
   h.secao('Anéis de vida e mana');
   {

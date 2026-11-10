@@ -146,7 +146,9 @@ function catalisadoresParaMagia(f, s){
   const vistos = new Set();
   return (f.equip||[]).filter(row=> row.tipo==='geral').map(row=> nomeBaseItem(row.item)).filter(nome=>{
     if(vistos.has(nome)) return false;
-    const serve = CATALISADORES_CD_ESCOLA[nome] ? CATALISADORES_CD_ESCOLA[nome]===s.e : !!CATALISADORES_DANO_LEMBRETE[nome];
+    const serve = CATALISADORES_CD_ESCOLA[nome] ? CATALISADORES_CD_ESCOLA[nome]===s.e
+      : CATALISADORES_CUSTO_ESCOLA[nome] ? CATALISADORES_CUSTO_ESCOLA[nome]===s.e
+      : !!CATALISADORES_DANO_LEMBRETE[nome];
     if(serve) vistos.add(nome);
     return serve;
   });
@@ -157,7 +159,8 @@ function renderMesaLancamento(f, s, custoBase){
   const aprims = s.aprim || [];
   const temPungente = nomesPoderesConhecidos(f).includes('Magia Pungente');
   const catalisadores = catalisadoresParaMagia(f, s);
-  const calculado = custoBase + g.sel.reduce((t,i)=> t + extrairCustoPM(aprims[i] && aprims[i].custo), 0) + (g.pungente ? 1 : 0);
+  const somado = custoBase + g.sel.reduce((t,i)=> t + extrairCustoPM(aprims[i] && aprims[i].custo), 0) + (g.pungente ? 1 : 0);
+  const calculado = Math.max(0, somado - (g.catalisador && CATALISADORES_CUSTO_ESCOLA[g.catalisador]===s.e ? 1 : 0));
   const total = g.custoManual!=null ? g.custoManual : calculado;
   const pm = parseInt(f.pmatual)||0;
   const limite = limitePMPorMagia(f, s);
@@ -170,9 +173,9 @@ function renderMesaLancamento(f, s, custoBase){
     ...aprims.map((a,i)=> selo(g.sel.includes(i), String(a.custo||'').replace(/\s*PM\b/i,''), a.efeito||'',
       ()=> mudar({sel: g.sel.includes(i) ? g.sel.filter(x=>x!==i) : g.sel.concat(i), custoManual:null}))),
     temPungente ? selo(g.pungente, '+1', 'Magia Pungente: +2 na CD', ()=> mudar({pungente:!g.pungente, custoManual:null})) : null,
-    ...catalisadores.map(nome=> selo(g.catalisador===nome, '◆',
-      nome+': '+(CATALISADORES_CD_ESCOLA[nome] ? '+2 na CD' : CATALISADORES_DANO_LEMBRETE[nome])+' (sai da mochila)',
-      ()=> mudar({catalisador: g.catalisador===nome ? null : nome}))),
+    ...catalisadores.map(nome=> selo(g.catalisador===nome, CATALISADORES_CUSTO_ESCOLA[nome] ? '−1' : '◆',
+      nome+': '+(CATALISADORES_CD_ESCOLA[nome] ? '+2 na CD' : CATALISADORES_CUSTO_ESCOLA[nome] ? '−1 PM no custo' : CATALISADORES_DANO_LEMBRETE[nome])+' (sai da mochila)',
+      ()=> mudar({catalisador: g.catalisador===nome ? null : nome, custoManual:null}))),
   ].filter(Boolean);
   const passaLimite = total > limite;
   const fluxo = ()=>({custoTotal:String(total), aprimSelecionados:g.sel.slice(), magiaPungenteAtiva:g.pungente, catalisadorEscolhido:g.catalisador});

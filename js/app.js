@@ -481,11 +481,24 @@ function bonusFurtividadeTamanho(f){
 // ---- Poderes da Tormenta: perde Carisma conforme acumula poderes desse grupo (pág. 136) ----
 // 1º poder da Tormenta: -1 Carisma. A cada 2 outros poderes da Tormenta: mais -1 Carisma.
 const NOMES_PODERES_TORMENTA = new Set(PODERES_GERAIS.filter(p=>p.grupo==='Tormenta').map(p=>p.nome));
+// Deformidade (Lefou, Livro Básico pág. 24): cada +2 em perícia "conta como um poder da Tormenta
+// (exceto para perda de Carisma)", e o poder trocado no lugar de um bônus "também não conta para
+// perda de Carisma". Por isso há duas contagens: a geral (escala dos poderes, Linhagem Rubra) e a
+// da perda de Carisma (Livro Básico pág. 137), que deixa de fora tudo o que veio da Deformidade.
 function qtdPoderesTormenta(f){
-  return poderesAtivos(f).filter(nome => NOMES_PODERES_TORMENTA.has(nome)).length;
+  const deformidadePericias = getRacaObj(f) && getRacaObj(f).nome==='Lefou'
+    ? (f.deformidadeEscolhas||[]).filter(esc=> typeof esc==='string' || (esc && esc.tipo==='pericia')).length : 0;
+  return poderesAtivos(f).filter(nome => NOMES_PODERES_TORMENTA.has(nome)).length + deformidadePericias;
+}
+function qtdPoderesTormentaParaCarisma(f){
+  const restantes = poderesAtivos(f).filter(nome => NOMES_PODERES_TORMENTA.has(nome));
+  (f.deformidadeEscolhas||[]).forEach(esc=>{
+    if(esc && esc.tipo==='tormenta'){ const i = restantes.indexOf(esc.valor); if(i>=0) restantes.splice(i,1); }
+  });
+  return restantes.length;
 }
 function penalidadeCarismaTormenta(f){
-  const qtd = qtdPoderesTormenta(f);
+  const qtd = qtdPoderesTormentaParaCarisma(f);
   return qtd>=1 ? 1+Math.floor((qtd-1)/2) : 0;
 }
 // Valor de um atributo já considerando penalidades automáticas (hoje só existe a de Carisma

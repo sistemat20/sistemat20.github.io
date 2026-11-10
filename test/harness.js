@@ -23,7 +23,7 @@ const EXPOSTOS = [
   'defesaTotal', 'penalidadeTotal', 'deslocamentoEfetivo', 'cargaUsada', 'limiteCarga',
   'atributoEfetivo', 'bonusCdArcana', 'cdMagiaEspecifica', 'bonusDefesaEsotericos',
   'esotericosEquipados', 'itensVestidosAtivos', 'efeitosMagicosAtivos', 'itensMagicosEquipadosNomes',
-  'nivelTotal', 'poderesAtivos', 'condicoesAtivas', 'maldicoesAtivas',
+  'nivelTotal', 'poderesAtivos', 'periciaValor', 'PERICIAS', 'qtdPoderesTormenta', 'penalidadeCarismaTormenta', 'condicoesAtivas', 'maldicoesAtivas',
   // item superior
   'MELHORIAS', 'MATERIAIS_ESPECIAIS', 'EFEITOS_MAGICOS_AUTOMATICOS',
   'melhoriasDisponiveis', 'melhoriasSubstituidas', 'prereqOkMelhoria', 'calcularItemSuperior',
