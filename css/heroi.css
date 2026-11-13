@@ -1,0 +1,114 @@
+/* =========================================================================================
+   Herói e Perícias (13/11/2026): boas-vindas, cartão do herói enxuto, faixa fixa e perícias
+   compactas. Pensado para o celular: pouca altura, detalhe só ao tocar.
+   ========================================================================================= */
+.foto-heroi{ width:100%; height:100%; border-radius:50%; display:grid; place-items:center; overflow:hidden; font-family:'Cinzel',serif; font-weight:800; color:#f0d98a; box-shadow:inset 0 0 14px rgba(0,0,0,.55); }
+.foto-heroi img{ width:100%; height:100%; object-fit:cover; }
+.anel-patamar{ position:absolute; inset:0; pointer-events:none; }
+.anel-patamar svg{ width:100%; height:100%; transform:rotate(-90deg); }
+
+/* ---- boas-vindas ---- */
+.boas-vindas{ display:grid; justify-items:center; gap:6px; text-align:center; margin:6px auto 4px; max-width:360px; }
+.retrato-grande{ position:relative; width:150px; height:150px; padding:16px; }
+.retrato-grande .foto-heroi{ font-size:2.4rem; animation:hr-respira 4s ease-in-out infinite; }
+.retrato-grande .selo-cera{ position:absolute; top:4px; right:6px; }
+.patamar-txt{ font:700 .68rem 'Cinzel',serif; letter-spacing:.1em; text-transform:uppercase; }
+.boas-vindas .nome-heroi{ font:700 1.5rem 'Cinzel Decorative','Cinzel',serif; color:var(--gold); line-height:1.1; }
+.linha-heroi{ font-family:'Cormorant Garamond',serif; font-style:italic; font-size:1.05rem; color:var(--ink-soft); }
+.ult-sessao{ font-size:var(--fs-xs); color:var(--ink-soft); border:1px dashed var(--gold-deep); border-radius:10px; padding:6px 10px; }
+.ult-sessao b{ color:var(--ink); }
+.boas-vindas .continuar{ max-width:280px; margin-top:4px; }
+.outros-herois{ display:flex; flex-wrap:wrap; gap:14px; justify-content:center; margin-top:14px; }
+.mini-heroi-wrap{ position:relative; }
+.mini-heroi{ display:grid; justify-items:center; gap:4px; background:none; border:0; color:var(--ink-soft); font:600 .66rem 'Inter',sans-serif; cursor:pointer; padding:0; max-width:70px; }
+.mini-heroi i{ width:46px; height:46px; border-radius:50%; border:2px solid var(--gold-deep); display:grid; place-items:center; overflow:hidden; font:800 .95rem 'Cinzel',serif; font-style:normal; color:var(--gold); background:var(--card-2); }
+.mini-heroi i img{ width:100%; height:100%; object-fit:cover; }
+.mini-heroi.novo i{ border-style:dashed; }
+.portal-heroi{ position:fixed; left:50%; top:30%; width:10px; height:10px; margin:-5px; border-radius:50%; background:radial-gradient(circle,#fff1bf,#d8bd74 40%,rgba(124,31,31,.95) 70%); z-index:9999; pointer-events:none; opacity:0; }
+.portal-heroi.abre{ animation:hr-portal .7s ease-in forwards; }
+@keyframes hr-respira{ 50%{ box-shadow:inset 0 0 14px rgba(0,0,0,.55), 0 0 26px rgba(216,189,116,.35); } }
+@keyframes hr-portal{ 0%{ opacity:0; transform:scale(1); } 25%{ opacity:1; } 100%{ opacity:1; transform:scale(180); } }
+
+/* ---- cartão do herói ---- */
+.topo-heroi{ display:grid; grid-template-columns:auto 1fr auto; gap:12px; align-items:center; }
+.retrato-mini{ position:relative; width:76px; height:76px; padding:8px; cursor:pointer; flex-shrink:0; }
+.retrato-mini .foto-heroi{ font-size:1.3rem; }
+.nivel-heroi{ position:absolute; bottom:-2px; right:-2px; width:26px; height:26px; border-radius:50%; display:grid; place-items:center; font:800 .78rem 'Cinzel',serif; color:#1a120c; background:radial-gradient(circle at 35% 30%,#fff1bf,#d4b25c 60%,#8a6a1e); box-shadow:0 2px 5px rgba(0,0,0,.5); }
+.ident-heroi{ display:grid; gap:1px; text-align:left; background:none; border:0; padding:0; color:var(--ink); font:inherit; cursor:pointer; min-width:0; }
+.nome-heroi-c{ font:700 1.15rem 'Cinzel Decorative','Cinzel',serif; color:var(--gold); line-height:1.1; overflow-wrap:anywhere; }
+.sub-heroi{ font-size:.72rem; color:var(--ink-soft); }
+.pat-heroi{ font:700 .56rem 'Cinzel',serif; letter-spacing:.1em; text-transform:uppercase; }
+.lvl-heroi{ font:700 .6rem 'Cinzel',serif; letter-spacing:.04em; color:#f7f1e3; padding:7px 9px; border-radius:9px; border:1px solid var(--gold-deep); background:linear-gradient(180deg,#c94a40,var(--red-deep)); cursor:pointer; position:relative; overflow:hidden; text-transform:uppercase; line-height:1.25; }
+.lvl-heroi::after{ content:""; position:absolute; inset:0; background:linear-gradient(110deg,transparent 30%,rgba(255,241,191,.35) 50%,transparent 70%); transform:translateX(-120%); animation:hr-brilho 3.5s ease-in-out infinite; }
+@keyframes hr-brilho{ 60%,100%{ transform:translateX(120%); } }
+.linha-chips{ display:flex; flex-wrap:wrap; gap:4px; margin-top:10px; }
+.cp{ font:600 .7rem 'Inter',sans-serif; padding:4px 9px; border-radius:999px; border:1px solid rgba(166,129,47,.35); background:var(--card-2); color:var(--ink); cursor:pointer; }
+.cp.on{ border-color:var(--gold); box-shadow:0 0 8px rgba(216,189,116,.35); }
+.cp.selo{ border:0; color:#fbe9df; background:radial-gradient(circle at 35% 30%,#d85a4e,#7c1f1f 75%); }
+.cp.selo.o{ background:radial-gradient(circle at 35% 30%,#c79a3a,#5c4310 75%); }
+.cp.selo.d{ background:radial-gradient(circle at 35% 30%,#5b7fb0,#22344f 75%); }
+.cp.selo.on{ box-shadow:0 0 0 2px var(--gold); }
+.faixa-attr{ display:grid; grid-template-columns:repeat(6,1fr); margin-top:10px; border-top:1px solid rgba(166,129,47,.3); padding-top:8px; }
+.fa{ display:grid; justify-items:center; background:none; border:0; border-left:1px solid rgba(166,129,47,.18); color:var(--ink); font:inherit; cursor:pointer; padding:2px 0; }
+.fa:first-child{ border-left:0; }
+.fa b{ font:800 .98rem 'Cinzel',serif; }
+.fa span{ font:700 .54rem 'Cinzel',serif; letter-spacing:.08em; color:var(--gold); }
+.fa.on b{ color:var(--gold); }
+.fa.pen b{ color:var(--red-bright); }
+.gaveta-heroi{ margin-top:8px; padding:8px 10px; border-radius:10px; border:1px solid var(--gold-deep); background:rgba(216,189,116,.05); font-size:var(--fs-xs); color:var(--ink-soft); display:grid; gap:5px; animation:efx-sobe .3s; }
+.gaveta-heroi input{ margin:0; }
+.gaveta-heroi label{ margin:0; }
+.opc-heroi{ display:grid; grid-template-columns:repeat(3,1fr); gap:4px; }
+.opc-heroi button{ font:600 .66rem 'Inter',sans-serif; padding:6px 2px; border-radius:7px; border:1px solid var(--line); background:transparent; color:var(--ink-soft); cursor:pointer; }
+.opc-heroi button.on{ background:var(--gold); color:#1a120c; border-color:var(--gold); }
+.nota-heroi b{ color:var(--ink); }
+.cab-attr{ display:flex; justify-content:space-between; align-items:baseline; }
+.cab-attr b{ font:700 .86rem 'Cinzel',serif; color:var(--gold); }
+.pena-attr{ font-size:.66rem; color:var(--red-bright); }
+.link-corrigir{ justify-self:end; background:none; border:0; padding:0; font-size:.66rem; color:var(--ink-soft); text-decoration:underline; cursor:pointer; }
+.corrige-attr{ display:grid; gap:3px; }
+
+/* ---- faixa fixa ---- */
+.faixa-fixa-heroi{ position:fixed; left:0; right:0; top:0; z-index:900; display:grid; grid-template-columns:auto 1fr auto; gap:8px; align-items:center;
+  padding:calc(6px + env(safe-area-inset-top,0px)) max(12px, env(safe-area-inset-right,0px)) 6px max(12px, env(safe-area-inset-left,0px));
+  background:linear-gradient(180deg,#1d1410,#120d0a); border-bottom:1px solid var(--gold-deep); box-shadow:0 4px 14px rgba(0,0,0,.5);
+  transform:translateY(-110%); transition:transform .35s cubic-bezier(.3,1.2,.4,1); pointer-events:none; }
+.faixa-fixa-heroi.on{ transform:none; pointer-events:auto; }
+.faixa-fixa-heroi .foto-heroi.mini{ width:34px; height:34px; font-size:.8rem; box-shadow:0 0 0 2px var(--gold-deep); }
+.faixa-fixa-heroi b{ font:700 .9rem 'Cinzel',serif; color:var(--gold); }
+.faixa-fixa-heroi small{ display:block; font-size:.62rem; color:var(--ink-soft); }
+.mini-vm{ display:flex; gap:6px; font:800 .8rem 'Cinzel',serif; }
+.mini-vm span{ padding:3px 7px; border-radius:999px; border:1px solid var(--line); }
+[data-tema="mesa"] .faixa-fixa-heroi{ background:linear-gradient(180deg,#fffdf8,#efe7d9); }
+
+/* ---- perícias ---- */
+.res-pericias{ display:grid; grid-template-columns:repeat(3,1fr); gap:4px; }
+.pilula-res{ display:flex; justify-content:space-between; align-items:center; gap:4px; padding:5px 9px; border-radius:999px; border:1px solid var(--line); background:var(--card-2); font:600 .68rem 'Inter',sans-serif; color:var(--ink-soft); cursor:pointer; }
+.pilula-res b{ font:800 .92rem 'Cinzel',serif; color:var(--ink); }
+.pilula-res.tr{ border-color:var(--gold-deep); }
+.pilula-res.on{ box-shadow:0 0 8px rgba(216,189,116,.35); }
+.fixadas-pericias{ display:flex; flex-wrap:wrap; gap:4px; align-items:center; margin-top:8px; font-size:.7rem; }
+.fixadas-pericias.na-ficha{ justify-content:center; }
+.fix-pericia{ font:700 .66rem 'Cinzel',serif; padding:2px 8px; border-radius:999px; background:var(--gold); color:#1a120c; }
+.painel-pericias #busca-pericias{ margin:8px 0 0; }
+.sit-pericias{ display:flex; flex-wrap:wrap; gap:3px; margin:6px 0 2px; }
+.sit-pericias button{ font:600 .64rem 'Inter',sans-serif; padding:3px 9px; border-radius:999px; border:1px solid var(--line); background:transparent; color:var(--ink-soft); cursor:pointer; }
+.sit-pericias button.on{ background:var(--red); border-color:var(--red); color:#fff; }
+.grupo-pericia{ display:flex; justify-content:space-between; font:700 .6rem 'Cinzel',serif; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); padding:8px 2px 2px; border-bottom:1px solid rgba(166,129,47,.3); }
+.grupo-pericia .qtd{ color:var(--ink-soft); }
+.linha-pericia{ display:grid; grid-template-columns:30px 1fr auto; gap:8px; align-items:center; padding:3px 2px; min-height:32px; border-bottom:1px solid rgba(166,129,47,.1); cursor:pointer; }
+.tot-pericia{ width:28px; height:28px; border-radius:50%; display:grid; place-items:center; font:800 .74rem 'Cinzel',serif; border:1px solid var(--line); background:var(--card-2); }
+.nome-pericia{ font:600 .82rem 'Inter',sans-serif; }
+.linha-pericia.tr .nome-pericia{ font-weight:700; color:var(--ink); }
+.estrela-pericia{ color:var(--gold); font-size:.74rem; }
+.marcas-pericia{ display:flex; gap:3px; align-items:center; }
+.marcas-pericia i{ font:700 .54rem 'Inter',sans-serif; font-style:normal; padding:1px 4px; border-radius:4px; border:1px solid var(--red); color:var(--red-bright); }
+.linha-pericia.trava{ opacity:.45; }
+.linha-pericia.aberta{ background:rgba(216,189,116,.04); }
+.conta-pericia{ grid-column:1/-1; padding:2px 0 8px 38px; display:grid; gap:2px; font-size:var(--fs-xs); color:var(--ink-soft); animation:efx-sobe .25s; }
+.conta-pericia .calc-linha{ display:flex; justify-content:space-between; }
+.conta-pericia .calc-linha.total{ border-top:1px solid var(--line); padding-top:3px; font-weight:700; color:var(--ink); }
+.usos-pericia{ margin-top:4px; }
+.usos-pericia b{ color:var(--ink); }
+.fixar-pericia{ justify-self:start; margin-top:4px; font:600 .64rem 'Inter',sans-serif; padding:3px 10px; border-radius:999px; border:1px solid var(--gold-deep); background:transparent; color:var(--gold); cursor:pointer; }
+@media (prefers-reduced-motion: reduce){ .retrato-grande .foto-heroi, .lvl-heroi::after, .portal-heroi.abre, .gaveta-heroi, .conta-pericia{ animation:none; } .faixa-fixa-heroi{ transition:none; } }

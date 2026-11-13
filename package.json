@@ -4,7 +4,7 @@
   "description": "Ficha digital automatizada de Tormenta 20 para mesa de campanha",
   "private": true,
   "scripts": {
-    "test": "node test/regressao.test.js && node test/supabase.test.js && node test/experiencia.test.js && node test/mochila.test.js",
+    "test": "node test/regressao.test.js && node test/supabase.test.js && node test/experiencia.test.js && node test/mochila.test.js && node test/heroi.test.js",
     "check": "node test/check-sintaxe.js",
     "serve": "python3 -m http.server 8000"
   },

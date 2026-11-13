@@ -2629,6 +2629,11 @@ function render(){
     else if(state.screen==='wizard') root.appendChild(renderWizardScreen());
     else if(state.screen==='ficha') root.appendChild(renderFichaScreen());
     else if(state.screen==='mestre') root.appendChild(renderMestreScreen());
+    // Faixa fixa do herói (fica fora da trilha de arrastar, que tem transform e prenderia o fixed).
+    if(state.screen==='ficha' && state.tab==='personagem' && (state.personagemTab||'ficha')==='ficha' && fichaAtual()){
+      root.appendChild(renderFaixaHeroi(fichaAtual()));
+      setTimeout(ligarFaixaHeroi, 0);
+    }
   }catch(erro){
     // Nunca deixa a tela em branco silenciosamente — sem isso, qualquer erro no meio da
     // montagem (ex: um dado incompleto chegando de uma sincronização) apagava a tela inteira
@@ -2708,104 +2713,6 @@ function fraseCarregamentoAtual(){
 }
 
 // ============ TELA DE PERFIS ============
-function renderPerfisScreen(){
-  const wrap = el('div',{class:'perfis-screen'});
-  wrap.appendChild(el('div',{style:'align-self:flex-end;'}, botaoTema()));
-  wrap.appendChild(el('div',{class:'tormenta-logo'}, 'Tormenta'));
-  wrap.appendChild(el('div',{class:'perfis-title'},'Painel do Aventureiro'));
-
-  if(state._carregandoInicial){
-    wrap.appendChild(el('div',{class:'panel faixa splash-carregando', style:'max-width:380px;text-align:center;'},
-      iconeD20(48),
-      el('div',{class:'wizard-title', style:'font-size:1rem;'}, fraseCarregamentoAtual()),
-      state._carregandoDemorando ? el('div',{class:'tip', style:'margin-top:10px;'}, 'Isso está demorando mais que o normal — o Google às vezes leva alguns segundos pra "acordar" depois de um tempo sem uso. Aguenta mais um pouco.') : null
-    ));
-    return wrap;
-  }
-
-  if(state._carregandoAtualizacao){
-    wrap.appendChild(el('div',{class:'panel faixa splash-atualizando', style:'max-width:380px;margin:0 auto 14px;text-align:center;'},
-      el('div',{style:'display:flex;align-items:center;justify-content:center;gap:10px;'},
-        iconeD20(24),
-        el('div',{}, fraseCarregamentoAtual())
-      ),
-      state._carregandoDemorando ? el('div',{class:'tip', style:'margin-top:8px;'}, 'O Google está demorando mais que o normal pra "acordar" — aguenta mais um pouco.') : null
-    ));
-  }
-
-  const grid = el('div',{class:'perfis-grid'});
-
-  // O card fixo do Mestre só faz sentido quando não há login (dentro do Claude, onde a conversa
-  // já é privada). No site, o Mestre entra pelo "Sou o Mestre" da tela de entrada.
-  if(!precisaCodigoJogador()){
-    grid.appendChild(el('div',{class:'perfil-card-wrap'},
-      el('button',{class:'perfil-card', onclick:()=>{ if(!state.gerenciandoPerfis) abrirTelaMestre(); }},
-        el('div',{class:'perfil-avatar perfil-avatar-mestre'}, '♛'),
-        el('div',{class:'perfil-nome'}, 'MESTRE'),
-        el('div',{class:'perfil-sub'}, 'Ferramentas de sessão')
-      )
-    ));
-  }
-
-  state.perfis.forEach(p=>{
-    const cardWrap = el('div',{class:'perfil-card-wrap ' + (state.gerenciandoPerfis?'gerenciando':'')});
-    const card = el('button',{class:'perfil-card', onclick:()=>{
-      if(state.gerenciandoPerfis) return;
-      state.perfilAtualId = p.id; state.screen='ficha'; render();
-      iniciarAtualizacaoAutomaticaJogador();
-    }},
-      el('div',{class:'perfil-avatar', style: p.foto ? '' : 'background:'+corAvatar(p.id)+';'}, p.foto ? el('img',{src:p.foto, style:'width:100%;height:100%;object-fit:cover;border-radius:inherit;'}) : (p.nome||'?').slice(0,1).toUpperCase()),
-      el('div',{class:'perfil-nome'}, p.nome||'Sem nome'),
-      el('div',{class:'perfil-sub'}, (p.raca||'—')+' · '+classeDisplay(p))
-    );
-    cardWrap.appendChild(card);
-    if(!state.gerenciandoPerfis && detectarPendencias(p).length>0){
-      cardWrap.appendChild(el('div',{class:'selo-cera', title: detectarPendencias(p).length+' pendência(s)'}, '!'));
-    }
-    cardWrap.appendChild(el('button',{class:'perfil-delete-x', onclick:(e)=>{
-      e.stopPropagation();
-      if(confirm('Excluir "'+(p.nome||'este personagem')+'"? Isso não pode ser desfeito.')){
-        state.perfis = state.perfis.filter(x=>x.id!==p.id);
-        salvarPerfis(); render();
-      }
-    }},'✕'));
-    grid.appendChild(cardWrap);
-  });
-
-  grid.appendChild(el('div',{class:'perfil-card-wrap'},
-    el('button',{class:'perfil-card perfil-add', onclick:()=>{ iniciarWizard(); }},
-      el('div',{class:'perfil-avatar'}, '+'),
-      el('div',{class:'perfil-nome'}, 'Novo Personagem')
-    )
-  ));
-
-  wrap.appendChild(grid);
-  wrap.appendChild(el('label',{class:'btn ghost', style:'margin-top:12px;display:block;text-align:center;'},
-    '📂 Importar Cópia de Segurança',
-    el('input',{type:'file', accept:'.json', style:'display:none;', onchange: async (e)=>{
-      const arquivo = e.target.files[0];
-      if(!arquivo) return;
-      const dados = await lerArquivoBackup(arquivo);
-      if(!dados){ flashMsg('⚠ Esse arquivo não parece ser um backup de personagem válido.'); return; }
-      if(!confirm('Importar "'+dados.nome+'" como um personagem novo? (Se você já tinha ele nessa lista, vai ficar duplicado — apague o antigo depois se for o caso.)')) return;
-      dados.id = 'p'+Date.now()+Math.floor(Math.random()*10000);
-      state.perfis.push(dados);
-      salvarPerfis();
-      flashMsg('✅ "'+dados.nome+'" importado!');
-      render();
-    }})
-  ));
-  if(state.perfis.length>0){
-    wrap.appendChild(el('div',{class:'perfil-manage'},
-      el('button',{onclick:()=>{ state.gerenciandoPerfis=!state.gerenciandoPerfis; render(); }}, state.gerenciandoPerfis?'Concluir':'Gerenciar personagens')
-    ));
-  }
-  if(precisaCodigoJogador()){
-    wrap.appendChild(el('div',{class:'perfil-manage'},
-      el('button',{onclick:sairDoCodigoJogador}, 'Sair')
-    ));
-  }
-  return wrap;
-}
+// renderPerfisScreen: ver js/heroi.js (boas-vindas do herói, 13/11/2026)
 
 document.addEventListener('DOMContentLoaded', iniciar);

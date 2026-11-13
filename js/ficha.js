@@ -1328,57 +1328,7 @@ function renderPersonagemFicha(){
   const f = fichaAtual();
   const wrap = el('div',{});
 
-  wrap.appendChild(el('div',{class:'panel faixa'},
-    el('h2',{},'Personagem'),
-    el('div',{class:'foto-row'},
-      el('label',{class:'foto-upload', style:'border-color:'+patamarAtual(nivelTotal(f)).cor+';box-shadow:0 0 0 3px var(--bg-2), 0 0 0 5px '+patamarAtual(nivelTotal(f)).cor+', inset 0 0 14px rgba(0,0,0,0.45), 0 3px 8px var(--shadow);'},
-        f.foto ? el('img',{src:f.foto}) : el('span',{class:'foto-placeholder'},'📷'),
-        el('input',{type:'file', accept:'image/*', style:'display:none;', onchange:(e)=>{ if(e.target.files[0]) handleFotoUpload(f, e.target.files[0]); }})
-      ),
-      el('div',{},
-        el('div',{class:'meta'}, f.foto ? 'Toque na foto pra trocar' : 'Toque pra adicionar uma foto'),
-        el('div',{class:'meta', style:'color:'+patamarAtual(nivelTotal(f)).cor+';font-weight:700;margin-top:2px;'}, '◆ '+patamarAtual(nivelTotal(f)).nome)
-      )
-    ),
-    el('div',{class:'row'},
-      el('div',{style:'flex:1;'}, el('label',{},'Jogador'), bindInput(f,'jogador')),
-    ),
-    el('div',{class:'row'},
-      el('div',{}, el('label',{},'Raça'), el('div',{class:'valor-fixo'}, f.raca||'—')),
-      el('div',{}, el('label',{},'Origem'), el('div',{class:'valor-fixo'}, f.origem||'—')),
-    ),
-    el('div',{class:'row'},
-      el('div',{}, el('label',{},'Tamanho'), bindInput(f,'tamanho')),
-      el('div',{}, el('label',{},'Alinhamento'), bindInput(f,'alinhamento')),
-      el('div',{}, el('label',{},'Idade'), bindInput(f,'idade')),
-    ),
-    bonusFurtividadeTamanho(f) ? el('div',{class:'tip', style:'font-size:0.75rem;'}, el('b',{},'Tamanho '+f.tamanho), (bonusFurtividadeTamanho(f)>0?'+':'')+bonusFurtividadeTamanho(f)+' em Furtividade (já somado). Criaturas '+f.tamanho.toLowerCase()+'s também têm modificador de manobras de combate, não calculado automaticamente — combine com o mestre.') : null,
-    el('div',{class:'row'},
-      el('div',{},
-        el('label',{},'Classe(s)'),
-        el('div',{class:'valor-fixo'}, classeDisplay(f))
-      ),
-      el('div',{},
-        el('label',{},'Nível total'),
-        el('div',{class:'row', style:'align-items:center;gap:8px;'},
-          el('div',{class: state._levelUpCelebrando ? 'selo-nivel-flash' : '', style:'font-weight:800;font-size:1.3rem;padding:6px 0;'}, nivelTotal(f)),
-          el('button',{class:'btn', style:'width:auto;padding:8px 14px;', onclick:()=>{ abrirLevelUp(); }},'Level Up ⬆')
-        )
-      ),
-    ),
-    el('div',{class:'row'},
-      el('div',{},
-        el('label',{},'Deslocamento'),
-        el('div',{class:'valor-fixo'}, deslocamentoEfetivo(f)+'m'+(deslocamentoEfetivo(f)!==(parseInt(f.deslocamento)||9) ? ' (base '+(parseInt(f.deslocamento)||9)+'m)' : '')),
-        // Deslocamentos alternativos da raça (escalada/natação/voo) — antes ficavam só no texto
-        // do traço racial, sem lugar nenhum pra consultar rápido durante a sessão.
-        ...deslocamentosAlternativos(f).map(d=>
-          el('div',{class:'meta', style:'color:var(--gold);margin-top:2px;'}, d.tipo+': '+d.valor+'m'+(d.obs?' ('+d.obs+')':''))
-        ),
-      ),
-      renderCampoDivindade(f),
-    )
-  ));
+  wrap.appendChild(renderCartaoHeroi(f));
 
   if(state.levelUp && state.levelUp.aberto){
     // O Level Up agora é um pop-up renderizado no nível mais alto da tela (renderFichaScreen),
@@ -1392,7 +1342,8 @@ function renderPersonagemFicha(){
   wrap.appendChild(el('div',{class:'panel faixa'},
     el('h2',{},'Vida & Mana'),
     renderAneisVidaMana(f),
-    renderCinto(f)
+    renderCinto(f),
+    renderPericiasFixadasFicha(f)
   ));
 
   wrap.appendChild(el('div',{class:'panel faixa'},
@@ -1426,23 +1377,6 @@ function renderPersonagemFicha(){
         f.escudo ? el('button',{class:'btn ghost', style:'font-size:0.7rem;padding:5px 8px;', onclick:guardarEscudoNaMochila},'Guardar na mochila') : null
       ),
     )
-  ));
-
-  wrap.appendChild(el('div',{class:'panel faixa'},
-    el('h2',{},'Atributos'),
-    el('div',{class:'row6'},
-      ...['for','des','con','int','sab','car'].map(a=>
-        // onchange (dispara ao sair do campo, não a cada tecla) recalcula e redesenha a tela na
-        // hora — sem isso, o valor mudava por baixo dos panos mas o aviso de "Carisma efetivo"
-        // logo abaixo só se atualizava depois de alguma OUTRA ação (trocar de aba, por exemplo).
-        // Foi exatamente esse atraso que confundiu um jogador (relatou não saber se tinha
-        // funcionado), então isso não é só um efeito bonito, é uma correção de verdade.
-        el('div',{class:'attr-box'}, el('div',{class:'lbl'}, a.toUpperCase()), bindInput(f,a,'number',()=>{ salvarPerfis(); render(); }))
-      )
-    ),
-    penalidadeCarismaTormenta(f)>0 ? el('div',{class:'tip', style:'margin-top:8px;border:1px solid var(--red-bright);'},
-      '☣️ Carisma efetivo: '+atributoEfetivo(f,'car')+' (o '+f.car+' digitado acima −'+penalidadeCarismaTormenta(f)+' pelos '+qtdPoderesTormentaParaCarisma(f)+' Poder(es) da Tormenta que você tem (os da Deformidade não contam) — já aplicado nas perícias baseadas em Carisma).'
-    ) : null
   ));
 
   wrap.appendChild(renderPainelCondicoes(f));
@@ -2960,113 +2894,6 @@ function renderItemAcordeao(grupoChave, itemChave, nomeExibido, metaTopo, corpoE
 }
 
 // ---- PERÍCIAS ----
-function renderPericias(){
-  const wrap = el('div',{});
-  const f = fichaAtual();
-  const treinadas = periciasTreinadasComDivindade(f);
-  const nivel = nivelTotal(f);
-
-  wrap.appendChild(renderSecaoNotasColapsavel('pericias-como-funciona', 'ℹ️', 'Como Funciona', null, ()=>[
-    el('div',{class:'tip'}, 'Total = 1/2 do nível ('+Math.floor(nivel/2)+') + atributo-chave + '+bonusTreinoPericia(nivel)+' se for treinado. Perícias em destaque são as que ' + (f.nome||'seu personagem') + ' já tem treinadas — os valores já estão calculados para o nível '+nivel+' atual.')
-  ], false));
-
-  if(!state._periciaBusca) state._periciaBusca = '';
-  wrap.appendChild(el('input',{id:'busca-pericias', type:'text', placeholder:'buscar perícia...', value: state._periciaBusca, oninput:(e)=>{ state._periciaBusca=e.target.value; renderDebounced(); }}));
-
-  const lista = PERICIAS.filter(p=> !state._periciaBusca || p.nome.toLowerCase().includes(state._periciaBusca.toLowerCase()));
-  if(lista.length===0){
-    wrap.appendChild(el('div',{class:'empty'},'Nenhuma perícia encontrada.'));
-  }
-
-  // Agrupa por atributo-chave, na ORDEM OFICIAL da ficha (Força, Destreza, Constituição,
-  // Inteligência, Sabedoria, Carisma) — não na ordem em que aparecem no catálogo. Dentro de
-  // cada grupo, ordem alfabética, que é como se procura uma perícia pelo nome.
-  const ORDEM_ATRIBUTOS = ['For','Des','Con','Int','Sab','Car'];
-  const grupos = {};
-  lista.forEach(p=>{
-    if(!grupos[p.attr]) grupos[p.attr] = [];
-    grupos[p.attr].push(p);
-  });
-
-  const atributosOrdenados = ORDEM_ATRIBUTOS.filter(a=>grupos[a]).concat(Object.keys(grupos).filter(a=>!ORDEM_ATRIBUTOS.includes(a)));
-  atributosOrdenados.forEach(attr=>{
-    const doGrupo = grupos[attr].slice().sort((a,b)=> a.nome.localeCompare(b.nome, 'pt-BR'));
-    wrap.appendChild(el('div',{class:'pericia-grupo-cab'},
-      el('span',{class:'grupo-nome'}, NOME_ATRIBUTO[attr.toLowerCase().slice(0,3)] || attr),
-      el('span',{class:'grupo-cont'}, doGrupo.length+(doGrupo.length===1?' perícia':' perícias'))
-    ));
-
-    doGrupo.forEach(p=>{
-      const isTreinada = treinadas.has(p.nome);
-      const aberto = state._periciaAberta === p.nome;
-      const valor = periciaValor(f, p);
-      const nomeEl = el('div',{class:'pericia-nome'}, p.nome+' ');
-      if(isTreinada) nomeEl.appendChild(el('span',{class:'pericia-estrela'},'★'));
-      const row = el('div',{class:'pericia-row'+(isTreinada?' treinada':'')+(aberto?' aberta':''), onclick:()=>{ state._periciaAberta = aberto ? null : p.nome; render(); }},
-        el('div',{class:'pericia-total'}, (valor>=0?'+':'')+valor),
-        el('div',{},
-          nomeEl,
-          el('div',{class:'pericia-attr'}, p.attr + (p.treinada?' · só treinada':'') + (p.armadura?' · penalidade':''))
-        ),
-        el('div',{style:'font-size:0.8rem;color:var(--ink-soft);'}, aberto?'▲':'▼')
-      );
-
-      const wrapRow = el('div',{}, row);
-      if(aberto){
-        const bonusPoder = bonusPericiaDePoderes(f, p.nome);
-        const bonusDivindade = bonusPericiaDeDivindade(f, p.nome);
-        const bonusOrigem = bonusPericiaDeOrigem(f, p.nome);
-        const bonusClasseEspecifica = bonusPericiaDeClasse(f, p.nome);
-      const bonusHabilidadeAutomatica = bonusPericiaDeHabilidadeAutomatica(f, p.nome);
-        const bonusCondicoes = bonusCondicoesPericia(f, p);
-        const bonusRaca = bonusPericiaDeRaca(f, p.nome);
-        const bonusTormentaP = bonusPericiaDeTormenta(f, p.nome);
-        const bonusItens = bonusPericiaDeItensVestidos(f, p.nome);
-        const racaObjDetalhe = getRacaObj(f);
-        const usaSabEmAdestramentoDetalhe = p.nome==='Adestramento' && listaPoderesConcedidos(f).some(pc=>pc && pc.nome==='Compreender os Ermos');
-        const usaSabEmGuerraDetalhe = p.nome==='Guerra' && listaPoderesConcedidos(f).some(pc=>pc && pc.nome==='Fé Guerreira');
-        const usaDesEmAtletismoDetalhe = p.nome==='Atletismo' && ((racaObjDetalhe && racaObjDetalhe.atletismoUsaDestreza) || nomesPoderesConhecidos(f).includes('Acrobático'));
-        const attrExibido = usaSabEmAdestramentoDetalhe ? 'Sabedoria (Compreender os Ermos)' : usaSabEmGuerraDetalhe ? 'Sabedoria (Fé Guerreira)' : usaDesEmAtletismoDetalhe ? 'Destreza (Acrobático/traço racial)' : p.attr;
-        const attrValExibido = usaSabEmAdestramentoDetalhe ? (parseInt(f.sab)||0) : usaSabEmGuerraDetalhe ? (parseInt(f.sab)||0) : usaDesEmAtletismoDetalhe ? (parseInt(f.des)||0) : atributoEfetivo(f, p.attr.toLowerCase().slice(0,3));
-
-        // Cada parcela do cálculo vira uma linha própria (rótulo à esquerda, valor à direita)
-        // em vez do texto corrido comprido de antes — bem mais fácil de conferir de onde vem
-        // cada pedaço do total.
-        const parcelas = [
-          ['½ nível', Math.floor(nivel/2)],
-          [attrExibido, attrValExibido],
-        ];
-        if(isTreinada) parcelas.push(['Treino', bonusTreinoPericia(nivel)]);
-        if(bonusPoder) parcelas.push(['Poderes', bonusPoder]);
-        if(bonusRaca) parcelas.push(['Raça', bonusRaca]);
-        if(bonusTormentaP) parcelas.push(['Poderes da Tormenta', bonusTormentaP]);
-        if(bonusItens) parcelas.push(['Itens vestidos', bonusItens]);
-        if(bonusDivindade) parcelas.push(['Divindade', bonusDivindade]);
-        if(bonusOrigem) parcelas.push(['Origem', bonusOrigem]);
-        if(bonusClasseEspecifica) parcelas.push(['Poder de classe', bonusClasseEspecifica]);
-        if(bonusHabilidadeAutomatica) parcelas.push(['Habilidade de classe', bonusHabilidadeAutomatica]);
-        if(bonusCondicoes) parcelas.push(['Condições', bonusCondicoes]);
-        if(p.nome==='Furtividade' && bonusFurtividadeTamanho(f)) parcelas.push(['Tamanho', bonusFurtividadeTamanho(f)]);
-        if(p.armadura && penalidadeTotal(f)) parcelas.push(['Penalidade de armadura', penalidadeTotal(f)]);
-
-        const detalhe = el('div',{class:'pericia-detalhe'},
-          ...parcelas.map(([rotulo, val])=>
-            el('div',{class:'calc-linha'}, el('span',{}, rotulo), el('span',{}, (val>=0?'+':'')+val))
-          ),
-          el('div',{class:'calc-linha total'}, el('span',{},'Total'), el('span',{}, (valor>=0?'+':'')+valor)),
-          el('div',{class:'desc', style:'margin-top:8px;'}, p.resumo),
-          el('div',{class:'usos'}, el('b',{},'Principais usos'),
-            el('ul',{}, ...p.usos.map(u=> el('li',{}, u)))
-          )
-        );
-        wrapRow.appendChild(detalhe);
-      }
-      wrap.appendChild(wrapRow);
-    });
-  });
-  return wrap;
-}
-
 // ---- MAGIAS ----
 function magiasPorTradicao(trad){
   // trad: 'arcana' | 'divina' — magias Universais entram nas duas
