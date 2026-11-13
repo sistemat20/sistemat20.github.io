@@ -148,6 +148,30 @@ const HORA = 60 * 60 * 1000;
     h.igual('e Olhos Vermelhos escala com os outros dois (+2)', per('Intimidação'), 2 + (-1) + 2 + 2);
   }
 
+  h.secao('Carga: poções em meio espaço e Inventário Organizado em 1/4');
+  {
+    // Relato da Stela (12/11/2026), Livro Básico pág. 130 e "Limites de Carga".
+    const f = h.usarFicha(w, h.fichaBase({
+      equip: [
+        { item: 'Poção de Curar Ferimentos (2d8+2 PV)', qtd: '2', tipo: 'geral', carga: '1' },
+        { item: 'Essência de mana', qtd: '4', tipo: 'geral', carga: '0.5' },
+        { item: 'Casaco longo', qtd: '1', tipo: 'geral', carga: '1' },
+      ],
+    }));
+    w.migrarCargaPocoes();
+    h.igual('poção salva com 1 espaço volta para meio', f.equip[0].carga, '0.5');
+    h.igual('item comum de 1 espaço não muda', f.equip[2].carga, '1');
+    h.igual('2 poções + 4 essências + casaco = 4 espaços', w.cargaUsada(f), 4);
+    f.poderesClasse = [{ nome: 'Inventário Organizado', classe: 'Arcanista', nivel: 4, trocaPorGeral: true }];
+    h.igual('com Inventário Organizado, meio espaço vira 1/4: 6 × 0,25 + 1', w.cargaUsada(f), 2.5);
+    f.equip = [];
+    w.addItemMagicoGenerico('Poção de Compreensão', w.POCOES_MAGICAS.find((p) => p.nome === 'Poção de Compreensão').esp);
+    h.igual('poção nova do catálogo entra com meio espaço', f.equip[0].carga, '0.5');
+    f.poderesClasse = [];
+    f.equip = [{ item: 'Poção de Área Escorregadia (granada)', qtd: '2', tipo: 'geral', carga: '0,5' }];
+    h.igual('carga digitada com vírgula conta (0,5 × 2 = 1)', w.cargaUsada(f), 1);
+  }
+
   h.secao('Grimório: catalisadores que diminuem o custo (Seixo de âmbar, Pó de giz, Pó de cristal)');
   {
     const f = h.usarFicha(w, h.fichaBase({

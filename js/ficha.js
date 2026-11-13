@@ -128,6 +128,9 @@ function renderMenuOverlay(){
   sheet.appendChild(el('button',{class:'menu-item', onclick:()=>{ alternarAtmosfera(); render(); }},
     el('span',{class:'ico'}, '🌫️'), el('span',{}, atmosferaAtiva()?'Efeitos de Atmosfera: Ligados':'Efeitos de Atmosfera: Desligados')
   ));
+  sheet.appendChild(el('button',{class:'menu-item', onclick:()=>{ alternarSons(); render(); }},
+    el('span',{class:'ico'}, '🔔'), el('span',{}, sonsAtivos()?'Sons: Ligados':'Sons: Desligados')
+  ));
   sheet.appendChild(el('button',{class:'menu-item', onclick:alternarTemaMesa},
     el('span',{class:'ico'}, document.documentElement.dataset.tema==='mesa'?'☀️':'🌓'), el('span',{}, document.documentElement.dataset.tema==='mesa'?'Modo Padrão':'Modo Mesa (alto contraste)')
   ));
@@ -518,7 +521,7 @@ function renderPersonagemScreen(){
   if(!state.personagemTab) state.personagemTab = 'ficha';
   const nav = el('nav',{class:'tabs', style:'margin:0 0 4px;padding:0;'});
   [['ficha','Ficha'],['magias','Magias'],['mochila','Mochila'],['notas','Notas']].forEach(([id,label])=>{
-    nav.appendChild(el('button',{class: state.personagemTab===id?'active':'', onclick:()=>{state.personagemTab=id; render();}}, label));
+    nav.appendChild(el('button',{class: state.personagemTab===id?'active':'', 'data-efx-alvo': id==='mochila' ? 'mochila' : null, onclick:()=>{state.personagemTab=id; render();}}, label));
   });
   wrap.appendChild(nav);
   const content = el('div',{style:'padding-top:10px;'});
@@ -1388,7 +1391,8 @@ function renderPersonagemFicha(){
   // mexe de novo, então não precisa disputar espaço com o que importa durante o combate.
   wrap.appendChild(el('div',{class:'panel faixa'},
     el('h2',{},'Vida & Mana'),
-    renderAneisVidaMana(f)
+    renderAneisVidaMana(f),
+    renderCinto(f)
   ));
 
   wrap.appendChild(el('div',{class:'panel faixa'},
@@ -2681,144 +2685,6 @@ function renderPopupEnviarDinheiro(f){
   return overlay;
 }
 
-function renderPersonagemMochila(){
-  const f = fichaAtual();
-  const wrap = el('div',{});
-
-  wrap.appendChild(renderPainelCarga(f));
-
-  const eqPanel = el('div',{class:'panel faixa'}, el('h2',{},'Itens Guardados'));
-  if(!f.equip || f.equip.length===0){
-    eqPanel.appendChild(el('div',{class:'empty'},'Mochila vazia. Vá no Menu → Itens pra buscar itens no catálogo.'));
-  } else {
-    f.equip.forEach((row, idx)=>{
-      const podeEquipar = row.tipo==='arma' || row.tipo==='armadura' || row.tipo==='escudo' || row.tipo==='esoterico';
-      const rotulo = {arma:'Arma', armadura:'Armadura', escudo:'Escudo', esoterico:'Esotérico', geral:'Item'}[row.tipo] || 'Item';
-      const corpo = [];
-      if(row.tipo==='geral'){
-        const nomeSemSufixo = nomeBaseItem(row.item);
-        // Descrição do catálogo — antes só procurava em ITENS_GERAIS. Itens mágicos que caem
-        // como "geral" de propósito (Acessórios, Artefatos, Poções — eles não têm arma/armadura
-        // base pra conectar, então tipo:'geral' está certo) nunca apareciam com descrição
-        // nenhuma, porque a busca não olhava nesses catálogos. Agora tenta em todos.
-        const itemCatalogo = ITENS_GERAIS.find(i=>i.n===nomeSemSufixo)
-          || (typeof ACESSORIOS_MENORES!=='undefined' ? ACESSORIOS_MENORES.find(a=>a.nome===nomeSemSufixo) : null)
-          || (typeof ACESSORIOS_MEDIOS!=='undefined' ? ACESSORIOS_MEDIOS.find(a=>a.nome===nomeSemSufixo) : null)
-          || (typeof ACESSORIOS_MAIORES!=='undefined' ? ACESSORIOS_MAIORES.find(a=>a.nome===nomeSemSufixo) : null)
-          || (typeof ARTEFATOS!=='undefined' ? ARTEFATOS.find(a=>a.nome===nomeSemSufixo) : null)
-          || (typeof POCOES_MAGICAS!=='undefined' ? POCOES_MAGICAS.find(p=>p.nome===nomeSemSufixo) : null);
-        // Os catálogos mágicos usam "nome" em vez de "n" — normaliza pra um texto só
-        // Item Personalizado guarda a descrição DIRETO no item (não dá pra achar por nome no
-        // catálogo, já que o jogador inventou o nome) — checa isso primeiro, antes de tentar
-        // achar por nome nos catálogos.
-        const descItem = row.descCustom || (itemCatalogo ? (itemCatalogo.desc || (itemCatalogo.magia ? 'Contém a magia: '+itemCatalogo.magia : null)) : null);
-        const reconhecidoAutomatico = (itemCatalogo && itemCatalogo.vestivel) || ACESSORIOS_VESTIVEIS.has(nomeSemSufixo);
-        const ehVestivel = reconhecidoAutomatico || row.marcadoVestivel;
-        const ehMochilaAventureiro = nomeSemSufixo === 'Mochila de aventureiro';
-        corpo.push(
-          // Descrição do catálogo — faltava completamente antes (item "geral" nunca mostrava o
-          // que fazia, só nome/quantidade/espaço). É aqui também que a Mochila de Aventureiro
-          // mostra "aumenta sua capacidade de carga em 2 espaços" — o bônus agora é aplicado de
-          // verdade (ver limiteCarga), isso só deixa claro pro jogador o que o item faz.
-          descItem ? el('div',{class:'desc'}, descItem) : null,
-          // Botão de Upgrade — só a Mochila de Aventureiro tem esse fluxo especial. É uma ação
-          // deliberada do jogador (não automática só por ter o item guardado), e só pode
-          // acontecer uma vez POR PERSONAGEM (não por mochila) — comprar 5 mochilas não dá +10.
-          ehMochilaAventureiro && !f.mochilaAventureiroUpgrade ? el('button',{class:'btn', style:'margin-top:4px;margin-bottom:8px;', onclick:()=>{
-            f.mochilaAventureiroUpgrade = true;
-            registrarLog(f, 'Upgrade da Mochila de Aventureiro aplicado (+2 de capacidade de carga)');
-            salvarPerfis();
-            flashMsg('⬆️ Upgrade aplicado! +2 de capacidade de carga.');
-            render();
-          }}, '⬆️ Fazer Upgrade (+2 de capacidade)') : null,
-          ehMochilaAventureiro && f.mochilaAventureiroUpgrade ? el('div',{class:'meta', style:'color:var(--gold);margin-bottom:8px;'}, '✓ Upgrade aplicado — já soma +2 na capacidade de carga') : null,
-          el('label',{},'Nome'),
-          el('input',{id:'mochila-nome-'+idx, type:'text', value:row.item, oninput:(e)=>{row.item=e.target.value;}, onchange:()=>{salvarPerfis(); render();}}),
-          el('div',{class:'row', style:'margin-top:8px;'},
-            el('div',{style:'flex:1;'}, el('label',{},'Quantidade'), el('input',{id:'mochila-qtd-'+idx, type:'text', value:row.qtd, oninput:(e)=>{row.qtd=e.target.value;}, onchange:()=>{salvarPerfis(); render();}})),
-            el('div',{style:'flex:1;'}, el('label',{},'Espaço'), el('input',{id:'mochila-carga-'+idx, type:'text', value:row.carga, oninput:(e)=>{row.carga=e.target.value;}, onchange:()=>{salvarPerfis(); render();}})),
-          ),
-          row.vestido ? el('div',{class:'meta', style:'color:var(--gold);margin-top:4px;'},'👕 vestido') : null,
-          !reconhecidoAutomatico ? el('div',{class:'row', style:'margin-top:8px;align-items:center;'},
-            el('input',{type:'checkbox', id:'mochila-vestivel-'+idx, checked: row.marcadoVestivel?'checked':undefined, onchange:(e)=>{ row.marcadoVestivel=e.target.checked; if(!e.target.checked) row.vestido=false; salvarPerfis(); render(); }}),
-            el('label',{for:'mochila-vestivel-'+idx, style:'margin:0;font-size:0.78rem;text-transform:none;'}, 'É um item vestível (anel, colar, roupa etc. — conta como 1 dos 4 slots vestidos)')
-          ) : null,
-          // Efeito customizado — só faz sentido em item vestível (o bônus só se aplica enquanto
-          // vestido, igual qualquer outro item — ver itensVestidosAtivos). Item do catálogo já
-          // vem com efeito prontinho; isso aqui é só pra item personalizado mesmo.
-          ehVestivel ? el('div',{style:'margin-top:8px;'},
-            row.efeitoCustom ? el('div',{class:'meta', style:'color:var(--gold);'}, '⚡ Efeito: '+descricaoEfeitoCustom(row.efeitoCustom)) : null,
-            el('button',{class:'btn ghost', style:'margin-top:4px;', onclick:()=>abrirEfeitoItemCustom(idx)}, row.efeitoCustom?'Trocar efeito':'⚡ Definir efeito')
-          ) : null,
-          el('div',{class:'row', style:'margin-top:8px;'},
-            (/^\d+$/.test(String(row.qtd).trim()) && parseInt(row.qtd)>0) ? el('button',{class:'btn', onclick:()=> usarItemMochila(f, idx)}, 'Usar (−1) ✨') : null,
-            ehVestivel ? el('button',{class:'btn ghost', onclick:()=>{ row.vestido=!row.vestido; salvarPerfis(); render(); }}, row.vestido?'Guardar':'Vestir') : null,
-            el('button',{class:'btn ghost', onclick:()=>abrirEnviarItem(idx)}, 'Enviar 📤'),
-            el('button',{class:'btn ghost', onclick:()=>{ if(!confirm('Remover "'+row.item+'" da mochila? Não tem como desfazer.')) return; registrarLog(f, 'Removeu da mochila: '+row.item); removerItemMochila(f, idx); salvarPerfis(); render(); }}, 'Remover 🗑️')
-          )
-        );
-      } else {
-        // Estatísticas do catálogo (não são as mesmas de quando equipado — ali soma bônus de
-        // encantos/força/proficiência do personagem; aqui é só a referência crua do item, pra
-        // saber o que ele é antes de decidir equipar). Faltava completamente antes — a mochila
-        // só mostrava quantidade/espaço, sem dizer o que o item de fato fazia.
-        let descCatalogo = null;
-        const nomeSemSufixo = nomeBaseItem(row.item);
-        if(row.tipo==='arma'){
-          const w = ARMAS.find(x=>x.n===nomeSemSufixo);
-          if(w) descCatalogo = 'Dano '+w.dano+' · Crítico '+w.critico+' · Alcance '+w.alcance+' · '+w.tipo+(w.maos>=2?' · 2 mãos':'');
-        } else if(row.tipo==='armadura'){
-          const a = ARMADURAS.find(x=>x.n===nomeSemSufixo);
-          if(a) descCatalogo = 'Defesa +'+a.def+' · Penalidade '+a.pen+' · '+a.cat;
-        } else if(row.tipo==='escudo'){
-          const e = ESCUDOS.find(x=>x.n===nomeSemSufixo);
-          if(e) descCatalogo = 'Defesa +'+e.def+' · Penalidade '+e.pen;
-        } else if(row.tipo==='esoterico'){
-          const it = buscarItemEmpunhavel(row.refBase||nomeSemSufixo);
-          if(it && it.desc) descCatalogo = it.desc;
-        }
-        corpo.push(
-          descCatalogo ? el('div',{class:'desc'}, descCatalogo) : null,
-          el('div',{class:'row', style:'margin-top:8px;'},
-            el('div',{style:'flex:1;'}, el('label',{},'Quantidade'), el('input',{id:'mochila-qtd-'+idx, type:'text', value:row.qtd, oninput:(e)=>{row.qtd=e.target.value;}, onchange:()=>{salvarPerfis(); render();}})),
-            el('div',{style:'flex:1;'}, el('label',{},'Espaço'), el('input',{id:'mochila-carga-'+idx, type:'text', value:row.carga, oninput:(e)=>{row.carga=e.target.value;}, onchange:()=>{salvarPerfis(); render();}})),
-          ),
-          el('div',{class:'row', style:'margin-top:8px;'},
-            podeEquipar ? el('button',{class:'btn ghost', onclick:()=> row.tipo==='esoterico' ? equiparEsotericoDaMochila(idx) : equiparDaMochila(idx)}, 'Equipar') : null,
-            el('button',{class:'btn ghost', onclick:()=>abrirEnviarItem(idx)}, 'Enviar 📤'),
-            el('button',{class:'btn ghost', onclick:()=>{ if(!confirm('Remover "'+row.item+'" da mochila? Não tem como desfazer.')) return; registrarLog(f, 'Removeu da mochila: '+row.item); removerItemMochila(f, idx); salvarPerfis(); render(); }}, 'Remover 🗑️')
-          )
-        );
-      }
-      const ehMochilaAventureiroUpgradeAtiva = row.tipo==='geral' && nomeBaseItem(row.item)==='Mochila de aventureiro' && f.mochilaAventureiroUpgrade;
-      const tituloExibido = nomeItemComSelo(row.item, ehMochilaAventureiroUpgradeAtiva ? ' ⭐ (Upgrade)' : '');
-      // Inventário Organizado reduz item de meio espaço (0.5) pra 1/4 (0.125) — mostra o valor
-      // JÁ reduzido aqui (com notinha), senão o número exibido não bateria com o total somado.
-      const cargaExibida = (poderesAtivos(f).includes('Inventário Organizado') && parseFloat(row.carga)===0.5)
-        ? '0.125 (Inventário Organizado)' : row.carga;
-      eqPanel.appendChild(renderItemColapsavel('mochila-'+idx, tituloExibido, rotulo+' · Qtd '+row.qtd+' · Esp '+cargaExibida, corpo, ehMochilaAventureiroUpgradeAtiva ? 'var(--gold)' : null));
-    });
-  }
-  eqPanel.appendChild(el('button',{class:'btn ghost', style:'margin-top:10px;', onclick:()=>abrirItemPersonalizado()}, '🔧 Criar Item Personalizado'));
-  wrap.appendChild(eqPanel);
-
-  const rotuloMoedaCurta = {tc:'TC', ts:'T$', to:'TO'};
-  wrap.appendChild(el('div',{class:'panel'},
-    el('h2',{},'Moedas'),
-    el('div',{class:'row3'},
-      ...['tc','ts','to'].map(campo=>
-        el('div',{class:'attr-box', style:'cursor:pointer;', onclick:()=>{ state._moedaPopup = {campo}; render(); }},
-          el('div',{class:'lbl'}, rotuloMoedaCurta[campo]),
-          el('div',{style:'font-family:"Cinzel",serif;font-weight:800;font-size:1.35rem;color:var(--ink);'}, parseInt(f[campo])||0)
-        )
-      )
-    ),
-    el('div',{class:'meta', style:'font-size:0.7rem;color:var(--ink-soft);margin-top:8px;'}, '1 TC = 1/10 T$ · 1 TO = 10 T$ · toque numa moeda pra receber ou enviar')
-  ));
-
-  return wrap;
-}
-
 function renderItensCompleto(){
   if(state._itemSuperiorBuilder) return renderCriadorItemSuperior();
   const f = fichaAtual();
@@ -2829,6 +2695,7 @@ function renderItensCompleto(){
     el('b',{},'Como usar'),
     'O mestre disse que você achou algo? Busque o nome aqui. Para cada item, escolha se ele já entra em uso ("Equipar") ou se vai só para a mochila. Armadura e escudo equipados atualizam sua Defesa automaticamente.'
   ));
+  wrap.appendChild(renderAlvosCatalogo(f));
 
   const tabsRow = el('div',{class:'tab-grid'});
   [['armas','Armas'],['armaduras','Defesas'],['esotericos','Esotéricos'],['pocoes','Poções Mágicas'],['magicos','Itens Mágicos'],['gerais','Itens Gerais']].forEach(([id,label])=>{
@@ -2841,7 +2708,7 @@ function renderItensCompleto(){
   // Item Personalizado — visível aqui, ACIMA das sub-abas, pra aparecer não importa em qual
   // aba você está (Armas, Defesas, etc.) — antes só ficava escondido dentro de "Itens Gerais",
   // e quem queria criar uma arma/armadura personalizada não pensava em procurar lá.
-  wrap.appendChild(el('button',{class:'btn ghost', style:'margin-bottom:10px;', onclick:()=>abrirItemPersonalizado()}, '🔧 Criar Item Personalizado'));
+  wrap.appendChild(el('button',{class:'btn ghost', style:'margin-bottom:10px;', onclick:()=>abrirOficina()}, '⚗️ Criar item personalizado'));
 
   const results = el('div',{});
 
@@ -2859,8 +2726,8 @@ function renderItensCompleto(){
         el('div',{class:'desc'}, 'Dano '+w.dano+' · Crítico '+w.critico+' · '+w.tipo+' · Alcance: '+w.alcance+' · '+w.cat+' · '+w.esp+' esp. · '+(w.maos>=2?'2 mãos':'1 mão')),
         semProf ? el('div',{class:'meta', style:'color:var(--red-bright);margin-top:4px;'}, '⚠ Sem proficiência — sofre –5 no teste de ataque') : null,
         el('div',{class:'row', style:'margin-top:8px;'},
-          el('button',{class:'btn', onclick:()=>addArma(w,true)},'Equipar'),
-          el('button',{class:'btn ghost', onclick:()=>addArma(w,false)},'Guardar na mochila')
+          botaoQueVoa('Equipar', 'btn', w.n, 'mochila', ()=>addArma(w,true)),
+          botaoQueVoa('Guardar na mochila', 'btn ghost', w.n, 'mochila', ()=>addArma(w,false))
         ),
         el('button',{class:'btn ghost', style:'margin-top:6px;width:100%;', onclick:()=>iniciarItemSuperior('arma', w)}, '🛠️ Criar Item Superior')
       ]));
@@ -2878,8 +2745,8 @@ function renderItensCompleto(){
         el('div',{class:'desc'}, 'Defesa +'+a.def+' · Penalidade '+a.pen+' · '+a.esp+' espaços · '+a.cat),
         semProf ? el('div',{class:'meta', style:'color:var(--red-bright);margin-top:4px;'}, '⚠ Sem proficiência — a penalidade ('+a.pen+') passa a valer em toda perícia de Força/Destreza') : null,
         el('div',{class:'row', style:'margin-top:8px;'},
-          el('button',{class:'btn', onclick:()=> isEscudo?addEscudo(a,true):addArmadura(a,true)}, isEscudo?'Equipar como escudo':'Equipar como armadura'),
-          el('button',{class:'btn ghost', onclick:()=> isEscudo?addEscudo(a,false):addArmadura(a,false)}, 'Guardar na mochila')
+          botaoQueVoa(isEscudo?'Equipar como escudo':'Equipar como armadura', 'btn', a.n, 'mochila', ()=> isEscudo?addEscudo(a,true):addArmadura(a,true)),
+          botaoQueVoa('Guardar na mochila', 'btn ghost', a.n, 'mochila', ()=> isEscudo?addEscudo(a,false):addArmadura(a,false))
         ),
         el('button',{class:'btn ghost', style:'margin-top:6px;width:100%;', onclick:()=>iniciarItemSuperior(isEscudo?'escudo':(a.cat==='Pesada'?'armaduraPesada':'armaduraLeve'), a)}, '🛠️ Criar Item Superior')
       ]));
@@ -2895,8 +2762,8 @@ function renderItensCompleto(){
         el('div',{class:'desc'}, it.desc),
         el('div',{class:'meta'}, it.maos+' mão'+(it.maos>1?'s':'')+' · '+it.esp+' esp.'),
         el('div',{class:'row', style:'margin-top:8px;'},
-          el('button',{class:'btn', onclick:()=>addEsoterico(it,true)},'Equipar'),
-          el('button',{class:'btn ghost', onclick:()=>addEsoterico(it,false)},'Guardar na mochila')
+          botaoQueVoa('Equipar', 'btn', it.n, 'mochila', ()=>addEsoterico(it,true)),
+          botaoQueVoa('Guardar na mochila', 'btn ghost', it.n, 'mochila', ()=>addEsoterico(it,false))
         ),
         el('button',{class:'btn ghost', style:'margin-top:6px;width:100%;', onclick:()=>iniciarItemSuperior('esoterico', it)}, '🛠️ Criar Item Superior')
       ]));
@@ -2910,7 +2777,11 @@ function renderItensCompleto(){
     categorias.forEach(c=> sel.appendChild(el('option',{value:c, selected: itf.categoria===c}, c==='todas'?'Todas as categorias':c)));
     wrap.appendChild(sel);
 
-    let list = itensDisponiveis.filter(i => (itf.categoria==='todas'||i.cat===itf.categoria) && (!itf.busca || i.n.toLowerCase().includes(itf.busca.toLowerCase())));
+    wrap.appendChild(el('button',{class:'filtro-serve'+(itf.serve?' on':''), 'aria-pressed':itf.serve?'true':'false', onclick:()=>{ itf.serve=!itf.serve; render(); }}, '✦ Serve pra mim'));
+    const infos = new Map();
+    itensDisponiveis.forEach(i=> infos.set(i.n, infoServePraMim(f, i)));
+    let list = itensDisponiveis.filter(i => (itf.categoria==='todas'||i.cat===itf.categoria) && (!itf.busca || i.n.toLowerCase().includes(itf.busca.toLowerCase())) && (!itf.serve || infos.get(i.n)));
+    if(itf.serve) results.appendChild(el('div',{class:'meta', style:'text-transform:none;text-align:center;margin-bottom:6px;'}, list.length+' de '+itensDisponiveis.length+' itens mudam alguma coisa nesta ficha'));
     if(list.length===0) results.appendChild(el('div',{class:'empty'},'Nenhum item encontrado.'));
     list = list.slice().sort((a,b)=> a.cat.localeCompare(b.cat) || a.n.localeCompare(b.n));
     let ultimaCategoria = null;
@@ -2919,14 +2790,19 @@ function renderItensCompleto(){
         ultimaCategoria = it.cat;
         results.appendChild(el('div',{class:'lista-secao-titulo'}, it.cat));
       }
-      results.appendChild(renderItemAcordeao('itens-gerais', it.n, it.n+(it.vestivel?' 👕':'')+(it.empunhavel?' 🎻':''), it.cat, [
+      const info = infos.get(it.n);
+      const titulo = el('span',{}, it.n+(it.vestivel?' 👕':'')+(it.empunhavel?' 🎻':''), info ? el('span',{class:'marca-serve'}, '✦ '+info.marca) : null);
+      const forjavel = it.cat==='Vestuário' || it.cat==='Ferramenta';
+      results.appendChild(renderItemAcordeao('itens-gerais', it.n, titulo, it.cat+' · '+fmtEsp(parseFloat(String(it.esp).replace(',','.'))||0)+' esp', [
         el('div',{class:'desc'}, it.desc),
+        renderDifCatalogo(f, it, info),
         it.empunhavel ? el('div',{class:'meta'}, it.maos+' mão'+(it.maos>1?'s':'')+' — precisa ser empunhado pra dar o benefício') : null,
         el('div',{class:'row', style:'margin-top:8px;'},
-          it.vestivel ? el('button',{class:'btn', onclick:()=>addItemGeral(it,true)},'Vestir') : null,
-          it.empunhavel ? el('button',{class:'btn', onclick:()=>addEsoterico(it,true)},'Equipar') : null,
-          el('button',{class: (it.vestivel||it.empunhavel)?'btn ghost':'btn', onclick:()=> it.empunhavel ? addEsoterico(it,false) : addItemGeral(it,false)}, (it.vestivel||it.empunhavel)?'Só guardar':'+ Guardar na mochila')
-        )
+          it.vestivel ? botaoQueVoa('Vestir', 'btn', it.n, 'vestindo', ()=>addItemGeral(it,true)) : null,
+          it.empunhavel ? botaoQueVoa('Equipar', 'btn', it.n, 'mochila', ()=>addEsoterico(it,true)) : null,
+          botaoQueVoa((it.vestivel||it.empunhavel)?'Só guardar':'+ Guardar na mochila', (it.vestivel||it.empunhavel)?'btn ghost':'btn', it.n, 'mochila', ()=> it.empunhavel ? addEsoterico(it,false) : addItemGeral(it,false))
+        ),
+        forjavel ? el('button',{class:'btn ghost', style:'margin-top:6px;width:100%;', onclick:()=>iniciarItemSuperior(it.cat==='Ferramenta'?'ferramenta':'vestuario', it)}, '🛠️ Criar Item Superior') : null
       ]));
     });
   }
@@ -2938,7 +2814,7 @@ function renderItensCompleto(){
     list.slice().sort((a,b)=>a.preco-b.preco).forEach(p=>{
       results.appendChild(renderItemAcordeao('itens-pocoes', p.nome, p.nome, p.circulo+'º círculo', [
         el('div',{class:'desc'}, 'Contém a magia: '+p.magia),
-        el('button',{class:'btn', style:'margin-top:8px;', onclick:()=>addItemMagicoGenerico(p.nome, 1)}, '+ Guardar na mochila')
+        botaoQueVoa('+ Guardar na mochila', 'btn', p.nome, 'mochila', ()=>addItemMagicoGenerico(p.nome, p.esp))
       ]));
     });
   }
@@ -2964,7 +2840,7 @@ function renderItensCompleto(){
       ARMAS_ESPECIFICAS.filter(a=>!busca || a.nome.toLowerCase().includes(busca)).forEach(a=>{
         results.appendChild(renderItemAcordeao('itens-magicos', 'arma-esp-'+a.nome, a.nome, a.base, [
           el('div',{class:'desc'}, a.desc),
-          el('button',{class:'btn', style:'margin-top:8px;', onclick:()=>addItemMagicoGenerico(a.nome, 1)}, '+ Guardar na mochila')
+          botaoQueVoa('+ Guardar na mochila', 'btn', a.nome, 'mochila', ()=>addItemMagicoGenerico(a.nome, a.nome==='Mochila de carga' ? 0 : 1))
         ]));
       });
     }
@@ -2979,7 +2855,7 @@ function renderItensCompleto(){
       ARMADURAS_ESPECIFICAS.filter(a=>!busca || a.nome.toLowerCase().includes(busca)).forEach(a=>{
         results.appendChild(renderItemAcordeao('itens-magicos', 'armadura-esp-'+a.nome, a.nome, a.base, [
           el('div',{class:'desc'}, a.desc),
-          el('button',{class:'btn', style:'margin-top:8px;', onclick:()=>addItemMagicoGenerico(a.nome, 1)}, '+ Guardar na mochila')
+          botaoQueVoa('+ Guardar na mochila', 'btn', a.nome, 'mochila', ()=>addItemMagicoGenerico(a.nome, a.nome==='Mochila de carga' ? 0 : 1))
         ]));
       });
     }
@@ -2987,7 +2863,7 @@ function renderItensCompleto(){
       ACESSORIOS_MENORES.filter(a=>!busca || a.nome.toLowerCase().includes(busca)).forEach(a=>{
         results.appendChild(renderItemAcordeao('itens-magicos', 'acessorio-menor-'+a.nome, a.nome, '', [
           el('div',{class:'desc'}, a.desc),
-          el('button',{class:'btn', style:'margin-top:8px;', onclick:()=>addItemMagicoGenerico(a.nome, 1)}, '+ Guardar na mochila')
+          botaoQueVoa('+ Guardar na mochila', 'btn', a.nome, 'mochila', ()=>addItemMagicoGenerico(a.nome, a.nome==='Mochila de carga' ? 0 : 1))
         ]));
       });
     }
@@ -2995,7 +2871,7 @@ function renderItensCompleto(){
       ACESSORIOS_MEDIOS.filter(a=>!busca || a.nome.toLowerCase().includes(busca)).forEach(a=>{
         results.appendChild(renderItemAcordeao('itens-magicos', 'acessorio-medio-'+a.nome, a.nome, '', [
           el('div',{class:'desc'}, a.desc),
-          el('button',{class:'btn', style:'margin-top:8px;', onclick:()=>addItemMagicoGenerico(a.nome, 1)}, '+ Guardar na mochila')
+          botaoQueVoa('+ Guardar na mochila', 'btn', a.nome, 'mochila', ()=>addItemMagicoGenerico(a.nome, a.nome==='Mochila de carga' ? 0 : 1))
         ]));
       });
     }
@@ -3003,7 +2879,7 @@ function renderItensCompleto(){
       ACESSORIOS_MAIORES.filter(a=>!busca || a.nome.toLowerCase().includes(busca)).forEach(a=>{
         results.appendChild(renderItemAcordeao('itens-magicos', 'acessorio-maior-'+a.nome, a.nome, '', [
           el('div',{class:'desc'}, a.desc),
-          el('button',{class:'btn', style:'margin-top:8px;', onclick:()=>addItemMagicoGenerico(a.nome, 1)}, '+ Guardar na mochila')
+          botaoQueVoa('+ Guardar na mochila', 'btn', a.nome, 'mochila', ()=>addItemMagicoGenerico(a.nome, a.nome==='Mochila de carga' ? 0 : 1))
         ]));
       });
     }
@@ -3081,64 +2957,6 @@ function renderItemAcordeao(grupoChave, itemChave, nomeExibido, metaTopo, corpoE
     corpoElementos.forEach(elemento => { if(elemento) card.appendChild(elemento); });
   }
   return card;
-}
-
-function renderPainelCarga(f){
-  const usada = cargaUsada(f);
-  const limite = limiteCarga(f);
-  const maxima = cargaMaxima(f);
-  const passouLimite = usada > limite;
-  const passouMaxima = usada > maxima;
-  let estado, cor, faixa;
-  if(passouMaxima){
-    estado = 'Você não pode carregar tudo isso! O máximo absoluto para sua Força é '+maxima+' espaços — remova itens.';
-    cor = 'var(--red-bright)'; faixa = 'critico';
-  } else if(passouLimite){
-    estado = 'Sobrecarregado: −5 de penalidade de armadura (afeta Acrobacia, Furtividade e Ladinagem) e −3m de deslocamento — já aplicado automaticamente.';
-    cor = 'var(--gold)'; faixa = 'atencao';
-  } else {
-    estado = 'Dentro do limite, sem penalidades.';
-    cor = 'var(--ink-soft)'; faixa = 'saudavel';
-  }
-  const pct = maxima>0 ? Math.max(0, Math.min(100, (usada/maxima)*100)) : 0;
-  const temMochila = !!f.mochilaAventureiroUpgrade;
-  return el('div',{class:'panel'},
-    el('h2',{},'Carga'),
-    el('div',{class:'row3'},
-      el('div',{class:'attr-box'}, el('div',{class:'lbl'},'Usada'), el('div',{style:'font-weight:800;'}, usada)),
-      el('div',{class:'attr-box'}, el('div',{class:'lbl'},'Limite'), el('div',{style:'font-weight:800;'}, limite)),
-      el('div',{class:'attr-box'}, el('div',{class:'lbl'},'Máxima'), el('div',{style:'font-weight:800;'}, maxima)),
-    ),
-    el('div',{class:'stat-bar', style:'margin-top:8px;'}, el('div',{class:'stat-bar-fill '+faixa, style:'width:'+pct+'%;'})),
-    el('div',{style:'margin-top:8px;color:'+cor+';font-size:0.8rem;font-weight:600;'}, estado),
-    el('div',{style:'margin-top:4px;font-size:0.7rem;color:var(--ink-soft);'}, 'Limite = 10 + 2×Força (ou 10 − Força, se negativa). Máxima = limite × 2 (regra do livro, pág. 146).'+(temMochila?' Já inclui os +2 da Mochila de Aventureiro (ela mesma não ocupa espaço).':''))
-  );
-}
-
-function renderPainelVestidos(f){
-  const todos = itensVestidosTodos(f);
-  const usados = todos.length;
-  const limite = limiteItensVestidos(f);
-  const excedentes = itensVestidosExcedentes(f);
-  return renderSecaoNotasColapsavel('itens-vestidos', '💍', 'Itens Vestidos',
-    Math.min(usados,limite)+'/'+limite, ()=>{
-    const corpo = [el('div',{class:'tip', style:'font-size:0.8rem;'}, 'Só é possível manter o benefício de até '+limite+' itens vestidos ao mesmo tempo (roupas, capas, joias mágicas etc. — armas e escudos empunhados não contam). Armadura conta como 1 desses '+limite+(limite>4?' (inclui +1 do poder Costas Largas)':'')+'.')];
-    if(todos.length===0){
-      corpo.push(el('div',{class:'empty'},'Nenhum item vestido no momento.'));
-    } else {
-      todos.forEach((fonte, i)=>{
-        const ativo = i<4;
-        corpo.push(el('div',{class:'power-item', style: ativo?'':'opacity:0.5;border-left-color:var(--red);'},
-          el('b',{}, fonte.nome + (fonte.tipo==='armadura'?' (armadura)':'')),
-          ativo ? (fonte.catalogo && fonte.catalogo.bonusPericia ? 'Ativo — +'+fonte.catalogo.bonusPericia.valor+' em '+fonte.catalogo.bonusPericia.nome : (fonte.catalogo?fonte.catalogo.desc:'Ativo')) : 'Excedente — sem efeito até você remover outro item vestido'
-        ));
-      });
-    }
-    if(excedentes.length>0){
-      corpo.push(el('div',{class:'tip', style:'font-size:0.75rem;color:var(--gold);'}, '⚠ Você tem '+excedentes.length+' item(ns) vestido(s) além do limite — eles não fazem efeito até você desmarcar outro (aba Ficha → Mochila).'));
-    }
-    return corpo;
-  }, usados>0);
 }
 
 // ---- PERÍCIAS ----
@@ -3313,88 +3131,6 @@ function renderCardMagia(s, grupoChave, aoAdicionar, aoRemover, fichaCtx, aoUsar
 function extrairCustoPM(custoTexto){
   const m = String(custoTexto||'').match(/(\d+)/);
   return m ? parseInt(m[1]) : 0;
-}
-
-function abrirItemPersonalizado(){
-  state._itemPersonalizadoPopup = {busca:'', baseEscolhida:null, nome:'', desc:''};
-  render();
-}
-function renderPopupItemPersonalizado(f){
-  const fluxo = state._itemPersonalizadoPopup;
-  const overlay = el('div',{class:'menu-overlay', onclick:(e)=>{ if(e.target===e.currentTarget){ state._itemPersonalizadoPopup=null; render(); } }});
-  const sheet = el('div',{class:'menu-sheet'});
-  sheet.appendChild(el('div',{class:'wizard-title', style:'padding:6px 14px 0;'}, '🔧 Item Personalizado'));
-
-  if(!fluxo.baseEscolhida){
-    // Etapa 1: escolher a base — QUALQUER item do jogo serve (arma, armadura, escudo,
-    // esotérico, item comum, acessório, artefato, poção). O item novo herda os status
-    // mecânicos reais dela; não precisa de uma lista separada de "todo status que existe".
-    sheet.appendChild(el('div',{class:'tip', style:'margin:6px 14px;'}, 'Escolha um item qualquer do jogo pra servir de base — o personalizado herda os status dela (dano, Defesa, efeito...). Depois você dá um nome e descrição próprios.'));
-    sheet.appendChild(el('input',{id:'item-personalizado-busca', type:'text', placeholder:'buscar item base...', style:'margin:0 14px;width:calc(100% - 28px);', value:fluxo.busca, oninput:(e)=>{fluxo.busca=e.target.value; renderDebounced();}}));
-    const lista = el('div',{style:'padding:8px 14px 0;display:flex;flex-direction:column;gap:6px;max-height:400px;overflow-y:auto;'});
-    if(fluxo.busca.trim().length<2){
-      lista.appendChild(el('div',{class:'empty'}, 'Digita pelo menos 2 letras pra buscar.'));
-    } else {
-      const termo = fluxo.busca.toLowerCase();
-      const CATEGORIA_ROTULO = {arma:'Arma', armadura:'Armadura', escudo:'Escudo', esoterico:'Esotérico', geral:'Item'};
-      const resultados = catalogoUnificadoParaItemPersonalizado().filter(i=>i.nome.toLowerCase().includes(termo)).slice(0,30);
-      if(resultados.length===0) lista.appendChild(el('div',{class:'empty'}, 'Nada encontrado.'));
-      resultados.forEach(r=>{
-        lista.appendChild(el('button',{class:'option-card', style:'text-align:left;', onclick:()=>{
-          fluxo.baseEscolhida = r;
-          fluxo.nome = '';
-          fluxo.desc = '';
-          render();
-        }},
-          el('div',{class:'opt-nome'}, r.nome),
-          el('div',{class:'opt-sub'}, CATEGORIA_ROTULO[r.categoria]+(r.desc?' · '+r.desc.slice(0,60)+(r.desc.length>60?'...':''):''))
-        ));
-      });
-    }
-    sheet.appendChild(lista);
-    // Pra item puramente narrativo (sem estatística nenhuma — uma carta, uma foto, uma lembrança)
-    // não faz sentido obrigar a escolher uma base. Isso reproduz o comportamento antigo do botão
-    // que ficava direto na mochila, agora como opção dentro desse mesmo fluxo.
-    sheet.appendChild(el('button',{class:'btn ghost', style:'margin:10px 14px 0;', onclick:()=>{
-      fluxo.baseEscolhida = {nome:'', categoria:'geral', dados:{esp:1}, desc:''};
-      fluxo.nome = '';
-      fluxo.desc = '';
-      render();
-    }}, 'Pular — item sem base (só narrativo, sem estatística)'));
-  } else {
-    // Etapa 2: nome e descrição próprios, por cima da base escolhida
-    const CATEGORIA_ROTULO = {arma:'Arma', armadura:'Armadura', escudo:'Escudo', esoterico:'Esotérico', geral:'Item'};
-    const semBase = !fluxo.baseEscolhida.nome;
-    sheet.appendChild(el('div',{class:'tip', style:'margin:6px 14px;'},
-      semBase
-        ? el('span',{}, el('b',{}, 'Sem base'), ' — item só narrativo, sem estatística nenhuma.')
-        : el('span',{}, el('b',{}, 'Base escolhida: '), fluxo.baseEscolhida.nome+' ('+CATEGORIA_ROTULO[fluxo.baseEscolhida.categoria]+')'),
-      el('div',{style:'margin-top:4px;'}, el('button',{class:'btn ghost', style:'width:auto;padding:3px 10px;font-size:0.7rem;', onclick:()=>{ fluxo.baseEscolhida=null; render(); }}, '← Voltar'))
-    ));
-    sheet.appendChild(el('div',{style:'padding:0 14px;display:flex;flex-direction:column;gap:8px;'},
-      el('div',{},
-        el('label',{},'Nome do item'),
-        el('input',{id:'item-personalizado-nome', type:'text', placeholder:fluxo.baseEscolhida.nome||'ex: Carta antiga', value:fluxo.nome, oninput:(e)=>{fluxo.nome=e.target.value;}})
-      ),
-      el('div',{},
-        el('label',{},'Descrição / efeito especial (opcional — deixa em branco pra usar a da base)'),
-        el('textarea',{id:'item-personalizado-desc', rows:3, placeholder:fluxo.baseEscolhida.desc||'ex: +2 no ataque contra mortos-vivos', value:fluxo.desc, oninput:(e)=>{fluxo.desc=e.target.value;}})
-      )
-    ));
-    sheet.appendChild(el('button',{class:'btn', style:'margin:14px 14px 0;width:calc(100% - 28px);', onclick:()=>{
-      const item = montarItemPersonalizado(fluxo.baseEscolhida, fluxo.nome, fluxo.desc);
-      f.equip.push(item);
-      registrarLog(f, 'Criou item personalizado: '+item.item+' (baseado em '+fluxo.baseEscolhida.nome+')');
-      salvarPerfis();
-      flashMsg('🔧 "'+item.item+'" adicionado à mochila!');
-      state._itemPersonalizadoPopup = null;
-      render();
-    }}, '✓ Adicionar à mochila'));
-  }
-
-  sheet.appendChild(el('button',{class:'menu-close', style:'margin-top:14px;', onclick:()=>{ state._itemPersonalizadoPopup=null; render(); }}, 'Cancelar'));
-  overlay.appendChild(sheet);
-  return overlay;
 }
 
 function abrirConstrutorGolpePessoal(indicePoderesClasse){

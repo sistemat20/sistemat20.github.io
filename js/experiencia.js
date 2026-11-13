@@ -154,7 +154,9 @@ function catalisadoresParaMagia(f, s){
   });
 }
 function renderMesaLancamento(f, s, custoBase){
-  const g = (state._grimorioSel && state._grimorioSel.nome===s.n) ? state._grimorioSel : {nome:s.n, sel:[], pungente:false, catalisador:null, custoManual:null};
+  // Catalisador deixado "pronto" no cinto já vem marcado na carta da magia que combina.
+  const pronto = state._catalisadorPronto && catalisadoresParaMagia(f, s).includes(state._catalisadorPronto) ? state._catalisadorPronto : null;
+  const g = (state._grimorioSel && state._grimorioSel.nome===s.n) ? state._grimorioSel : {nome:s.n, sel:[], pungente:false, catalisador:pronto, custoManual:null};
   const mudar = (campos)=>{ state._grimorioSel = Object.assign({}, g, campos); render(); };
   const aprims = s.aprim || [];
   const temPungente = nomesPoderesConhecidos(f).includes('Magia Pungente');
@@ -189,7 +191,7 @@ function renderMesaLancamento(f, s, custoBase){
     selos.length ? el('div',{class:'magia-info-ico', style:'margin-top:2px;'}, 'Toque para somar') : null,
     selos.length ? el('div',{class:'selos-aprim'}, ...selos) : null,
     el('div',{class:'acoes'},
-      el('button',{class:'btn', onclick:()=>{ if(lancarMagia(f, s, fluxo())){ state._grimorioSel = null; render(); } }},
+      el('button',{class:'btn', onclick:()=>{ if(lancarMagia(f, s, fluxo())){ if(g.catalisador && g.catalisador===state._catalisadorPronto) state._catalisadorPronto = null; state._grimorioSel = null; render(); } }},
         passaLimite ? 'Passa do limite ('+total+' PM)' : total>pm ? 'Falta mana ('+total+' PM)' : '✨ Lançar · '+total+' PM'),
       el('label',{class:'custo-mao', title:'Digite outro custo se a mesa combinar'},
         el('span',{}, 'PM'),

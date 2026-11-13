@@ -1,0 +1,180 @@
+/* =========================================================================================
+   Mochila nova, medalhões, bolsa, cinto, forja e oficina (13/11/2026). Mesmas cores do app.
+   ========================================================================================= */
+.duo{ display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+.duo .btn{ width:100%; }
+.rot-mini{ font-family:'Cinzel',serif; font-weight:700; font-size:var(--fs-2xs); letter-spacing:.08em; text-transform:uppercase; color:var(--gold); }
+.chip-ok{ font-size:var(--fs-2xs); font-weight:600; padding:2px 8px; border-radius:var(--radius-pill); border:1px solid var(--status-saudavel); color:var(--status-saudavel); }
+
+/* ---- carga ---- */
+.carga-total{ font-size:var(--fs-sm); color:var(--ink-soft); margin-bottom:6px; }
+.carga-total b{ font-family:'Cinzel',serif; font-size:1.25rem; color:var(--ink); }
+.barra-carga{ display:flex; height:12px; border-radius:6px; background:rgba(0,0,0,.3); border:1px solid var(--line); position:relative; }
+.barra-carga span{ height:100%; transition:flex-basis .6s ease, opacity .3s; cursor:pointer; }
+.barra-carga span:first-child{ border-radius:5px 0 0 5px; }
+.barra-carga .limite{ position:absolute; top:-4px; bottom:-4px; width:2px; background:var(--ink); border-radius:1px; }
+.carga-estado{ font-size:var(--fs-xs); font-weight:600; margin-top:6px; }
+.carga-conta{ font-size:var(--fs-2xs); color:var(--ink-soft); margin-top:4px; line-height:1.45; }
+.carga-conta b{ color:var(--ink); font-family:'Cinzel',serif; }
+.carga-legenda{ display:flex; flex-wrap:wrap; gap:4px 12px; font-size:var(--fs-2xs); color:var(--ink-soft); margin-top:6px; }
+.carga-legenda i{ display:inline-block; width:8px; height:8px; border-radius:2px; margin-right:5px; }
+
+/* ---- grupos e linhas ---- */
+.secao-moch{ margin-top:10px; transition:opacity .3s; }
+.secao-moch > .cab{ display:flex; justify-content:space-between; align-items:baseline; font-family:'Cinzel',serif; font-size:var(--fs-2xs); letter-spacing:.06em; text-transform:uppercase; color:var(--ink-soft); padding:4px 2px; border-bottom:1px solid var(--line); cursor:pointer; margin-bottom:6px; }
+.secao-moch > .cab i{ display:inline-block; width:8px; height:8px; border-radius:2px; margin-right:6px; }
+.secao-moch.foco > .cab{ color:var(--gold); }
+.secao-moch.apaga{ opacity:.35; }
+.pips{ display:inline-flex; gap:2px; vertical-align:-1px; }
+.pips i{ width:8px; height:8px; border-radius:50%; border:1px solid var(--gold-deep); }
+.pips i.c{ background:var(--gold); }
+.pips i.m{ background:linear-gradient(90deg,var(--gold) 50%,transparent 50%); }
+.pips i.q{ background:conic-gradient(var(--gold) 0 25%,transparent 25%); }
+.nome-limpo{ display:flex; flex-direction:column; gap:3px; }
+.selos-item{ display:flex; flex-wrap:wrap; gap:4px; }
+.selo-item{ font-family:'Inter',sans-serif; font-weight:600; font-size:.62rem; letter-spacing:0; text-transform:none; padding:1px 7px; border-radius:var(--radius-pill); border:1px solid var(--gold-deep); color:var(--gold); }
+.selo-item.ess{ border-color:var(--status-saudavel); color:var(--status-saudavel); }
+.selo-item.presente{ border-style:dashed; }
+.meta-mochila{ display:inline-flex; align-items:center; gap:4px; }
+.acoes-mochila{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+.acoes-mochila .btn{ width:auto; flex:1 1 auto; padding:8px 10px; }
+.hist-item{ margin-top:10px; }
+.hist{ list-style:none; margin:4px 0 0; padding:0 0 0 12px; border-left:2px solid var(--gold-deep); display:grid; gap:3px; font-size:var(--fs-2xs); }
+.hist li{ position:relative; color:var(--ink-soft); animation:efx-sobe .4s both; }
+.hist li::before{ content:""; position:absolute; left:-16px; top:5px; width:6px; height:6px; border-radius:50%; background:var(--gold); }
+.hist li:nth-child(2){ animation-delay:.08s } .hist li:nth-child(3){ animation-delay:.16s } .hist li:nth-child(4){ animation-delay:.24s }
+
+/* ---- medalhões ---- */
+.medalhoes{ display:grid; gap:6px; }
+.medalhao{ display:grid; justify-items:center; align-content:start; gap:4px; text-align:center; background:none; border:0; color:var(--ink); font:inherit; padding:0; cursor:pointer; }
+.medalhao.vazio{ cursor:default; }
+.medalhao .disco{ position:relative; overflow:hidden; width:58px; height:58px; border-radius:50%; border:2px solid var(--line); display:grid; place-items:center; background:linear-gradient(160deg,var(--card),var(--card-2)); font:800 1.05rem 'Cinzel',serif; color:var(--gold); transition:border-color .3s, box-shadow .3s; }
+.medalhao.cheio .disco{ border-color:var(--gold-deep); box-shadow:inset 0 0 0 2px rgba(166,129,47,.15), 0 0 10px rgba(212,60,60,.25); }
+.medalhao.marcado .disco{ border-color:var(--red-bright); box-shadow:0 0 14px rgba(224,69,58,.5); }
+.medalhao.vazio .disco{ border-style:dashed; color:var(--ink-soft); font-size:.6rem; text-transform:uppercase; letter-spacing:.06em; }
+.medalhao.entra .disco{ animation:efx-medal .55s cubic-bezier(.2,1.4,.4,1); }
+.medalhao.entra .disco::after{ content:""; position:absolute; inset:0; border-radius:50%; background:linear-gradient(115deg,transparent 35%,rgba(255,241,191,.8) 50%,transparent 65%); animation:efx-varre .9s .25s both; }
+.medalhao b{ font:700 .62rem 'Cinzel',serif; line-height:1.15; min-height:2.3em; }
+.medalhao small{ font-size:.62rem; color:var(--status-saudavel); font-weight:700; line-height:1.2; }
+.acoes-medal{ display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:8px; }
+.soma-veste{ margin-top:10px; padding:8px 10px; border:1px dashed var(--gold-deep); border-radius:var(--radius-sm); display:flex; flex-wrap:wrap; gap:4px 6px; align-items:center; }
+
+/* ---- bolsa ---- */
+.painel-bolsa{ position:relative; }
+.bolsa-linha{ display:grid; grid-template-columns:auto 1fr auto; gap:10px; align-items:center; }
+.saco svg{ width:40px; height:40px; display:block; }
+.saco.mexe{ animation:efx-mexe .5s; }
+.valor-bolsa{ font:800 1.4rem 'Cinzel',serif; line-height:1; }
+.valor-bolsa small{ display:block; font:700 .6rem 'Cinzel',serif; letter-spacing:.08em; color:var(--gold); margin-top:4px; text-transform:uppercase; }
+.bolsa-botoes{ display:grid; grid-template-columns:1fr 1fr; gap:6px; width:150px; }
+.bolsa-botoes .btn{ padding:8px 6px; }
+.bolsa-entrada{ display:grid; grid-template-columns:1fr auto; gap:6px; margin-top:10px; }
+.bolsa-entrada input{ margin:0; min-width:0; font-family:'Cinzel',serif; font-weight:700; }
+.moedas-seg{ display:flex; border:1px solid var(--line); border-radius:var(--radius-sm); overflow:hidden; }
+.moedas-seg button{ font:700 .74rem 'Cinzel',serif; padding:0 12px; background:transparent; color:var(--ink-soft); border:0; border-left:1px solid var(--line); cursor:pointer; }
+.moedas-seg button:first-child{ border-left:0; }
+.moedas-seg button.on{ background:var(--gold); color:#1a120c; }
+.ultimos-bolsa{ margin-top:8px; font-size:var(--fs-2xs); color:var(--ink-soft); display:grid; gap:2px; }
+.ultimos-bolsa div{ display:flex; justify-content:space-between; gap:8px; }
+.delta-bolsa{ position:absolute; right:18px; top:48px; font:700 .82rem 'Cinzel',serif; animation:efx-delta 1.3s ease-out forwards; pointer-events:none; }
+
+/* ---- cinto ---- */
+.cinto-wrap{ margin-top:10px; }
+.cinto-vazio{ text-align:center; margin-top:8px; text-transform:none; }
+.cinto{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px; position:relative; padding-top:8px; }
+.cinto::before{ content:""; position:absolute; left:-4px; right:-4px; top:20px; height:6px; border-radius:3px; background:linear-gradient(90deg,var(--gold-deep),var(--gold),var(--gold-deep)); opacity:.45; }
+.bolsinho{ position:relative; display:grid; justify-items:center; gap:3px; padding:8px 4px 6px; border:1px solid var(--line); border-radius:8px 8px 14px 14px; background:var(--card-2); cursor:pointer; font:inherit; transition:border-color .25s, transform .25s; }
+.bolsinho svg{ width:22px; height:28px; }
+.bolsinho b{ font:700 .6rem 'Cinzel',serif; text-align:center; line-height:1.15; color:var(--gold); }
+.bolsinho .q{ position:absolute; top:-7px; right:-3px; background:var(--red); color:#fff; font:700 .62rem 'Inter',sans-serif; border-radius:999px; padding:1px 6px; }
+.bolsinho.sel{ border-color:var(--gold); transform:translateY(-3px); }
+.bolsinho.pronto{ border-color:var(--gold); box-shadow:0 0 12px rgba(216,189,116,.45); }
+.bolsinho.acabou{ opacity:.45; }
+.bolsinho.bebe svg{ animation:efx-bebe .6s ease-in-out; }
+.gaveta{ margin-top:10px; border:1px solid var(--gold-deep); border-radius:10px; padding:10px; background:var(--card-2); animation:efx-sobe .3s; }
+.gaveta .pergunta{ font-size:var(--fs-xs); margin-bottom:6px; }
+.teclas{ display:grid; grid-template-columns:repeat(auto-fill,minmax(36px,1fr)); gap:4px; margin-bottom:8px; }
+.teclas button{ font:800 .92rem 'Cinzel',serif; padding:8px 0; border-radius:6px; border:1px solid var(--line); background:transparent; color:var(--ink); cursor:pointer; }
+.teclas button.on{ background:var(--gold); color:#1a120c; border-color:var(--gold); }
+.anel-caixa.enche{ animation:efx-enche 1s ease-out; }
+
+/* ---- catálogo ---- */
+.alvos-catalogo{ display:flex; gap:6px; justify-content:center; flex-wrap:wrap; margin:0 0 8px; }
+.alvo-cat{ font:700 .62rem 'Cinzel',serif; color:var(--gold); border:1px solid var(--line); border-radius:999px; padding:3px 10px; background:var(--card-2); }
+.marca-serve{ font:700 .6rem 'Inter',sans-serif; color:var(--gold); margin-left:6px; letter-spacing:0; text-transform:none; }
+.filtro-serve{ display:inline-flex; align-items:center; gap:6px; margin:0 0 8px; font:600 .72rem 'Inter',sans-serif; padding:5px 12px; border-radius:999px; border:1px solid var(--gold-deep); color:var(--gold); background:transparent; cursor:pointer; }
+.filtro-serve.on{ background:var(--gold); color:#1a120c; }
+.dif{ display:grid; grid-template-columns:auto 1fr; gap:2px 10px; font-size:var(--fs-xs); margin:6px 0; }
+.dif > span:nth-child(odd){ color:var(--ink-soft); }
+.dif s{ opacity:.6; }
+.dif b{ color:var(--status-saudavel); }
+.dif b.ruim{ color:var(--status-critico); }
+
+/* ---- efeitos compartilhados ---- */
+.efx-voa{ position:fixed; z-index:9999; width:110px; margin-left:-55px; text-align:center; font:700 .62rem 'Cinzel',serif; color:#1a120c; background:var(--gold); border-radius:999px; padding:4px 8px; pointer-events:none; box-shadow:0 4px 14px rgba(0,0,0,.45), 0 0 10px rgba(216,189,116,.5); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.efx-recebe{ animation:efx-recebe .5s cubic-bezier(.2,1.5,.4,1); }
+.efx-bolha{ position:fixed; z-index:9998; width:7px; height:7px; margin:-3px 0 0 -3px; border-radius:50%; pointer-events:none; opacity:0; }
+@keyframes efx-recebe{ 30%{ transform:scale(1.25); } }
+@keyframes efx-medal{ from{ transform:scale(.3) rotate(-90deg); } }
+@keyframes efx-varre{ from{ transform:translateX(-130%); } to{ transform:translateX(130%); } }
+@keyframes efx-mexe{ 30%{ transform:rotate(-8deg) scale(1.08); } 60%{ transform:rotate(6deg); } }
+@keyframes efx-delta{ 0%{ opacity:0; transform:translateY(6px); } 20%{ opacity:1; } 100%{ opacity:0; transform:translateY(-18px); } }
+@keyframes efx-bebe{ 40%{ transform:rotate(-65deg) translate(2px,-5px); } }
+@keyframes efx-enche{ 30%{ filter:drop-shadow(0 0 10px var(--gold)) drop-shadow(0 0 4px var(--gold)); } }
+@keyframes efx-sobe{ from{ opacity:0; transform:translateY(6px); } }
+@media (prefers-reduced-motion: reduce){
+  .medalhao.entra .disco, .medalhao.entra .disco::after, .saco.mexe, .bolsinho.bebe svg, .anel-caixa.enche, .gaveta, .hist li, .efx-recebe, .delta-bolsa{ animation:none; }
+}
+
+/* ---- forja ---- */
+.painel-forja{ position:relative; overflow:hidden; }
+.painel-forja > :not(.fogo-forja){ position:relative; z-index:1; }
+.fogo-forja{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:0; }
+.painel-forja.treme{ animation:efx-treme .16s 2; }
+.passos-forja{ display:flex; gap:4px; margin-bottom:10px; }
+.passos-forja span{ flex:1; height:4px; border-radius:2px; background:var(--line); transition:background .3s; }
+.passos-forja span.feito{ background:var(--gold); }
+.peca-bancada{ display:grid; grid-template-columns:64px 1fr; gap:12px; align-items:center; padding:10px; border:1px solid var(--line); border-radius:10px; background:var(--card-2); position:relative; }
+.peca-bancada .icone{ width:64px; height:64px; border-radius:50%; border:2px solid var(--line); display:grid; place-items:center; background:linear-gradient(160deg,var(--card),var(--card-2)); }
+.peca-bancada .icone svg{ width:40px; height:40px; transition:filter 1.2s ease; }
+.peca-nome{ font:700 .9rem 'Cinzel',serif; color:var(--gold); }
+.peca-bancada.quente .icone{ border-color:#e0703a; animation:efx-brasa 1.6s ease-in-out infinite; }
+.peca-bancada.quente .icone svg{ filter:sepia(1) saturate(4) hue-rotate(-25deg) brightness(1.2) drop-shadow(0 0 4px #ff7a2a)!important; }
+.peca-bancada.acende .icone{ animation:efx-acende .8s ease-out, efx-brasa 1.6s .8s ease-in-out infinite; }
+.peca-bancada.bate .icone{ animation:efx-bate .3s, efx-brasa 1.6s ease-in-out infinite; }
+.peca-bancada.tempera .icone{ animation:efx-tempera 1.2s ease-out; }
+.martelo{ position:absolute; left:40px; top:-20px; width:40px; height:40px; transform-origin:80% 85%; transform:rotate(-60deg); opacity:0; pointer-events:none; transition:opacity .3s; z-index:3; }
+.peca-bancada.quente .martelo{ opacity:1; }
+.peca-bancada.bate .martelo{ animation:efx-golpe .3s cubic-bezier(.6,0,.9,.5); }
+.soq{ display:flex; gap:5px; margin-top:5px; }
+.soq i{ width:13px; height:13px; border-radius:50%; border:1.5px solid var(--gold-deep); display:grid; place-items:center; font-size:8px; font-style:normal; line-height:1; color:transparent; transition:background .3s; }
+.soq i.on{ background:var(--gold); color:#1a120c; box-shadow:0 0 6px var(--gold); }
+.soq i.grava{ animation:efx-grava .6s cubic-bezier(.2,1.5,.4,1); }
+.grupo-melh{ display:grid; gap:5px; margin-top:10px; }
+.melhs{ display:flex; flex-wrap:wrap; gap:5px; }
+.melh{ display:grid; gap:1px; text-align:left; padding:6px 9px; border-radius:7px; border:1px solid var(--line); background:var(--card-2); color:var(--ink); cursor:pointer; font:inherit; max-width:100%; }
+.melh b{ font-size:var(--fs-xs); }
+.melh small{ font-size:.64rem; color:var(--ink-soft); }
+.melh.on{ background:var(--gold); border-color:var(--gold); }
+.melh.on b, .melh.on small{ color:#1a120c; }
+.travadas{ font-size:var(--fs-2xs); color:var(--ink-soft); margin-top:10px; border-top:1px dotted var(--line); padding-top:6px; display:grid; gap:2px; }
+.travadas s{ color:var(--ink); }
+.materiais-forja{ display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:5px; }
+.mat-forja{ display:grid; gap:2px; text-align:left; padding:7px 9px; border-radius:8px; border:1px solid var(--line); background:var(--card-2); color:var(--ink); cursor:pointer; font:inherit; }
+.mat-forja b{ font-size:var(--fs-xs); color:var(--gold); }
+.mat-forja small{ font-size:.62rem; color:var(--ink-soft); }
+.mat-forja.on{ border-color:var(--gold); box-shadow:0 0 10px rgba(216,189,116,.35); }
+.titulo-harmonizado{ font-size:var(--fs-xs); margin:0; }
+.conta-forja{ display:grid; grid-template-columns:1fr auto; gap:3px 10px; font-size:var(--fs-xs); margin-top:10px; }
+.conta-forja b{ font-family:'Cinzel',serif; text-align:right; }
+.conta-forja .tot{ border-top:1px solid var(--line); padding-top:4px; font-weight:700; }
+.nota-mestre{ grid-column:1/-1; color:var(--ink-soft); font-size:var(--fs-2xs); margin-top:2px; }
+.previa-forja{ border-color:var(--gold-deep); }
+@keyframes efx-treme{ 25%{ transform:translate(1.5px,-1px); } 75%{ transform:translate(-1.5px,1px); } }
+@keyframes efx-brasa{ 0%,100%{ box-shadow:0 0 18px rgba(255,120,40,.55), inset 0 0 12px rgba(255,140,60,.4); } 50%{ box-shadow:0 0 30px rgba(255,120,40,.85), inset 0 0 18px rgba(255,170,80,.6); } }
+@keyframes efx-acende{ 0%{ box-shadow:0 0 0 rgba(255,120,40,0); } 35%{ box-shadow:0 0 46px 6px rgba(255,150,60,.95); } }
+@keyframes efx-bate{ 40%{ transform:scale(.9) rotate(-6deg); } }
+@keyframes efx-golpe{ 0%{ transform:rotate(-60deg); } 55%{ transform:rotate(14deg); } 100%{ transform:rotate(-60deg); } }
+@keyframes efx-grava{ from{ transform:scale(2.6); box-shadow:0 0 18px #ffd27a; } }
+@keyframes efx-tempera{ 0%{ box-shadow:0 0 30px rgba(255,120,40,.9); } 60%{ box-shadow:0 0 22px rgba(200,220,255,.5); } 100%{ box-shadow:none; } }
+@media (prefers-reduced-motion: reduce){ .peca-bancada .icone, .peca-bancada .martelo, .soq i, .painel-forja{ animation:none!important; } }

@@ -23,12 +23,15 @@ const EXPOSTOS = [
   'defesaTotal', 'penalidadeTotal', 'deslocamentoEfetivo', 'cargaUsada', 'limiteCarga',
   'atributoEfetivo', 'bonusCdArcana', 'cdMagiaEspecifica', 'bonusDefesaEsotericos',
   'esotericosEquipados', 'itensVestidosAtivos', 'efeitosMagicosAtivos', 'itensMagicosEquipadosNomes',
-  'nivelTotal', 'poderesAtivos', 'periciaValor', 'PERICIAS', 'qtdPoderesTormenta', 'penalidadeCarismaTormenta', 'condicoesAtivas', 'maldicoesAtivas',
+  'nivelTotal', 'poderesAtivos', 'periciaValor', 'PERICIAS', 'qtdPoderesTormenta', 'migrarCargaPocoes', 'addItemMagicoGenerico', 'POCOES_MAGICAS', 'penalidadeCarismaTormenta', 'condicoesAtivas', 'maldicoesAtivas',
   // item superior
   'MELHORIAS', 'MATERIAIS_ESPECIAIS', 'EFEITOS_MAGICOS_AUTOMATICOS',
   'melhoriasDisponiveis', 'melhoriasSubstituidas', 'prereqOkMelhoria', 'calcularItemSuperior',
   'precoMaterialParaCategoria', 'efeitoMaterialParaCategoria', 'montarNomeEMelhoriasTxt',
   'finalizarItemSuperior',
+  // mochila nova (13/11/2026)
+  'limiteCargaPartes', 'vestirLinha', 'ITENS_GERAIS', 'ARMAS', 'ARMADURAS', 'usarDoCinto', 'infoServePraMim', 'forjarLinhaDaMochila',
+  'motivoMelhoriaBloqueada', 'motivoMaterialBloqueado', 'espacoFinalForja', 'essenciasDoCatalogo', 'abrirOficina', 'criarItemDaOficina',
   // estado e telas
   'state', 'render', 'fichaAtual', 'removerItemMochila', 'migrarMelhoriasSubstituidas',
   'aplicarMigracoesPerfis',

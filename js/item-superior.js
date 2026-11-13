@@ -45,11 +45,6 @@ function calcularItemSuperior(b){
   return {precoExtra: faixa.preco, cd: faixa.cd, precoMaterial};
 }
 
-function iniciarItemSuperior(categoria, baseItem){
-  state._itemSuperiorBuilder = { categoria, baseItem, melhoriasEscolhidas: [], materialEscolhido: null };
-  render();
-}
-
 // Dada a lista de melhorias escolhidas, devolve quais delas têm o bônus anulado por uma melhoria
 // avançada presente na mesma lista (Certeira some quando tem Pungente, e assim por diante).
 function melhoriasSubstituidas(escolhidas){
@@ -65,112 +60,6 @@ function prereqOkMelhoria(m, escolhidas){
   if(!m.prereq) return true;
   if(m.prereq==='outra melhoria qualquer') return escolhidas.length>0;
   return escolhidas.includes(m.prereq);
-}
-
-function renderCriadorItemSuperior(){
-  const b = state._itemSuperiorBuilder;
-  const wrap = el('div',{});
-  wrap.appendChild(el('div',{class:'top-mini'},
-    el('span',{}, 'Criar Item Superior'),
-    el('button',{onclick:()=>{ state._itemSuperiorBuilder=null; render(); }}, '✕ Cancelar')
-  ));
-
-  wrap.appendChild(el('div',{class:'wizard-title'}, b.baseItem.n || b.baseItem.nome));
-  wrap.appendChild(renderSecaoNotasColapsavel('item-superior-como-funciona', 'ℹ️', 'Como Funciona', null, ()=>[
-    el('div',{class:'tip'}, 'Escolha até 4 melhorias (Tabela 3-8). A quantidade de melhorias define o acréscimo no preço e na CD de fabricação (Tabela 3-7). Se escolher "Material especial", você ainda escolhe qual material.')
-  ], false));
-
-  const opcoes = melhoriasDisponiveis(b.categoria);
-  const grid = el('div',{class:'option-grid'});
-  opcoes.forEach(m=>{
-    const marcado = b.melhoriasEscolhidas.includes(m.nome);
-    const prereqOk = prereqOkMelhoria(m, b.melhoriasEscolhidas.filter(x=>x!==m.nome));
-    const bloqueado = (!marcado && b.melhoriasEscolhidas.length>=4) || (!marcado && !prereqOk);
-    grid.appendChild(el('button',{class:'option-card '+(marcado?'selected':'')+(bloqueado?' disabled':''), onclick:()=>{
-      if(bloqueado) return;
-      if(marcado){
-        b.melhoriasEscolhidas = b.melhoriasEscolhidas.filter(x=>x!==m.nome);
-        if(m.nome==='Material especial') b.materialEscolhido=null;
-      } else {
-        b.melhoriasEscolhidas.push(m.nome);
-      }
-      render();
-    }},
-      el('div',{class:'opt-nome'}, m.nome),
-      el('div',{class:'opt-sub'}, m.desc),
-      (m.prereq && !prereqOk) ? el('div',{class:'opt-sub', style:'color:var(--red-bright);'}, 'requer: '+m.prereq) : null,
-    ));
-  });
-  wrap.appendChild(el('div',{class:'panel'}, el('h2',{},'Melhorias ('+b.melhoriasEscolhidas.length+'/4)'), grid));
-
-  if(b.melhoriasEscolhidas.includes('Material especial')){
-    const matPanel = el('div',{class:'panel'}, el('h2',{},'Qual material especial?'));
-    const gridMat = el('div',{class:'option-grid'});
-    MATERIAIS_ESPECIAIS.forEach(mat=>{
-      const efeito = efeitoMaterialParaCategoria(mat, b.categoria);
-      if(!efeito) return; // material sem efeito definido pra essa categoria (ex: madeira Tollon em armadura)
-      gridMat.appendChild(el('button',{class:'option-card '+(b.materialEscolhido===mat.nome?'selected':''), onclick:()=>{ b.materialEscolhido=mat.nome; render(); }},
-        el('div',{class:'opt-nome'}, mat.nome),
-        el('div',{class:'opt-sub'}, efeito)
-      ));
-    });
-    matPanel.appendChild(gridMat);
-    wrap.appendChild(matPanel);
-  }
-
-  // Harmonizado (esotérico) pede uma magia específica: o desconto de –1 PM só vale pra ela.
-  // Sem escolher a magia aqui, o efeito não teria como ser aplicado automaticamente depois.
-  if(b.melhoriasEscolhidas.includes('Harmonizado')){
-    const fHarm = fichaAtual();
-    const conhecidas = (fHarm && fHarm.magias) || [];
-    const magPanel = el('div',{class:'panel'}, el('h2',{},'Harmonizado: qual magia?'));
-    if(!conhecidas.length){
-      magPanel.appendChild(el('div',{class:'tip'}, 'Este personagem ainda não conhece nenhuma magia. Aprenda uma magia antes de forjar um esotérico Harmonizado.'));
-    } else {
-      magPanel.appendChild(el('input',{id:'harmonizado-busca', type:'text', placeholder:'buscar magia...', style:'width:100%;margin-bottom:8px;', value:b.buscaHarmonizado||'', oninput:(e)=>{ b.buscaHarmonizado=e.target.value; renderDebounced(); }}));
-      const termo = (b.buscaHarmonizado||'').toLowerCase().trim();
-      const filtradas = termo ? conhecidas.filter(m=>(m.n||'').toLowerCase().includes(termo)) : conhecidas;
-      const gridMag = el('div',{class:'option-grid'});
-      filtradas.slice(0,40).forEach(m=>{
-        gridMag.appendChild(el('button',{class:'option-card '+(b.magiaHarmonizada===m.n?'selected':''), onclick:()=>{ b.magiaHarmonizada=m.n; render(); }},
-          el('div',{class:'opt-nome'}, m.n),
-          el('div',{class:'opt-sub'}, (m.c?m.c+'º círculo':'')+(m.e?' · '+m.e:'')+' · custa '+custoPM(m.c)+' PM, passa a custar '+Math.max(1,custoPM(m.c)-1)+' PM')
-        ));
-      });
-      if(!filtradas.length) gridMag.appendChild(el('div',{class:'tip'}, 'Nenhuma magia conhecida com esse nome.'));
-      magPanel.appendChild(gridMag);
-    }
-    wrap.appendChild(magPanel);
-  }
-
-  const calc = calcularItemSuperior(b);
-  const precoBase = precoParaNumero(b.baseItem.preco);
-  const precoTotal = precoBase + calc.precoExtra + calc.precoMaterial;
-  // Achado: precoMaterialParaCategoria espera o OBJETO do material (lê mat.precos.arma etc),
-  // mas essa linha passava só o NOME (string) direto — b.materialEscolhido é sempre uma string
-  // (o nome, definido lá em cima como b.materialEscolhido=mat.nome). Isso quebrava com erro
-  // toda vez que o jogador escolhia "Material especial" e selecionava um material da lista.
-  const matEscolhidoObj = b.materialEscolhido ? MATERIAIS_ESPECIAIS.find(m=>m.nome===b.materialEscolhido) : null;
-  const materialSemPreco = matEscolhidoObj && precoMaterialParaCategoria(matEscolhidoObj, b.categoria)==null;
-  wrap.appendChild(el('div',{class:'panel faixa'},
-    el('h2',{},'Resumo'),
-    el('div',{class:'tip'},
-      el('div',{}, el('b',{},'Preço base: '), 'T$ '+precoBase),
-      el('div',{}, el('b',{},'Acréscimo por melhorias: '), '+T$ '+calc.precoExtra),
-      calc.precoMaterial ? el('div',{}, el('b',{},'Acréscimo do material: '), '+T$ '+calc.precoMaterial) : null,
-      el('div',{style:'font-weight:800;margin-top:6px;border-top:1px solid var(--line);padding-top:6px;'}, 'Preço total: T$ '+precoTotal),
-      calc.cd ? el('div',{}, el('b',{},'CD extra pra fabricar: '), '+'+calc.cd) : null,
-    ),
-    melhoriasSubstituidas(b.melhoriasEscolhidas).length ? el('div',{class:'tip', style:'margin-top:6px;'}, 'ℹ️ '+melhoriasSubstituidas(b.melhoriasEscolhidas).join(' e ')+' conta só como pré-requisito aqui: a melhoria avançada já traz o valor final, os dois bônus não se somam. O preço continua contando as duas melhorias.') : null,
-    materialSemPreco ? el('div',{class:'tip', style:'border:1px solid var(--red-bright);'}, '⚠️ '+b.materialEscolhido+' é raro e não tem preço de mercado — só é possível obter como saque de uma criatura específica, combine com o Mestre. O preço total acima não inclui o custo desse material.') : null
-  ));
-
-  const podeCriar = b.melhoriasEscolhidas.length>0
-    && (!b.melhoriasEscolhidas.includes('Material especial') || b.materialEscolhido)
-    && (!b.melhoriasEscolhidas.includes('Harmonizado') || b.magiaHarmonizada);
-  wrap.appendChild(el('button',{class:'btn', style: podeCriar?'':'opacity:0.5;', onclick:()=>{ if(podeCriar) finalizarItemSuperior(); }}, 'Criar e Guardar na Mochila'));
-
-  return wrap;
 }
 
 function montarNomeEMelhoriasTxt(b){
@@ -191,50 +80,3 @@ function montarNomeEMelhoriasTxt(b){
   return {nomeFinal, melhoriasTxt};
 }
 
-function finalizarItemSuperior(){
-  const b = state._itemSuperiorBuilder;
-  const f = fichaAtual();
-  const {nomeFinal, melhoriasTxt} = montarNomeEMelhoriasTxt(b);
-
-  let bonusTeste=0, bonusDano=0, bonusPenalidade=0, bonusDefesa=0;
-  const efeitoExtraEsoterico = [];
-  // Melhorias avançadas (Pungente, Atroz, Sob medida, Potencializador) substituem o bônus da
-  // básica que elas exigem, em vez de somar com ele — então a básica entra só como pré-requisito
-  // e não conta nada no número final.
-  const substituidas = melhoriasSubstituidas(b.melhoriasEscolhidas);
-  b.melhoriasEscolhidas.forEach(nome=>{
-    if(substituidas.includes(nome)) return;
-    const m = MELHORIAS.find(x=>x.nome===nome);
-    if(!m || !m.efeito) return;
-    if(m.efeito.tipo==='testeAtaque') bonusTeste += m.efeito.valor;
-    if(m.efeito.tipo==='dano') bonusDano += m.efeito.valor;
-    if(m.efeito.tipo==='penalidade') bonusPenalidade += m.efeito.valor;
-    if(m.efeito.tipo==='defesaEArmadura'){ bonusDefesa += m.efeito.valor; bonusPenalidade += m.efeito.valor; }
-    if(['cd_arcana_geral','limite_pm_arcana','custo_pm_magia','defesa_esoterico'].includes(m.efeito.tipo)) efeitoExtraEsoterico.push({tipo:m.efeito.tipo, valor:m.efeito.valor});
-  });
-  if(b.materialEscolhido==='Gelo eterno' && categoriaMelhoria(b.categoria)==='arma') bonusDano += 2;
-
-  if(b.categoria==='arma'){
-    const w = ARMAS.find(a=>a.n===b.baseItem.n);
-    f.equip.push({tipo:'arma', ref:w.n, item:nomeFinal, qtd:'1', carga:String(w.esp),
-      superior:true, bonusTesteExtra:bonusTeste, bonusDanoExtra:bonusDano, melhoriasTxt});
-  } else if(b.categoria==='armaduraLeve' || b.categoria==='armaduraPesada'){
-    const a = ARMADURAS.find(x=>x.n===b.baseItem.n);
-    f.equip.push({tipo:'armadura', ref:a.n, item:nomeFinal, qtd:'1', carga:String(a.esp),
-      superior:true, bonusDefExtra:bonusDefesa, bonusPenExtra:bonusPenalidade, melhoriasTxt});
-  } else if(b.categoria==='escudo'){
-    const a = ESCUDOS.find(x=>x.n===b.baseItem.n);
-    f.equip.push({tipo:'escudo', ref:a.n, item:nomeFinal, qtd:'1', carga:String(a.esp),
-      superior:true, bonusDefExtra:bonusDefesa, bonusPenExtra:bonusPenalidade, melhoriasTxt});
-  } else if(b.categoria==='esoterico'){
-    const it = ITENS_ESOTERICOS.find(x=>x.n===b.baseItem.n);
-    f.equip.push({tipo:'esoterico', ref:it.n, item:nomeFinal, qtd:'1', carga:String(it.esp),
-      superior:true, efeitoExtra:efeitoExtraEsoterico, melhoriasTxt,
-      magiaHarmonizada: b.magiaHarmonizada||null});
-  }
-
-  salvarPerfis();
-  state._itemSuperiorBuilder = null;
-  flashMsg('"'+nomeFinal+'" criado e guardado na mochila!');
-  render();
-}

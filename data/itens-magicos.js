@@ -221,7 +221,7 @@ AC("Fragmento de Filactério",90000,"Conta como uma costela de lich poderosa: +2
 // anéis, mantos, botas, cintos, coroas etc. — versus os que são carregados/usados sem ocupar
 // esse limite (cordas, mochilas, tomos que se consomem ao ler, tapetes, espelhos fixos etc.).
 const ACESSORIOS_VESTIVEIS = new Set([
-  "Anel do sustento","Manto élfico","Brincos da sagacidade","Luvas da delicadeza","Manoplas da força do ogro",
+  "Mochila de carga","Anel do sustento","Manto élfico","Brincos da sagacidade","Luvas da delicadeza","Manoplas da força do ogro",
   "Manto da resistência","Manto do fascínio","Pingente da sensatez","Torque do vigor","Chapéu do disfarce",
   "Anel da proteção","Anel do escudo mental","Pingente da saúde","Anel de telecinesia","Botas aladas",
   "Braceletes de bronze","Anel da energia","Anel da vitalidade","Anel de invisibilidade","Braçadeiras do arqueiro",

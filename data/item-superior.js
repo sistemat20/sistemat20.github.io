@@ -156,7 +156,8 @@ const MATERIAIS_ESPECIAIS = [
 ];
 
 // Tabela 8-12: Poções — magia real engarrafada (diferente dos alquímicos mundanos)
-function PO(nome, magia, preco, circulo){ return {nome, magia, preco, circulo}; }
+// Poções ocupam meio espaço (Livro Básico pág. 155, "Limites de Carga").
+function PO(nome, magia, preco, circulo){ return {nome, magia, preco, circulo, esp:0.5}; }
 const POCOES_MAGICAS = [
 PO("Poção de Abençoar Alimentos (óleo)","Abençoar Alimentos",30,1),
 PO("Poção de Área Escorregadia (granada)","Área Escorregadia",30,1),

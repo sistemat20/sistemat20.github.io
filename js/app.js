@@ -196,6 +196,7 @@ function custoPMAjustado(f, magia){
     if(ef.tipo==='custo_pm_zero_arcanista' && ehArcanista && (magia.trad==='Arcana' || magia.trad==='Universal')) custoZerado = true;
   });
   if(custoZerado) return 0;
+  essenciasAtivas(f).forEach(e=>{ if(e.tipo==='magia_custo' && e.escola===magia.e) custo += parseInt(e.valor)||0; });
   return Math.max(1, custo);
 }
 // Melhoria Vigilante (esotérico): "+2 na Defesa". Separada das outras porque a Defesa vem de
@@ -224,7 +225,8 @@ function cdMagiaEspecifica(f, magia){
   const base = cdMagias(f);
   if(base==null) return null;
   const ehArcanaOuUniversal = magia.trad==='Arcana' || magia.trad==='Universal';
-  return base + (ehArcanaOuUniversal ? bonusCdArcana(f, magia.e) : 0) + bonusCdFamiliar(f, magia);
+  const essCd = essenciasAtivas(f).filter(e=>e.tipo==='magia_cd' && e.escola===magia.e).reduce((t,e)=>t+(parseInt(e.valor)||0),0);
+  return base + (ehArcanaOuUniversal ? bonusCdArcana(f, magia.e) : 0) + bonusCdFamiliar(f, magia) + essCd;
 }
 // Limite de PM que pode gastar numa única magia/habilidade de custo variável (regra geral do
 // livro, pág. de Classes — o mesmo exemplo do livro: "um arcanista de 11º nível pode gastar até
@@ -1135,26 +1137,33 @@ function penalidadeTotal(f){
 }
 
 // ---- Carga (peso/espaço) ----
-function limiteCarga(f){
-  const for_ = parseInt(f.for)||0;
-  const base = for_>=0 ? 10 + 2*for_ : 10 - for_;
-  const bonusCostasLargas = poderesAtivos(f).includes('Costas Largas') ? 5 : 0;
-  // Inventário Organizado: "soma Inteligência no limite de carga" — poder nunca tinha sido
-  // conectado em lugar nenhum (achado numa varredura geral procurando por esse mesmo padrão de
-  // bônus esquecido). A outra parte do poder ("itens muito leves ocupam 1/4 de espaço") fica de
-  // fora — exigiria categorizar o peso de cada item do catálogo, que o sistema não tem hoje.
-  const bonusInventarioOrganizado = poderesAtivos(f).includes('Inventário Organizado') ? (parseInt(f.int)||0) : 0;
-  // Mochila de aventureiro: "+2 espaços de capacidade" — só vale depois que o jogador faz o
-  // "Upgrade" de verdade (botão dentro do item, na mochila) — não é automático só por ter o
-  // item guardado. f.mochilaAventureiroUpgrade é uma marca NO PERSONAGEM (não por unidade de
-  // mochila), então comprar/guardar várias mochilas não soma o bônus várias vezes — só existe
-  // "aplicado" ou "não aplicado", uma vez só pra sempre.
-  const bonusMochila = f.mochilaAventureiroUpgrade ? 2 : 0;
-  // Mochileiro (poder único de origem, achado numa auditoria): "Seu limite de carga aumenta em
-  // 5 espaços." Nunca tinha sido conectado.
-  const bonusMochileiro = (f.origemPoder && f.origemPoder.nome==='Mochileiro') ? 5 : 0;
-  return base + bonusCostasLargas + bonusInventarioOrganizado + bonusMochila + bonusMochileiro;
+// Mochilas que somam no limite quando VESTIDAS (Livro Básico: "vestir uma mochila de aventureiro
+// aumenta sua capacidade de carga em 2 espaços"; Mochila de carga, item mágico: +10). Só uma
+// mochila nas costas por vez; se houver mais de uma vestida, vale a maior.
+const MOCHILAS_VESTIVEIS = {'Mochila de aventureiro':2, 'Mochila de carga':10};
+function mochilaVestida(f){
+  let melhor = null;
+  itensVestidosAtivos(f).forEach(fonte=>{
+    const nome = fonte.row ? nomeCatalogoDaLinha(fonte.row) : null;
+    const b = nome ? MOCHILAS_VESTIVEIS[nome] : 0;
+    if(b && (!melhor || b>melhor.bonus)) melhor = {nome, bonus:b};
+  });
+  return melhor;
 }
+// As parcelas do limite de carga, para somar e para mostrar a conta ao jogador.
+function limiteCargaPartes(f){
+  const for_ = parseInt(f.for)||0;
+  const partes = [{rotulo: for_>=0 ? '10 + 2×Força' : '10 − Força', valor: for_>=0 ? 10 + 2*for_ : 10 - for_}];
+  if(poderesAtivos(f).includes('Costas Largas')) partes.push({rotulo:'Costas Largas', valor:5});
+  if(poderesAtivos(f).includes('Inventário Organizado')) partes.push({rotulo:'Inventário Organizado (Int)', valor:parseInt(f.int)||0});
+  const moch = mochilaVestida(f);
+  if(moch) partes.push({rotulo:moch.nome+' (vestida)', valor:moch.bonus});
+  if(f.origemPoder && f.origemPoder.nome==='Mochileiro') partes.push({rotulo:'Mochileiro', valor:5});
+  const essCarga = essenciasAtivas(f).filter(e=>e.tipo==='carga').reduce((t,e)=>t+(parseInt(e.valor)||0),0);
+  if(essCarga) partes.push({rotulo:'Essências de itens vestidos', valor:essCarga});
+  return partes;
+}
+function limiteCarga(f){ return limiteCargaPartes(f).reduce((t,p)=>t+p.valor,0); }
 function cargaMaxima(f){ return limiteCarga(f)*2; }
 function cargaUsada(f){
   let total = 0;
@@ -1167,12 +1176,13 @@ function cargaUsada(f){
   if(f.escudo) total += (parseFloat(f.escudo.esp)||0);
   // Inventário Organizado, segunda parte (achado numa auditoria — só a "+Int no limite" tinha
   // sido conectada antes): "itens muito leves ou pequenos, que normalmente ocupam meio espaço,
-  // em vez disso ocupam 1/4 de espaço". Só vale pra item com carga EXATAMENTE 0.5 — os de outros
-  // pesos (1, 2, etc.) não mudam.
+  // em vez disso ocupam 1/4 de espaço" (Livro Básico pág. 130). Só vale pra item com carga
+  // EXATAMENTE 0.5 — os de outros pesos (1, 2, etc.) não mudam.
   const temInventarioOrganizado = poderesAtivos(f).includes('Inventário Organizado');
   (f.equip||[]).forEach(it=>{
-    let porUnidade = parseFloat(it.carga)||0;
-    if(temInventarioOrganizado && porUnidade===0.5) porUnidade = 0.125;
+    let porUnidade = parseFloat(String(it.carga).replace(',','.'))||0; // "0,5" digitado com vírgula valia 0
+    if(it.tipo==='geral' && it.vestido && MOCHILAS_VESTIVEIS[nomeCatalogoDaLinha(it)]) porUnidade = 0; // vestida, a mochila não gasta espaço
+    if(temInventarioOrganizado && porUnidade===0.5) porUnidade = 0.25;
     const qtd = parseFloat(it.qtd)||1;
     total += porUnidade * qtd;
   });
@@ -1884,16 +1894,39 @@ function removerItemMochila(f, idx){
 }
 // Lista, em ordem, de todas as "fontes" de item vestido que o personagem tem marcadas —
 // pode passar de 4; quem consome essa lista decide o que fica ativo (os 4 primeiros).
+// Nome de catálogo de uma linha da mochila: a referência guardada (item forjado) ou o nome sem as
+// marcas de presente. Antes a busca usava o nome inteiro, e um presente perdia o bônus.
+function nomeCatalogoDaLinha(row){ return row.ref || nomeBaseItem(row.item); }
+function catalogoDaLinha(row){
+  const nome = nomeCatalogoDaLinha(row);
+  return ITENS_GERAIS.find(i=>i.n===nome)
+    || (typeof ACESSORIOS_MENORES!=='undefined' && ACESSORIOS_MENORES.find(a=>a.nome===nome))
+    || (typeof ACESSORIOS_MEDIOS!=='undefined' && ACESSORIOS_MEDIOS.find(a=>a.nome===nome))
+    || (typeof ACESSORIOS_MAIORES!=='undefined' && ACESSORIOS_MAIORES.find(a=>a.nome===nome))
+    || null;
+}
+// Roupa sem benefício (traje de viajante) não ocupa um dos 4 vestidos: o livro limita os itens
+// "com benefício". Vale para vestuário do catálogo marcado sem benefício que não ganhou essência.
+function vestidoSemBeneficio(row, catalogo){
+  return !!(catalogo && catalogo.cat==='Vestuário' && catalogo.vestivel===false && !row.efeitoCustom && !(row.essencias||[]).length && !row.superior);
+}
 function itensVestidosTodos(f){
   const fontes = [];
   if(armaduraContaComoVestido(f)) fontes.push({tipo:'armadura', nome:f.armadura.nome, catalogo:null});
   (f.equip||[]).forEach(row=>{
     if(row.tipo==='geral' && row.vestido){
-      const item = ITENS_GERAIS.find(i=>i.n===row.item);
-      fontes.push({tipo:'geral', nome:row.item, catalogo:item||null, row});
+      const item = catalogoDaLinha(row);
+      if(vestidoSemBeneficio(row, item)) return;
+      fontes.push({tipo:'geral', nome:row.item, catalogo:(item && item.n) ? item : null, catalogoMagico:(item && !item.n) ? item : null, row});
     }
   });
   return fontes;
+}
+// Essências (Oficina de essências e melhorias de vestuário forjado) dos itens vestidos ativos.
+function essenciasAtivas(f){
+  const lista = [];
+  itensVestidosAtivos(f).forEach(fonte=>{ ((fonte.row && fonte.row.essencias) || []).forEach(e=> lista.push(e)); });
+  return lista;
 }
 function limiteItensVestidos(f){ return poderesAtivos(f).includes('Costas Largas') ? 5 : 4; }
 function itensVestidosAtivos(f){ return itensVestidosTodos(f).slice(0,limiteItensVestidos(f)); }
@@ -1918,6 +1951,7 @@ function bonusPericiaDeItensVestidos(f, periciaNome){
     if(ec && ec.tipo==='bonusPericia' && ec.pericia===periciaNome){
       total += parseInt(ec.valor)||0;
     }
+    ((fonte.row && fonte.row.essencias) || []).forEach(e=>{ if(e.tipo==='pericia' && e.pericia===periciaNome) total += parseInt(e.valor)||0; });
   });
   return total;
 }
@@ -1940,6 +1974,7 @@ function bonusRecursoDeItensVestidos(f, recurso){
     if(ec && ec.tipo==='bonus'+(recurso==='pm'?'PM':'PV')){
       total += parseInt(ec.valor)||0;
     }
+    ((fonte.row && fonte.row.essencias) || []).forEach(e=>{ if(e.tipo===recurso) total += parseInt(e.valor)||0; });
   });
   return total;
 }
@@ -2168,6 +2203,40 @@ function aplicarMigracoesPerfis(){
     }
   });
   migrarMelhoriasSubstituidas();
+  migrarCargaPocoes();
+  migrarMochilaAventureiro();
+  migrarEfeitoCustomParaEssencias();
+}
+// Migração (13/11/2026): o antigo "upgrade" da Mochila de aventureiro (uma marca na ficha que
+// somava +2 e escondia a mochila) vira a mochila vestida, que ocupa 1 dos itens vestidos.
+function migrarMochilaAventureiro(){
+  state.perfis.forEach(f=>{
+    if(!f.mochilaAventureiroUpgrade) return;
+    const row = (f.equip||[]).find(r=> r.tipo==='geral' && nomeBaseItem(r.item)==='Mochila de aventureiro');
+    if(row) row.vestido = true;
+    else { if(!f.equip) f.equip = []; f.equip.push({tipo:'geral', item:'Mochila de aventureiro', qtd:'1', carga:'0', vestido:true}); }
+    f.mochilaAventureiroUpgrade = false;
+  });
+}
+// Migração (13/11/2026): o efeito único do item personalizado vira a primeira essência da lista.
+function migrarEfeitoCustomParaEssencias(){
+  state.perfis.forEach(f=> (f.equip||[]).forEach(row=>{
+    const ec = row && row.efeitoCustom; if(!ec) return;
+    if(!row.essencias) row.essencias = [];
+    if(ec.tipo==='bonusPericia') row.essencias.push({tipo:'pericia', pericia:ec.pericia, valor:parseInt(ec.valor)||0});
+    else if(ec.tipo==='bonusPM') row.essencias.push({tipo:'pm', valor:parseInt(ec.valor)||0});
+    else if(ec.tipo==='bonusPV') row.essencias.push({tipo:'pv', valor:parseInt(ec.valor)||0});
+    row.efeitoCustom = null;
+  }));
+}
+// Migração: poções mágicas guardadas antes de 12/11/2026 entravam na mochila com 1 espaço; o livro
+// diz meio espaço. Só corrige quem ainda está com o 1 de antes (uma carga digitada à mão fica).
+function migrarCargaPocoes(){
+  if(typeof POCOES_MAGICAS==='undefined') return;
+  const nomes = new Set(POCOES_MAGICAS.map(p=>p.nome));
+  state.perfis.forEach(f=> (f.equip||[]).forEach(row=>{
+    if(row && row.tipo==='geral' && String(row.carga)==='1' && nomes.has(nomeBaseItem(row.item))) row.carga = '0.5';
+  }));
 }
 // Migração: itens superiores forjados antes de a regra de substituição existir ficaram com os
 // dois bônus somados (Certeira +1 e Pungente +2 virando +3, por exemplo). O livro diz que a
