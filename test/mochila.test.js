@@ -97,9 +97,18 @@ const h = require('./harness');
   }
 
   // ------------------------------------------------------------ cinto
+  h.secao('Cinto: só com a Bandoleira de poções vestida');
+  {
+    h.usarFicha(w, h.fichaBase({ equip: [{ tipo: 'geral', item: 'Essência de mana', qtd: '2', carga: '0.5' }] }));
+    w.state.personagemTab = 'ficha'; w.state._cintoAberto = null;
+    h.renderizar(w, 'personagem');
+    h.ok('sem a Bandoleira, não há cinto', !w.document.querySelector('.cinto') && texto().includes('Vista uma Bandoleira de poções'));
+  }
+
   h.secao('Cinto: uma tecla para cada resultado do dado');
   {
     const f = h.usarFicha(w, h.fichaBase({ pvatual: 10, pvmax: 30, pmatual: 5, pmmax: 30, equip: [
+      { tipo: 'geral', item: 'Bandoleira de poções', qtd: '1', carga: '0', vestido: true, marcadoVestivel: true },
       { tipo: 'geral', item: 'Poção de Curar Ferimentos (2d8+2 PV)', qtd: '2', carga: '0.5' },
       { tipo: 'geral', item: 'Essência de mana', qtd: '4', carga: '0.5' },
       { tipo: 'geral', item: 'Pó de giz', qtd: '1', carga: '0.5' },

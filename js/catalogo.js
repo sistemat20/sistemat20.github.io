@@ -57,7 +57,7 @@ function renderAlvosCatalogo(f){
   return el('div',{class:'alvos-catalogo'},
     el('span',{class:'alvo-cat', 'data-efx-alvo':'mochila'}, 'Mochila '+fmtEsp(cargaUsada(f))+'/'+limiteCarga(f)),
     el('span',{class:'alvo-cat', 'data-efx-alvo':'vestindo'}, 'Vestindo '+Math.min(itensVestidosTodos(f).length, limiteItensVestidos(f))+'/'+limiteItensVestidos(f)),
-    el('span',{class:'alvo-cat', 'data-efx-alvo':'cinto'}, 'Cinto '+cintoDaFicha(f).length+'/4'));
+    temBandoleira(f) ? el('span',{class:'alvo-cat', 'data-efx-alvo':'cinto'}, 'Cinto '+cintoDaFicha(f).length+'/4') : null);
 }
 // Botão que guarda/veste/equipa e faz o item voar até o contador certo.
 function botaoQueVoa(rotulo, classe, nomeItem, destino, acao){

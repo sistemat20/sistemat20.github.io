@@ -214,7 +214,7 @@ function corpoLinhaMochila(f, row, idx){
       el('div',{class:'acoes-mochila'},
         (/^\d+$/.test(String(row.qtd).trim()) && parseInt(row.qtd)>0 && ehConsumivel(row)) ? el('button',{class:'btn', onclick:()=> usarItemMochila(f, idx)}, 'Usar (−1)') : null,
         ehVestivel ? el('button',{class:'btn ghost', onclick:()=> vestirLinha(f, idx)}, row.vestido?'Guardar':'Vestir') : null,
-        ehConsumivel(row) ? el('button',{class:'btn ghost', onclick:()=> alternarNoCinto(f, nomeCat)}, noCinto?'Tirar do cinto':'Pôr no cinto') : null,
+        ehConsumivel(row) && temBandoleira(f) ? el('button',{class:'btn ghost', onclick:()=> alternarNoCinto(f, nomeCat)}, noCinto?'Tirar do cinto':'Pôr no cinto') : null,
         ehVestivel ? el('button',{class:'btn ghost', onclick:()=> abrirOficina({editarIdx:idx})}, '⚗️ Essências') : null,
         podeForjarLinha(row) ? el('button',{class:'btn ghost', onclick:()=> forjarLinhaDaMochila(f, idx)}, '🔨 Forjar') : null,
         el('button',{class:'btn ghost', onclick:()=>abrirEnviarItem(idx)}, 'Enviar'),
@@ -402,7 +402,13 @@ function consumirUm(f, nome){
   if(q<=1) removerItemMochila(f, idx); else row.qtd = String(q-1);
   return true;
 }
+// O cinto é a Bandoleira de poções (Livro Básico, cap. 3: "um cinto de couro com bolsos";
+// vestida, deixa sacar itens alquímicos e poções como ação livre). Sem ela, não há cinto na ficha.
+function temBandoleira(f){
+  return itensVestidosAtivos(f).some(fonte=> fonte.row && nomeCatalogoDaLinha(fonte.row)==='Bandoleira de poções');
+}
 function renderCinto(f){
+  if(!temBandoleira(f)) return el('div',{class:'cinto-vazio meta'}, 'Vista uma Bandoleira de poções para usar consumíveis sem abrir a Mochila.');
   const nomes = cintoDaFicha(f);
   if(!nomes.length) return el('div',{class:'cinto-vazio meta'}, 'Cinto vazio: na Mochila, "Pôr no cinto" num consumível.');
   const aberto = state._cintoAberto;
@@ -418,7 +424,7 @@ function renderCinto(f){
     bt.insertAdjacentHTML('afterbegin', '<svg viewBox="0 0 22 28" aria-hidden="true"><path d="M8 2 H14 V8 Q20 11 20 18 Q20 26 11 26 Q2 26 2 18 Q2 11 8 8 Z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 17 Q11 14 18 17 Q18 24 11 24 Q4 24 4 17Z" fill="currentColor" opacity=".75"/></svg>');
     bolsos.appendChild(bt);
   });
-  const partes = [el('div',{class:'rot-mini', style:'text-align:center;'},'Cinto'), bolsos];
+  const partes = [el('div',{class:'rot-mini', style:'text-align:center;'},'Cinto · sacar é ação livre'), bolsos];
   if(aberto && nomes.includes(aberto)) partes.push(renderGavetaCinto(f, aberto));
   return el('div',{class:'cinto-wrap'}, ...partes);
 }
