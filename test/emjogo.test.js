@@ -111,5 +111,44 @@ const h = require('./harness');
     h.ok('tocar no achado abre a seção certa', w.state._notasParte === 'campanha' && w.state._secoesNotasAbertas.missoes === true && texto().includes('Encontrar o mapa'));
   }
 
+  h.secao('Habilidades no Em jogo e revisão das telas');
+  {
+    const aeon = h.fichaBase({ id: 'aeon', nome: 'Aeon', classesNiveis: [{ classe: 'Guerreiro', nivel: 5 }], pmatual: 15,
+      habilidadesIniciais: [{ nome: 'Ataque Especial', fonte: 'Classe: Guerreiro', desc: 'Gasta 1 PM num ataque pra receber +4 no teste de ataque ou na rolagem de dano. A cada 4 níveis, pode gastar +1 PM extra pra +4 a mais.' }],
+      historicoNiveis: [{ nivel: 3, classe: 'Guerreiro', ganho: 'Durão, poder de guerreiro' }, { nivel: 5, classe: 'Guerreiro', ganho: 'Ataque especial +8, poder de guerreiro' }] });
+    const ej = w.poderesEmJogo(aeon);
+    const ataque = ej.find((p) => p.chaveBase === 'Ataque Especial');
+    h.igual('Ataque Especial cresce com o nível: 1 ou 2 PM no 5º', ataque && ataque.opcoes.join(','), '1,2');
+    h.ok('Durão (3 PM) entra no Em jogo', ej.some((p) => p.chaveBase === 'Durão' && p.custo === 3));
+    h.igual('uma linha só para Ataque Especial e Ataque especial +8', w.coletarHabilidades(aeon).filter((x) => /ataque especial/i.test(x.nome)).length, 1);
+    h.igual('fica o nome de agora', w.coletarHabilidades(aeon).find((x) => /ataque especial/i.test(x.nome)).nome, 'Ataque especial +8');
+    const emival = h.fichaBase({ for: -1 });
+    h.igual('Força −1: limite 9 (−1 por ponto negativo)', w.limiteCarga(emival), 9);
+    const linha = (item, extra) => Object.assign({ item, qtd: '1', tipo: 'geral', carga: '0.5' }, extra || {});
+    h.ok('Água benta se usa', w.ehConsumivel(linha('Água benta')));
+    h.ok('pergaminho escrito à mão se usa', w.ehConsumivel(linha('Pergaminho de Salto Dimensional')));
+    h.ok('nome com maiúscula e espaço acha o dado', !!w.usoDoItem(linha('Bálsamo Restaurador ')));
+    h.ok('ração não vai para a Bandoleira', !w.cabeNoCinto(linha('Ração de viagem (dia)')) && w.cabeNoCinto(linha('Essência de mana')));
+    const f = h.usarFicha(w, h.fichaBase({ equip: [linha('Dente-de-dragão')] }));
+    const botoes = [...w.acoesItemGeral(f, f.equip[0], 0, { nomeCat: 'Dente-de-dragão' }).querySelectorAll('button')].map((b) => b.textContent);
+    h.igual('Dente-de-dragão é catalisador: "Deixar pronto"', botoes[0], 'Deixar pronto');
+  }
+
+  h.secao('Achados da revisão nas fichas');
+  {
+    const linha = (item, extra) => Object.assign({ item, qtd: '1', tipo: 'geral' }, extra || {});
+    const f = h.fichaBase({ id: 'rav', armadura: { nome: 'Couraça', cat: 'Leve', def: 5, esp: 2, pen: -4, equipado: true },
+      equip: [linha('Bandoleira de poções', { carga: '0', vestido: true }), linha('Casaco longo', { carga: '1', vestido: true }),
+        linha('Botas reforçadas', { carga: '1', vestido: true }), linha('Mochila de aventureiro', { carga: '0', vestido: true }), linha('Traje de viajante', { carga: '0' })] });
+    w.state.perfis = [f]; w.state.perfilAtualId = f.id;
+    w.aplicarMigracoesPerfis();
+    h.igual('Bandoleira com espaço 0 volta a 1 (livro)', f.equip[0].carga, '1');
+    h.igual('Traje de viajante continua sem espaço', f.equip[4].carga, '0');
+    h.ok('mochila como 5º vestido volta para guardada', f.equip[3].vestido === false);
+    f.equip[0].carga = '0';
+    w.aplicarMigracoesPerfis();
+    h.igual('a correção do espaço roda uma vez só', f.equip[0].carga, '0');
+  }
+
   h.resumo();
 })();

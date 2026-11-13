@@ -73,15 +73,58 @@ function classificarPoder(f, e){
   }
   if(MODOS_PODER[e.chaveBase]) return {tipo:'modo', efeito: MODOS_PODER[e.chaveBase]};
   const desc = e.desc||'';
-  if(/para cada PM|cada PM gasto|\+ PM:/i.test(desc)) return {tipo:'pmvar', limite};
-  const m = desc.match(/gast\w*\s+(?:[a-zà-ú]+\s+){0,3}?\+?(\d+)\s*PM/i);
-  if(m) return {tipo:'pm', custo: parseInt(m[1]), limite};
+  if(/para cada PM|cada PM gasto|\+ PM:|quantidade de PM [àa] sua escolha/i.test(desc)){
+    // "limitado pelo seu Carisma" (Orgulho, Gritar ordens): as teclas vão até o Carisma
+    const porCarisma = /limitad[oa] pel[oa] seu Carisma/i.test(desc);
+    return {tipo:'pmvar', limite, maxPm: porCarisma ? Math.max(1, atributoEfetivo(f, 'car')) : null};
+  }
+  const m = desc.match(/gast\w*\s+(?:[a-zà-ú]+\s+){0,5}?\+?(\d+)\s*PM/i);
+  if(m){
+    const base = parseInt(m[1]);
+    // Habilidade que cresce com o nível ("A cada quatro níveis, pode gastar +1 PM"): em T20 o
+    // extra chega nos níveis 5, 9, 13, 17 (a cada quatro) ou 6, 11, 16 (a cada cinco).
+    const esc = desc.match(/A cada (dois|três|quatro|cinco|seis|\d+) níveis,?\s+(?:você\s+)?pode gastar \+(\d+) PM/i);
+    if(esc){
+      const NUM = {dois:2, 'três':3, quatro:4, cinco:5, seis:6};
+      const passo = NUM[esc[1].toLowerCase()] || parseInt(esc[1]) || 4;
+      const extras = Math.floor(Math.max(0, nivelDaFonte(f, e.fonte) - 1) / passo);
+      if(extras > 0) return {tipo:'pmesc', custo: base, opcoes: Array.from({length: extras+1}, (_,k)=> base + k*parseInt(esc[2])), limite};
+    }
+    return {tipo:'pm', custo: base, limite};
+  }
   if(limite) return {tipo:'uso', limite};
   return {tipo:null};
 }
 
+// Nível da classe que deu o poder ("Nível 5 de Guerreiro", "Classe: Guerreiro"); sem classe, o total.
+function nivelDaFonte(f, fonte){
+  const m = String(fonte||'').match(/(?:de|Classe:)\s+([A-ZÀ-Ú][\wÀ-ú]+)/);
+  const c = m && (f.classesNiveis||[]).find(x=> x.classe===m[1]);
+  return c ? (parseInt(c.nivel)||1) : (nivelTotal(f)||1);
+}
+// Habilidades de raça, classe e nível, sem repetir ("Ataque especial +8" do 5º nível é a mesma
+// "Ataque Especial" do 1º): fica a que tem descrição, com o nome mais recente para mostrar.
+function chaveHabilidade(nome){ return semAcento(String(nome||'').replace(/\s*[\+\-]?\s*\d+[dº°]?\d*\s*$/, '').replace(/\s*\([^)]*\)\s*$/, '').trim()); }
+function coletarHabilidades(f){
+  const porChave = {};
+  const ordem = [];
+  (f.habilidadesIniciais||[]).concat(habilidadesAutomaticasDeNiveis(f)).forEach(h=>{
+    const k = chaveHabilidade(h.nome); if(!k) return;
+    const atual = porChave[k];
+    if(!atual){
+      const base = String(h.nome).replace(/\s*[\+\-]?\s*\d+[dº°]?\d*\s*$/, '').trim();
+      porChave[k] = {nome: h.nome[0].toUpperCase()+h.nome.slice(1), chaveBase: base[0].toUpperCase()+base.slice(1), fonte: h.fonte||'', desc: h.desc||'', habilidade: true};
+      ordem.push(k);
+    } else {
+      if(!atual.desc && h.desc) atual.desc = h.desc;
+      atual.nome = h.nome[0].toUpperCase()+h.nome.slice(1); // a mais recente ("Inspiração +2") mostra o valor de agora
+      if(/^Nível/.test(h.fonte||'')) atual.fonte = h.fonte;
+    }
+  });
+  return ordem.map(k=> porChave[k]);
+}
 function poderesEmJogo(f){
-  return coletarPoderes(f).map(e=> Object.assign({}, e, classificarPoder(f, e)))
+  return coletarPoderes(f).concat(coletarHabilidades(f)).map(e=> Object.assign({}, e, classificarPoder(f, e)))
     .filter(p=> p.tipo && p.tipo!=='auto');
 }
 function modoLigado(f, nome){ return !!(f.modosAtivos && f.modosAtivos[nome]); }
@@ -138,7 +181,7 @@ function renderEmJogo(f){
       state._ejSel = state._ejSel===p.chaveBase ? null : p.chaveBase; state._ejValor = null; render();
     }},
       p.rotulo || p.chaveBase,
-      p.tipo==='pm' ? el('span',{class:'c'}, p.custo+' PM') : p.tipo==='pmvar' ? el('span',{class:'c'}, 'PM') : null,
+      p.tipo==='pm' ? el('span',{class:'c'}, p.custo+' PM') : p.tipo==='pmesc' ? el('span',{class:'c'}, p.opcoes[0]+'–'+p.opcoes[p.opcoes.length-1]+' PM') : p.tipo==='pmvar' ? el('span',{class:'c'}, 'PM') : null,
       p.limite ? el('span',{class:'pip'+(usado ? ' usado' : ''), title:'1 por '+p.limite}) : null));
   });
   wrap.appendChild(fichas);
@@ -151,17 +194,19 @@ function renderGavetaPoder(f, p){
   const usado = p.limite ? poderFoiUsado(f, p.chaveBase) : false;
   const filhos = [el('div',{}, el('b',{}, p.nome+'. '), p.desc || 'Sem descrição cadastrada: confira no livro.')];
   let custo = p.tipo==='pm' ? p.custo : 0;
-  if(p.tipo==='pmvar'){
+  if(p.tipo==='pmvar' || p.tipo==='pmesc'){
     const d = dadosAnel(f, 'pm');
-    const max = Math.max(1, Math.min(nivelTotal(f) || 1, d.atual + d.temp, 10));
-    filhos.push(el('div',{class:'pergunta'}, 'Quantos PM gastar?'));
-    filhos.push(el('div',{class:'teclas'}, Array.from({length:max}, (_,k)=> k+1).map(x=>
+    const opcoes = p.tipo==='pmesc' ? p.opcoes
+      : Array.from({length: Math.max(1, Math.min(p.maxPm || nivelTotal(f) || 1, Math.max(1, d.atual + d.temp), 10))}, (_,k)=> k+1);
+    filhos.push(el('div',{class:'pergunta'}, p.tipo==='pmesc' ? 'Quantos PM gastar? (cresce com o nível)' : 'Quantos PM gastar?'));
+    filhos.push(el('div',{class:'teclas'}, opcoes.map(x=>
       el('button',{class: state._ejValor===x ? 'on' : '', onclick:()=>{ state._ejValor = x; render(); }}, String(x)))));
     custo = state._ejValor || 0;
   }
   if(usado) filhos.push(el('div',{class:'aviso-ej'}, p.limite==='cena' ? 'Já usado nesta cena. Volta na próxima cena.' : 'Já usado hoje. Volta depois de descansar.'));
-  const podeUsar = !usado && !(p.tipo==='pmvar' && !custo);
-  const rotulo = usado ? 'Usado' : p.tipo==='pmvar' && !custo ? 'Escolha os PM' : custo ? 'Usar · −'+custo+' PM' : 'Marcar como usado';
+  const escolhe = p.tipo==='pmvar' || p.tipo==='pmesc';
+  const podeUsar = !usado && !(escolhe && !custo);
+  const rotulo = usado ? 'Usado' : escolhe && !custo ? 'Escolha os PM' : custo ? 'Usar · −'+custo+' PM' : 'Marcar como usado';
   filhos.push(el('div',{class:'duo'},
     usado ? el('button',{class:'btn ghost', onclick:()=>{ alternarUsoPoder(f, p.chaveBase); }}, 'Liberar de novo')
           : el('button',{class:'btn ghost', onclick:()=>{ state._ejSel = null; state._ejValor = null; render(); }}, 'Fechar'),
@@ -221,4 +266,12 @@ function renderResultadosBuscaNotas(f, busca){
     render();
   }}, el('span',{}, x.nome), el('small',{}, x.sub))));
   return painel;
+}
+
+// Nome da habilidade na Notas com o selo "ativa" quando ela também está no Em jogo.
+function nomeHabilidadeComSelo(f, h){
+  const k = chaveHabilidade(h.nome);
+  const e = coletarHabilidades(f).find(x=> chaveHabilidade(x.nome)===k) || h;
+  const tipo = classificarPoder(f, Object.assign({chaveBase: h.nome}, e)).tipo;
+  return tipo && tipo!=='auto' ? el('span',{}, h.nome, ' ', el('span',{class:'selo-poder'}, 'ativa')) : h.nome;
 }

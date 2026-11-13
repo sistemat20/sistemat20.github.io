@@ -44,7 +44,17 @@ function ehConsumivel(row){
   if(cat && CATEGORIAS_CONSUMIVEIS.has(cat.cat)) return true;
   if(typeof POCOES_MAGICAS!=='undefined' && POCOES_MAGICAS.some(p=>p.nome===nome)) return true;
   if(row.forma==='consumivel' || usoDoItem(row)) return true;
+  // Água benta (arremessada) e o que o nome já diz que se gasta: poções, pergaminhos, granadas,
+  // inclusive os itens que o jogador escreveu à mão ("Poção granada de luz").
+  if(CONSUMIVEIS_EXTRA.has(nome) || /^(poção|pergaminho|granada|elixir)\b/i.test(nome)) return true;
   return !!(typeof CATALISADORES_CD_ESCOLA!=='undefined' && (CATALISADORES_CD_ESCOLA[nome] || CATALISADORES_CUSTO_ESCOLA[nome] || CATALISADORES_DANO_LEMBRETE[nome]));
+}
+const CONSUMIVEIS_EXTRA = new Set(['Água benta']);
+// A Bandoleira guarda poções e itens alquímicos (preparados, catalisadores, venenos): comida não.
+function cabeNoCinto(row){
+  if(!ehConsumivel(row)) return false;
+  const cat = ITENS_GERAIS.find(i=> i.n===nomeCatalogoDaLinha(row));
+  return !(cat && cat.cat==='Alimentação');
 }
 function grupoDaLinha(row){
   if(row.tipo==='geral' && row.vestido) return 'vestindo';
@@ -270,7 +280,7 @@ function acoesItemGeral(f, row, idx, ctx){
   return el('div',{class:'acoes-mochila'},
     principal,
     ctx.ehVestivel && principal && !principal.textContent.match(/^(Vestir|Guardar)$/) ? el('button',{class:'btn ghost', onclick:()=> vestirLinha(f, idx)}, row.vestido ? 'Guardar' : 'Vestir') : null,
-    ehConsumivel(row) && temBandoleira(f) ? el('button',{class:'btn ghost', onclick:()=> alternarNoCinto(f, nomeCat)}, ctx.noCinto ? 'Tirar do cinto' : 'Pôr no cinto') : null,
+    cabeNoCinto(row) && temBandoleira(f) ? el('button',{class:'btn ghost', onclick:()=> alternarNoCinto(f, nomeCat)}, ctx.noCinto ? 'Tirar do cinto' : 'Pôr no cinto') : null,
     podeForjarLinha(row) ? el('button',{class:'btn ghost', onclick:()=> forjarLinhaDaMochila(f, idx)}, '🔨 Forjar') : null,
     ctx.ehVestivel && personalizado ? el('button',{class:'btn ghost', onclick:()=> abrirOficina({editarIdx:idx})}, '⚗️ Essências') : null,
     el('button',{class:'btn ghost', onclick:()=> abrirEnviarItem(idx)}, 'Enviar'));

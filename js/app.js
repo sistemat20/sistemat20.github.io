@@ -1153,7 +1153,8 @@ function mochilaVestida(f){
 // As parcelas do limite de carga, para somar e para mostrar a conta ao jogador.
 function limiteCargaPartes(f){
   const for_ = parseInt(f.for)||0;
-  const partes = [{rotulo: for_>=0 ? '10 + 2×Força' : '10 − Força', valor: for_>=0 ? 10 + 2*for_ : 10 - for_}];
+  // "10 espaços +2 por ponto de Força (ou -1 por ponto de Força negativo)" — Força -1 dá 9.
+  const partes = [{rotulo: for_>=0 ? '10 + 2×Força' : '10 − 1 por Força negativa', valor: for_>=0 ? 10 + 2*for_ : 10 + for_}];
   if(poderesAtivos(f).includes('Costas Largas')) partes.push({rotulo:'Costas Largas', valor:5});
   if(poderesAtivos(f).includes('Inventário Organizado')) partes.push({rotulo:'Inventário Organizado (Int)', valor:parseInt(f.int)||0});
   const moch = mochilaVestida(f);
@@ -1704,6 +1705,8 @@ function todosOsPoderesComDesc(f){
     const info = (typeof PODERES_CONCEDIDOS!=='undefined') ? PODERES_CONCEDIDOS.find(x=>x.nome===pc.nome) : null;
     lista.push({nome:pc.nome, desc:(info&&info.desc)||''});
   });
+  if(typeof coletarHabilidades==='function') coletarHabilidades(f).forEach(h=> lista.push({nome:h.chaveBase, desc:h.desc}));
+  if(f.origemPoder && f.origemPoder.nome) lista.push({nome:f.origemPoder.nome, desc:f.origemPoder.desc||''});
   return lista;
 }
 function poderesComLimiteUso(f){
@@ -1896,7 +1899,13 @@ function removerItemMochila(f, idx){
 // pode passar de 4; quem consome essa lista decide o que fica ativo (os 4 primeiros).
 // Nome de catálogo de uma linha da mochila: a referência guardada (item forjado) ou o nome sem as
 // marcas de presente. Antes a busca usava o nome inteiro, e um presente perdia o bônus.
-function nomeCatalogoDaLinha(row){ return row.ref || nomeBaseItem(row.item); }
+let _catalogoPorMinuscula = null;
+function nomeCatalogoDaLinha(row){
+  const n = String(row.ref || nomeBaseItem(row.item)).trim();
+  if(typeof ITENS_GERAIS==='undefined') return n;
+  if(!_catalogoPorMinuscula){ _catalogoPorMinuscula = {}; ITENS_GERAIS.forEach(i=>{ _catalogoPorMinuscula[i.n.toLowerCase()] = i.n; }); }
+  return _catalogoPorMinuscula[n.toLowerCase()] || n;
+}
 function catalogoDaLinha(row){
   const nome = nomeCatalogoDaLinha(row);
   return ITENS_GERAIS.find(i=>i.n===nome)
@@ -2206,6 +2215,34 @@ function aplicarMigracoesPerfis(){
   migrarCargaPocoes();
   migrarMochilaAventureiro();
   migrarEfeitoCustomParaEssencias();
+  migrarMochilaQuintoVestido();
+  migrarCargaZeradaDoCatalogo();
+}
+// Migração (13/11/2026, revisão): uma mochila vestida como 5º item não dá os +2 (só 4 vestidos
+// valem) e a tela não deixa vestir um quinto. Ela volta para guardada, sem mudar nenhuma conta.
+function migrarMochilaQuintoVestido(){
+  state.perfis.forEach(f=>{
+    const ativos = itensVestidosAtivos(f).map(x=> x.row).filter(Boolean);
+    (f.equip||[]).forEach(r=>{
+      if(r.tipo==='geral' && r.vestido && MOCHILAS_VESTIVEIS[nomeCatalogoDaLinha(r)] && !ativos.includes(r)) r.vestido = false;
+    });
+  });
+}
+// Migração (13/11/2026, revisão): item do catálogo com espaço 0 digitado (Bandoleira, Sapatos de
+// camurça, Chapéu arcano) volta ao espaço do livro. Mochilas e roupas sem benefício seguem 0.
+// Roda uma vez por ficha.
+function migrarCargaZeradaDoCatalogo(){
+  state.perfis.forEach(f=>{
+    if(f._cargaCatalogoRevista) return;
+    (f.equip||[]).forEach(r=>{
+      if(r.tipo!=='geral' || (parseFloat(String(r.carga).replace(',','.'))||0) > 0) return;
+      const nome = nomeCatalogoDaLinha(r);
+      const cat = ITENS_GERAIS.find(i=> i.n===nome);
+      const esp = cat ? parseFloat(cat.esp) : 0;
+      if(esp > 0 && !MOCHILAS_VESTIVEIS[nome]) r.carga = String(esp);
+    });
+    f._cargaCatalogoRevista = true;
+  });
 }
 // Migração (13/11/2026): o antigo "upgrade" da Mochila de aventureiro (uma marca na ficha que
 // somava +2 e escondia a mochila) vira a mochila vestida, que ocupa 1 dos itens vestidos.
@@ -2213,8 +2250,10 @@ function migrarMochilaAventureiro(){
   state.perfis.forEach(f=>{
     if(!f.mochilaAventureiroUpgrade) return;
     const row = (f.equip||[]).find(r=> r.tipo==='geral' && nomeBaseItem(r.item)==='Mochila de aventureiro');
-    if(row) row.vestido = true;
-    else { if(!f.equip) f.equip = []; f.equip.push({tipo:'geral', item:'Mochila de aventureiro', qtd:'1', carga:'0', vestido:true}); }
+    // só fica vestida se houver lugar entre os 4 vestidos (senão vai para a mochila, guardada)
+    const temLugar = itensVestidosAtivos(f).length < 4;
+    if(row) row.vestido = temLugar;
+    else { if(!f.equip) f.equip = []; f.equip.push({tipo:'geral', item:'Mochila de aventureiro', qtd:'1', carga:'0', vestido:temLugar}); }
     f.mochilaAventureiroUpgrade = false;
   });
 }

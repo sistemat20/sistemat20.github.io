@@ -1736,30 +1736,16 @@ function renderPersonagemNotas(){
 
   wrap.appendChild(renderPoderesNotas(f));
 
-  // ---- Habilidades Iniciais ----
-  const habilidadesDeNivel = habilidadesAutomaticasDeNiveis(f);
+  // ---- Habilidades ----
+  // Uma linha por habilidade: a do 1º nível e as melhorias de nível ("Ataque furtivo +3d6")
+  // viram uma só, com o valor de agora (coletarHabilidades, em js/emjogo.js).
+  const habilidades = coletarHabilidades(f);
   wrap.appendChild(renderSecaoNotasColapsavel('habilidades-iniciais', '🎁', 'Habilidades',
-    ((f.habilidadesIniciais||[]).length+habilidadesDeNivel.length)+' registrada(s)', ()=>{
-    const corpo = [el('div',{class:'tip', style:'font-size:0.8rem;'}, 'Habilidades de raça, itens de origem e outras concessões iniciais — não precisam ser anotadas manualmente.')];
-    if((!f.habilidadesIniciais || f.habilidadesIniciais.length===0) && habilidadesDeNivel.length===0){
-      corpo.push(el('div',{class:'empty'},'Nada registrado ainda.'));
-    } else {
-      (f.habilidadesIniciais||[]).forEach((h, idx)=>{
-        corpo.push(renderItemColapsavel('habinicial-'+idx+'-'+h.nome, h.nome, h.fonte, [
-          el('div',{class:'desc'}, h.desc)
-        ]));
-      });
-      // Habilidades ganhas em níveis específicos (não da criação) — usa o mesmo card clicável
-      // dos outros itens da lista (renderItemColapsavel), não um estilo diferente. Só não têm
-      // descrição própria guardada (só o texto curto da tabela de classe), daí o aviso pra
-      // consultar o livro em vez de um texto explicativo de verdade.
-      habilidadesDeNivel.forEach((h, idx)=>{
-        corpo.push(renderItemColapsavel('habnivel-'+idx+'-'+h.nome, h.nome, h.fonte, [
-          el('div',{class:'desc'}, h.desc || 'Ainda não temos o texto exato dessa habilidade cadastrado — consulte o livro (Cap. 1, tabela de progressão da classe) pra descrição completa.')
-        ]));
-      });
-    }
-    return corpo;
+    habilidades.length+' registrada(s)', ()=>{
+    if(!habilidades.length) return [el('div',{class:'empty'},'Nada registrado ainda.')];
+    return habilidades.map((h, idx)=> renderItemColapsavel('hab-'+idx+'-'+h.chaveBase, nomeHabilidadeComSelo(f, h), h.fonte, [
+      el('div',{class:'desc'}, h.desc || 'Ainda não temos o texto exato dessa habilidade cadastrado: consulte o livro (Cap. 1, tabela de progressão da classe).')
+    ]));
   }));
 
   // ---- Proficiências ----
@@ -2994,6 +2980,13 @@ const CATALISADORES_DANO_LEMBRETE = {
   'Baga-de-fogo': '+1d6 de dano de fogo',
   'Líquen lilás': '+1d6 de dano de frio',
   'Terra de cemitério': '+1d6 de dano de trevas',
+  'Dente-de-dragão': 'aumenta um dado de dano',
+  'Essência abissal': 'dano de fogo sobe um passo de dado',
+  'Ramo verdejante': '+1 PV por dado nas magias de cura',
+  'Corrosivo Mineral': 'dano de ácido sobe um passo de dado',
+  'Gelo Extremo': 'dano de frio sobe um passo de dado',
+  'Raio Cristalizado': 'dano de eletricidade sobe um passo de dado',
+  'Pedaço de Língua': '+1 na CD de Fortitude contra a magia',
 };
 // Lança uma magia: confere custo, limite por magia e mana; desconta do PM, consome catalisador,
 // gasta a Liturgia Mágica ligada e anota no log. Usada pelo popup "Usar magia" e pela mesa de
