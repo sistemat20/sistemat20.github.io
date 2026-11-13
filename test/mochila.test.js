@@ -75,6 +75,23 @@ const h = require('./harness');
     h.ok('não aparece preço', !/T\$\s*\d+[.,]?\d*\s*(·|$)/.test(w.document.querySelector('.secao-moch').textContent));
   }
 
+  h.secao('Item aberto: contador de quantidade, campos só em "editar"');
+  {
+    const f = h.usarFicha(w, h.fichaBase({ equip: [{ tipo: 'geral', item: 'Corda', qtd: '2', carga: '1' }] }));
+    w.state.personagemTab = 'mochila';
+    w.state._itensExpandidos = { 'mochila-0': true };
+    w.state._editandoItem = null;
+    h.renderizar(w, 'personagem');
+    h.ok('sem campos de nome, quantidade e espaço', !w.document.getElementById('mochila-nome-0') && !w.document.getElementById('mochila-qtd-0'));
+    [...w.document.querySelectorAll('.qtd-step button')][1].click();
+    h.igual('o + soma 1', f.equip[0].qtd, '3');
+    [...w.document.querySelectorAll('.qtd-step button')][0].click();
+    h.igual('o − tira 1', f.equip[0].qtd, '2');
+    [...w.document.querySelectorAll('.link-editar-item')][0].click();
+    h.ok('"editar" mostra os campos', !!w.document.getElementById('mochila-nome-0') && !!w.document.getElementById('mochila-carga-0'));
+    w.state._editandoItem = null; w.state._itensExpandidos = {};
+  }
+
   // ------------------------------------------------------------ bolsa
   h.secao('Bolsa: só T$, seletor que volta para T$');
   {

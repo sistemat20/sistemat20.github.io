@@ -201,16 +201,6 @@ function corpoLinhaMochila(f, row, idx){
     corpo.push(
       descItem ? el('div',{class:'desc'}, descItem) : null,
       row.melhoriasTxt ? el('div',{class:'meta', style:'text-transform:none;color:var(--gold);'}, row.melhoriasTxt) : null,
-      el('label',{},'Nome'),
-      el('input',{id:'mochila-nome-'+idx, type:'text', value:row.item, oninput:(e)=>{row.item=e.target.value;}, onchange:()=>{salvarPerfis(); render();}}),
-      el('div',{class:'row', style:'margin-top:8px;'},
-        el('div',{style:'flex:1;'}, el('label',{},'Quantidade'), el('input',{id:'mochila-qtd-'+idx, type:'text', value:row.qtd, oninput:(e)=>{row.qtd=e.target.value;}, onchange:()=>{salvarPerfis(); render();}})),
-        el('div',{style:'flex:1;'}, el('label',{},'Espaço'), el('input',{id:'mochila-carga-'+idx, type:'text', value:row.carga, oninput:(e)=>{row.carga=e.target.value;}, onchange:()=>{salvarPerfis(); render();}}))
-      ),
-      !reconhecidoAutomatico ? el('div',{class:'row', style:'margin-top:8px;align-items:center;'},
-        el('input',{type:'checkbox', id:'mochila-vestivel-'+idx, checked: row.marcadoVestivel?'checked':undefined, onchange:(e)=>{ row.marcadoVestivel=e.target.checked; if(!e.target.checked) row.vestido=false; salvarPerfis(); render(); }}),
-        el('label',{for:'mochila-vestivel-'+idx, style:'margin:0;font-size:0.78rem;text-transform:none;'}, 'É um item vestível (anel, colar, roupa etc. — ocupa 1 medalhão)')
-      ) : null,
       el('div',{class:'acoes-mochila'},
         (/^\d+$/.test(String(row.qtd).trim()) && parseInt(row.qtd)>0 && ehConsumivel(row)) ? el('button',{class:'btn', onclick:()=> usarItemMochila(f, idx)}, 'Usar (−1)') : null,
         ehVestivel ? el('button',{class:'btn ghost', onclick:()=> vestirLinha(f, idx)}, row.vestido?'Guardar':'Vestir') : null,
@@ -232,10 +222,6 @@ function corpoLinhaMochila(f, row, idx){
     corpo.push(
       descCatalogo ? el('div',{class:'desc'}, descCatalogo) : null,
       row.melhoriasTxt ? el('div',{class:'meta', style:'text-transform:none;color:var(--gold);'}, row.melhoriasTxt) : null,
-      el('div',{class:'row', style:'margin-top:8px;'},
-        el('div',{style:'flex:1;'}, el('label',{},'Quantidade'), el('input',{id:'mochila-qtd-'+idx, type:'text', value:row.qtd, oninput:(e)=>{row.qtd=e.target.value;}, onchange:()=>{salvarPerfis(); render();}})),
-        el('div',{style:'flex:1;'}, el('label',{},'Espaço'), el('input',{id:'mochila-carga-'+idx, type:'text', value:row.carga, oninput:(e)=>{row.carga=e.target.value;}, onchange:()=>{salvarPerfis(); render();}}))
-      ),
       el('div',{class:'acoes-mochila'},
         podeEquipar ? el('button',{class:'btn ghost', onclick:()=> row.tipo==='esoterico' ? equiparEsotericoDaMochila(idx) : equiparDaMochila(idx)}, 'Equipar') : null,
         podeForjarLinha(row) ? el('button',{class:'btn ghost', onclick:()=> forjarLinhaDaMochila(f, idx)}, '🔨 Forjar') : null,
@@ -246,14 +232,46 @@ function corpoLinhaMochila(f, row, idx){
   }
   const hist = historiaDoItem(f, row);
   if(hist.length) corpo.push(el('div',{class:'hist-item'}, el('div',{class:'rot-mini'},'De onde veio'), el('ul',{class:'hist'}, hist.map(t=> el('li',{}, t)))));
+  const reconhecido = row.tipo==='geral' && (((catalogoDaLinha(row)||{}).vestivel) || ACESSORIOS_VESTIVEIS.has(nomeCatalogoDaLinha(row)));
+  corpo.push(camposEdicaoItem(row, idx, row.tipo==='geral' && !reconhecido));
   return corpo;
+}
+// Nome, quantidade e espaço ficam escondidos: só um link "editar" para corrigir algum erro.
+function camposEdicaoItem(row, idx, mostrarVestivel){
+  if(state._editandoItem!==row) return el('button',{class:'link-editar-item', onclick:()=>{ state._editandoItem = row; render(); }}, 'editar');
+  return el('div',{class:'edicao-item'},
+    el('label',{},'Nome'),
+    el('input',{id:'mochila-nome-'+idx, type:'text', value:row.item, oninput:(e)=>{row.item=e.target.value;}, onchange:()=>{salvarPerfis(); render();}}),
+    el('div',{class:'row', style:'margin-top:6px;'},
+      el('div',{style:'flex:1;'}, el('label',{},'Quantidade'), el('input',{id:'mochila-qtd-'+idx, type:'text', value:row.qtd, oninput:(e)=>{row.qtd=e.target.value;}, onchange:()=>{salvarPerfis(); render();}})),
+      el('div',{style:'flex:1;'}, el('label',{},'Espaço'), el('input',{id:'mochila-carga-'+idx, type:'text', value:row.carga, oninput:(e)=>{row.carga=e.target.value;}, onchange:()=>{salvarPerfis(); render();}}))),
+    mostrarVestivel ? el('div',{class:'row', style:'margin-top:8px;align-items:center;'},
+      el('input',{type:'checkbox', id:'mochila-vestivel-'+idx, checked: row.marcadoVestivel?'checked':undefined, onchange:(e)=>{ row.marcadoVestivel=e.target.checked; if(!e.target.checked) row.vestido=false; salvarPerfis(); render(); }}),
+      el('label',{for:'mochila-vestivel-'+idx, style:'margin:0;font-size:0.78rem;text-transform:none;'}, 'É um item vestível (ocupa 1 medalhão)')) : null,
+    el('button',{class:'link-editar-item', onclick:()=>{ state._editandoItem = null; render(); }}, 'concluir'));
+}
+// Contador − qtd + no cabeçalho do item aberto (com 1, o − pergunta se é para remover).
+function mudarQuantidade(f, idx, delta){
+  const row = f.equip[idx]; if(!row) return;
+  const atual = parseInt(row.qtd)||1;
+  if(atual + delta <= 0){
+    if(!confirm('Remover "'+nomeBaseItem(row.item)+'" da mochila? Não tem como desfazer.')) return;
+    registrarLog(f, 'Removeu da mochila: '+row.item); removerItemMochila(f, idx); salvarPerfis(); render(); return;
+  }
+  row.qtd = String(atual + delta);
+  salvarPerfis(); render();
 }
 function linhaMochila(f, row, idx){
   const {nome, selos} = nomeLimpoComSelos(row);
   const rotulo = {arma:'Arma', armadura:'Armadura', escudo:'Escudo', esoterico:'Esotérico', geral:'Item'}[row.tipo] || 'Item';
   const e = espacoUnidade(f, row);
   const titulo = el('span',{class:'nome-limpo'}, nome, selos.length ? el('span',{class:'selos-item'}, selos.map(s=> el('span',{class:'selo-item '+(s.classe||'')}, s.txt))) : null);
-  const meta = el('span',{class:'meta-mochila'}, pipsEspaco(e), ' '+rotulo+' · qtd '+row.qtd+' · '+fmtEsp(e*(parseFloat(row.qtd)||1))+' esp');
+  const aberto = !!(state._itensExpandidos && state._itensExpandidos['mochila-'+idx]);
+  const parar = (fn)=> (ev)=>{ ev.stopPropagation(); fn(); };
+  const qtd = aberto
+    ? el('span',{class:'qtd-step'}, el('button',{'aria-label':'menos um', onclick:parar(()=> mudarQuantidade(fichaAtual(), idx, -1))}, '−'), el('b',{class:'num'}, String(row.qtd)), el('button',{'aria-label':'mais um', onclick:parar(()=> mudarQuantidade(fichaAtual(), idx, 1))}, '+'))
+    : 'qtd '+row.qtd;
+  const meta = el('span',{class:'meta-mochila'}, pipsEspaco(e), ' '+rotulo+' · ', qtd, ' · '+fmtEsp(e*(parseFloat(row.qtd)||1))+' esp');
   return renderItemColapsavel('mochila-'+idx, titulo, meta, corpoLinhaMochila(f, row, idx));
 }
 
