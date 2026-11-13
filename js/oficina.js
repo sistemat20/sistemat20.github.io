@@ -78,7 +78,7 @@ function renderPopupItemPersonalizado(f){
   const orbita = el('div',{class:'orbita'});
   o.essencias.forEach((e,i)=>{
     const ang = (360/Math.max(1,o.essencias.length))*i;
-    orbita.appendChild(el('span',{class:'orbe'+(i===o.novo?' novo':''), style:'background:'+COR_ESSENCIA[e.tipo]+';color:'+COR_ESSENCIA[e.tipo]+';transform:rotate('+ang+'deg) translate(58px) rotate('+(-ang)+'deg);'}));
+    orbita.appendChild(el('span',{class:'orbe'+(i===o.novo?' novo':''), style:'background:'+COR_ESSENCIA[e.tipo]+';color:'+COR_ESSENCIA[e.tipo]+';transform:rotate('+ang+'deg) translate(34px) rotate('+(-ang)+'deg);'}));
   });
   o.novo = -1;
   const centro = el('div',{class:'forma-centro'}); centro.innerHTML = '<svg viewBox="0 0 34 34">'+forma.svg+'</svg>';
@@ -136,7 +136,7 @@ function renderPopupItemPersonalizado(f){
       });
     } else fontes.appendChild(el('div',{class:'meta', style:'text-transform:none;'}, 'Digite pelo menos 2 letras.'));
     corpo.appendChild(fontes);
-    corpo.appendChild(o.livre ? renderEssenciaLivre(o) : el('button',{class:'btn ghost', style:'margin-top:6px;', onclick:()=>{ o.livre = {tipo:'pericia', pericia:PERICIAS[0].nome, escola:ESCOLAS_MAGIA[0], valor:'1', texto:'', recurso:'pm', dado:'1d4'}; render(); }}, '✎ Escrever uma essência que não existe nas tabelas'));
+    corpo.appendChild(o.livre ? renderEssenciaLivre(o) : el('button',{class:'link-oficina', onclick:()=>{ o.livre = {tipo:'pericia', pericia:PERICIAS[0].nome, escola:ESCOLAS_MAGIA[0], valor:'1', texto:'', recurso:'pm', dado:'1d4'}; render(); }}, '✎ Escrever uma essência nova'));
 
     const tipos = [...new Set(o.essencias.map(e=>e.tipo))];
     const liga = el('div',{class:'liga'}, el('span',{class:'rot-mini', style:'width:100%;'}, 'Liga com'));

@@ -178,3 +178,40 @@
 @keyframes efx-grava{ from{ transform:scale(2.6); box-shadow:0 0 18px #ffd27a; } }
 @keyframes efx-tempera{ 0%{ box-shadow:0 0 30px rgba(255,120,40,.9); } 60%{ box-shadow:0 0 22px rgba(200,220,255,.5); } 100%{ box-shadow:none; } }
 @media (prefers-reduced-motion: reduce){ .peca-bancada .icone, .peca-bancada .martelo, .soq i, .painel-forja{ animation:none!important; } }
+
+/* ---- oficina de essências (compacta) ---- */
+.oficina .calice-wrap{ display:flex; justify-content:center; margin:4px 0 2px; }
+.calice{ position:relative; width:84px; height:84px; flex:0 0 84px; }
+.calice-fundo{ position:absolute; inset:10px; border-radius:50%; border:1.5px solid var(--gold); background:radial-gradient(circle at 50% 45%, rgba(246,217,138,.28), var(--card-2) 70%); box-shadow:0 0 0 6px rgba(166,129,47,.12); }
+.calice.pulsa .calice-fundo{ animation:of-pulsa .6s; }
+.orbita{ position:absolute; inset:0; animation:of-gira 14s linear infinite; }
+.orbe{ position:absolute; left:50%; top:50%; width:11px; height:11px; margin:-5.5px 0 0 -5.5px; border-radius:50%; box-shadow:0 0 8px currentColor, inset 0 0 3px rgba(255,255,255,.6); transition:transform .7s cubic-bezier(.5,0,.3,1), opacity .5s; }
+.orbe.novo{ animation:of-novo .6s cubic-bezier(.2,1.5,.4,1); }
+.calice.funde .orbe{ transform:translate(0,0)!important; opacity:0; }
+.forma-centro{ position:absolute; left:50%; top:50%; width:30px; height:30px; margin:-15px 0 0 -15px; display:grid; place-items:center; color:var(--gold); }
+.forma-centro svg{ width:24px; height:24px; }
+.oficina-corpo{ padding:0 14px; display:grid; gap:2px; }
+.oficina-corpo label{ margin:6px 0 0; }
+.oficina-corpo input, .oficina-corpo textarea, .oficina-corpo select{ margin:2px 0 0; }
+.formas{ display:flex; flex-wrap:wrap; gap:4px; margin-top:4px; }
+.formas button{ font:600 .66rem 'Inter',sans-serif; padding:4px 9px; border-radius:999px; border:1px solid var(--line); background:transparent; color:var(--ink-soft); cursor:pointer; }
+.formas button.on{ background:var(--gold); color:#1a120c; border-color:var(--gold); }
+.essencias{ display:grid; gap:4px; margin-top:4px; }
+.ess{ display:grid; grid-template-columns:auto 1fr auto auto; gap:6px; align-items:center; font-size:.72rem; padding:4px 8px; border:1px solid var(--line); border-radius:8px; background:var(--card-2); animation:efx-sobe .3s; }
+.ess > i{ width:9px; height:9px; border-radius:50%; box-shadow:0 0 6px currentColor; }
+.ess small{ color:var(--ink-soft); font-size:.62rem; }
+.num-ess{ display:flex; gap:2px; }
+.num-ess button, .ess .tira, .linha-oficina .tira{ font:700 .7rem 'Inter',sans-serif; width:22px; height:22px; border-radius:5px; border:1px solid var(--line); background:transparent; color:var(--gold); cursor:pointer; padding:0; }
+.lista-oficina{ display:grid; gap:4px; margin-top:4px; }
+.linha-oficina{ display:flex; justify-content:space-between; align-items:center; gap:8px; text-align:left; padding:6px 9px; border-radius:8px; border:1px solid var(--line); background:var(--card-2); color:var(--ink); font:inherit; font-size:.76rem; cursor:pointer; }
+.linha-oficina > span{ display:grid; gap:1px; min-width:0; }
+.linha-oficina small{ font-size:.62rem; color:var(--ink-soft); }
+.linha-oficina.escolhida{ border-color:var(--gold-deep); cursor:default; }
+.linha-oficina .extrai{ flex:0 0 auto; font:700 .6rem 'Cinzel',serif; color:var(--gold); border:1px solid var(--gold-deep); border-radius:999px; padding:2px 8px; }
+.liga{ display:flex; flex-wrap:wrap; gap:4px; align-items:center; margin-top:8px; padding-top:6px; border-top:1px dotted var(--line); }
+.chip-texto{ font-size:var(--fs-2xs); font-weight:600; padding:2px 8px; border-radius:var(--radius-pill); border:1px dashed var(--line); color:var(--ink-soft); }
+@keyframes of-gira{ to{ transform:rotate(360deg); } }
+@keyframes of-pulsa{ 40%{ transform:scale(1.1); box-shadow:0 0 0 6px rgba(166,129,47,.12), 0 0 16px var(--gold); } }
+@keyframes of-novo{ from{ opacity:0; filter:brightness(3); } }
+@media (prefers-reduced-motion: reduce){ .orbita, .orbe.novo, .calice.pulsa .calice-fundo{ animation:none; } }
+.link-oficina{ justify-self:start; margin-top:4px; background:none; border:0; padding:2px 0; font:600 .72rem 'Inter',sans-serif; color:var(--gold); text-decoration:underline; text-underline-offset:3px; cursor:pointer; }
