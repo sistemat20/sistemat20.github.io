@@ -32,6 +32,8 @@ const EXPOSTOS = [
   // mochila nova (13/11/2026)
   'limiteCargaPartes', 'vestirLinha', 'ITENS_GERAIS', 'ARMAS', 'ARMADURAS', 'usarDoCinto', 'infoServePraMim', 'forjarLinhaDaMochila',
   'motivoMelhoriaBloqueada', 'motivoMaterialBloqueado', 'espacoFinalForja', 'essenciasDoCatalogo', 'abrirOficina', 'criarItemDaOficina',
+  // em jogo e notas (13/11/2026)
+  'coletarPoderes', 'classificarPoder', 'poderesEmJogo', 'usarPoderEmJogo', 'novaCena', 'aplicarDescanso', 'itensBuscaNotas',
   // estado e telas
   'state', 'render', 'fichaAtual', 'removerItemMochila', 'migrarMelhoriasSubstituidas',
   'aplicarMigracoesPerfis',

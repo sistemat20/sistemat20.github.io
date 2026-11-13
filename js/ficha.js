@@ -1342,6 +1342,7 @@ function renderPersonagemFicha(){
   wrap.appendChild(el('div',{class:'panel faixa'},
     el('h2',{},'Vida & Mana'),
     renderAneisVidaMana(f),
+    renderEmJogo(f),
     renderCinto(f),
     renderPericiasFixadasFicha(f)
   ));
@@ -1402,23 +1403,6 @@ const MANOBRAS_COMBATE = [
   ['Empurrar', 'Empurra o alvo 1,5m; +1,5m a cada 5 pontos de diferença no teste.'],
   ['Quebrar', 'Ataca um item que o alvo segura (ver estatísticas de objetos).'],
 ];
-function renderPainelManobrasColapsavel(f){
-  const lutaInfo = PERICIAS.find(p=>p.nome==='Luta');
-  const valorManobra = lutaInfo ? periciaValor(f, lutaInfo) : 0;
-  return renderSecaoNotasColapsavel('manobras-combate', '⚔️', 'Manobras de Combate',
-    'Teste: '+(valorManobra>=0?'+':'')+valorManobra, ()=>{
-    const corpo = [el('div',{class:'tip'}, el('b',{},'Seu teste de manobra: '+(valorManobra>=0?'+':'')+valorManobra), 'É o mesmo valor de Luta corpo a corpo — a manobra é um teste oposto contra o alvo (mesmo que ele lute à distância, ele usa a Luta dele pra resistir). Não dá pra fazer manobra com ataque à distância.')];
-    const grid = el('div',{class:'option-grid'});
-    MANOBRAS_COMBATE.forEach(([nome,desc])=>{
-      grid.appendChild(el('div',{class:'option-card', style:'cursor:default;'},
-        el('div',{class:'opt-nome'}, nome),
-        el('div',{class:'opt-sub'}, desc)
-      ));
-    });
-    corpo.push(grid);
-    return corpo;
-  });
-}
 
 // Painel de condições ativas — toque pra ligar/desligar. Mostra só o nome nas escolhidas de
 // cara; toda a lista só aparece quando o jogador toca em "Gerenciar condições".
@@ -1728,113 +1712,33 @@ function renderPainelCondicoes(f){
 function renderPersonagemNotas(){
   const f = fichaAtual();
   const wrap = el('div',{});
+  // Notas em duas partes (13/11/2026): o que é regra separado do que é história, tudo começa
+  // fechado em uma linha, e uma busca no topo que acha qualquer item das duas.
+  const parte = state._notasParte==='campanha' ? 'campanha' : 'regras';
+  const busca = (state._notasBusca||'').trim();
+  wrap.appendChild(el('div',{class:'notas-topo'},
+    el('div',{class:'seg2'}, [['regras','Regras do herói'],['campanha','Campanha']].map(([k,t])=>
+      el('button',{class: !busca && parte===k ? 'on' : '', onclick:()=>{ state._notasParte = k; state._notasBusca = ''; render(); }}, t))),
+    el('input',{id:'notas-busca', type:'search', class:'busca-notas', placeholder:'Buscar poder, habilidade, missão…', value: state._notasBusca||'', oninput:(e)=>{ state._notasBusca = e.target.value; render(); }})
+  ));
+  if(busca){ wrap.appendChild(renderResultadosBuscaNotas(f, busca)); return wrap; }
 
-  // ---- Proficiências ----
-  const prof = proficienciasPersonagem(f);
-  const racaObj = getRacaObj(f);
-  const armasExtrasRaca = racaObj && racaObj.armasComoSimples ? racaObj.armasComoSimples : [];
-  const extrasContagem = [prof.armasMarciais, prof.armasFogo, prof.armadurasPesadas, prof.escudos].filter(Boolean).length;
-  wrap.appendChild(renderSecaoNotasColapsavel('proficiencias', '🛡️', 'Proficiências',
-    extrasContagem>0 ? extrasContagem+' proficiência(s) extra' : 'Só as básicas', ()=>[
-    el('div',{class:'tip', style:'font-size:0.8rem;'},
-      el('div',{}, el('b',{},'Sempre: '), 'armas simples, armaduras leves, ataques desarmados'),
-      el('div',{}, el('b',{},'Armas marciais: '), prof.armasMarciais?'Sim ✓':'Não'),
-      el('div',{}, el('b',{},'Armas de fogo: '), prof.armasFogo?'Sim ✓':'Não'),
-      el('div',{}, el('b',{},'Armaduras pesadas: '), prof.armadurasPesadas?'Sim ✓':'Não'),
-      el('div',{}, el('b',{},'Escudos: '), prof.escudos?'Sim ✓':'Não'),
-      armasExtrasRaca.length ? el('div',{}, el('b',{},'Bônus racial: '), armasExtrasRaca.join(', ')+' contam como arma simples para você') : null,
-    ),
-    el('div',{class:'meta', style:'font-size:0.7rem;color:var(--ink-soft);margin-top:6px;'}, 'Usar arma sem proficiência: –5 no teste de ataque. Vestir armadura/escudo sem proficiência: a penalidade dele passa a valer em toda perícia de Força e Destreza (não só Acrobacia/Furtividade/Ladinagem).')
-  ]));
+  if(parte==='campanha'){
+    wrap.appendChild(renderPainelMissoes(f));
+    wrap.appendChild(renderPainelFaccoes(f));
+    wrap.appendChild(renderPainelRelacionamentos(f));
+    wrap.appendChild(renderPainelLocais(f));
+    wrap.appendChild(renderSecaoNotasColapsavel('anotacoes', '✍️', 'Anotações', (f.notas||'').trim() ? 'com texto' : null, ()=>[
+      textareaAutoResize({oninput:(e)=>f.notas=e.target.value, placeholder:'tesouro, combinações com o Mestre, etc.'}, f.notas)
+    ]));
+    return wrap;
+  }
 
-  // ---- Manobras de Combate ----
-  wrap.appendChild(renderPainelManobrasColapsavel(f));
-
-  // ---- Poderes ----
-  const entradasPoderes = [];
-  if(f.poderGeral && f.poderGeral.nome){
-    const pInfo = PODERES_GERAIS.find(p=>p.nome===f.poderGeral.nome);
-    entradasPoderes.push({nome: f.poderGeral.nome + (f.poderGeral.sub? (' — '+f.poderGeral.sub):''), chaveBase:f.poderGeral.nome, fonte:'Origem: '+f.origem, desc: pInfo?pInfo.desc:''});
-  }
-  if(f.poderGeralExtra && f.poderGeralExtra.nome){
-    const pInfo = PODERES_GERAIS.find(p=>p.nome===f.poderGeralExtra.nome);
-    entradasPoderes.push({nome: f.poderGeralExtra.nome + (f.poderGeralExtra.sub? (' — '+f.poderGeralExtra.sub):''), chaveBase:f.poderGeralExtra.nome, fonte:'Origem: '+f.origem, desc: pInfo?pInfo.desc:''});
-  }
-  if(f.origemPoderCategoria && f.origemPoderCategoria.nome){
-    if(f.origemPoderCategoria.sub){
-      const pInfoCat = PODERES_GERAIS.find(p=>p.nome===f.origemPoderCategoria.sub);
-      entradasPoderes.push({
-        nome: f.origemPoderCategoria.sub + (f.origemPoderCategoria.subEscolha? (' — '+f.origemPoderCategoria.subEscolha):''),
-        chaveBase: f.origemPoderCategoria.sub,
-        fonte:'Origem: '+f.origem+' ('+f.origemPoderCategoria.nome+')',
-        desc: pInfoCat?pInfoCat.desc:''
-      });
-    } else {
-      entradasPoderes.push({nome: f.origemPoderCategoria.nome, chaveBase:f.origemPoderCategoria.nome, fonte:'Origem: '+f.origem, desc:'Combine com o mestre qual poder específico esse será e anote nas Notas.'});
-    }
-  }
-  if(f.poderRaca && f.poderRaca.nome){
-    const pInfo = PODERES_GERAIS.find(p=>p.nome===f.poderRaca.nome);
-    entradasPoderes.push({nome: f.poderRaca.nome + (f.poderRaca.sub? (' — '+f.poderRaca.sub):''), chaveBase:f.poderRaca.nome, fonte:'Raça: '+f.raca, desc: pInfo?pInfo.desc:'Perícia/poder concedido pela raça.'});
-  }
-  if(f.origemPoder && f.origemPoder.nome){
-    entradasPoderes.push({nome: f.origemPoder.nome, chaveBase:f.origemPoder.nome, fonte:'Origem: '+f.origem+' (único)', desc: f.origemPoder.desc||''});
-  }
-  if(f.poderConcedido && f.poderConcedido.nome){
-    const pInfo = PODERES_CONCEDIDOS.find(p=>p.nome===f.poderConcedido.nome);
-    entradasPoderes.push({nome: f.poderConcedido.nome, chaveBase:f.poderConcedido.nome, fonte:'Devoto de '+f.poderConcedido.deus, desc: pInfo?pInfo.desc:''});
-  }
-  (f.poderesClasse||[]).forEach((p,indiceOriginal)=>{
-    let desc = '';
-    if(p.trocaPorGeral){
-      const pInfo = PODERES_GERAIS.find(x=>x.nome===p.nome);
-      desc = pInfo?pInfo.desc:'';
-    } else {
-      const listaCompletaP = PODERES_CLASSE_COMPLETO[p.classe] || [];
-      const foundCompleto = listaCompletaP.find(x=>x.nome===p.nome);
-      if(foundCompleto){
-        desc = foundCompleto.desc;
-      } else {
-        const clsData = CLASSES[p.classe];
-        const found = clsData ? clsData.poderes.find(([n])=>n===p.nome) : null;
-        desc = found ? found[1] : '';
-      }
-    }
-    entradasPoderes.push({nome: p.nome + (p.sub?(' — '+p.sub):''), chaveBase:p.nome, fonte:'Nível '+p.nivel+' de '+p.classe+(p.trocaPorGeral?' (trocado)':''), desc, indicePoderesClasse: indiceOriginal});
-  });
-  wrap.appendChild(renderSecaoNotasColapsavel('poderes', '⚡', 'Poderes',
-    entradasPoderes.length+' poder(es)', ()=>{
-    if(entradasPoderes.length===0) return [el('div',{class:'empty'},'Nenhum poder registrado ainda.')];
-    return entradasPoderes.map((entrada, idx)=>{
-      const limite = tipoLimiteUso(entrada.desc);
-      const usado = limite ? poderFoiUsado(f, entrada.chaveBase) : false;
-      const ehAutomatizado = PODERES_AUTOMATIZADOS.has(entrada.chaveBase);
-      const ehGolpePessoal = entrada.chaveBase==='Golpe Pessoal' && entrada.indicePoderesClasse!=null;
-      const golpeRow = ehGolpePessoal ? f.poderesClasse[entrada.indicePoderesClasse] : null;
-      const golpeJaConstruido = golpeRow && golpeRow.golpeConstruido && golpeRow.golpeConstruido.arma;
-      return renderItemColapsavel('poder-'+idx+'-'+entrada.nome, entrada.nome+(usado?' (usado)':''), entrada.fonte, [
-        el('div',{class:'meta', style:'margin-bottom:4px;'+(ehAutomatizado?'color:var(--gold);':'')},
-          ehAutomatizado ? '⚡ Já calculado na ficha automaticamente' : '📖 Só referência — acompanhe o efeito na mesa'
-        ),
-        el('div',{class:'desc'}, entrada.desc),
-        limite ? el('button',{class:'btn ghost', style:'margin-top:8px;'+(usado?'opacity:0.6;':''), onclick:(e)=>{ e.stopPropagation(); alternarUsoPoder(f, entrada.chaveBase); }}, usado ? '↺ Marcar como disponível de novo' : '✓ Marcar como usado ('+limite+')') : null,
-        ehGolpePessoal ? el('div',{style:'margin-top:8px;'},
-          golpeJaConstruido ? el('div',{class:'tip', style:'margin-bottom:6px;'},
-            el('div',{}, el('b',{}, golpeRow.golpeConstruido.nomeGolpe||'Seu golpe'), ' — ', golpeRow.golpeConstruido.arma, ' · ', el('b',{style:'color:var(--gold);'}, calcularCustoGolpePessoal(golpeRow.golpeConstruido.escolhas)+' PM')),
-            el('div',{style:'margin-top:4px;'}, Object.keys(golpeRow.golpeConstruido.escolhas||{}).filter(n=>golpeRow.golpeConstruido.escolhas[n]>0).map(n=> n+(golpeRow.golpeConstruido.escolhas[n]>1?' ×'+golpeRow.golpeConstruido.escolhas[n]:'')).join(', '))
-          ) : null,
-          el('div',{class:'row', style:'gap:6px;'},
-            el('button',{class:'btn ghost', style:'flex:1;', onclick:(e)=>{ e.stopPropagation(); abrirConstrutorGolpePessoal(entrada.indicePoderesClasse); }}, golpeJaConstruido ? '✏️ Reconstruir' : '🔨 Construir Golpe'),
-            golpeJaConstruido ? el('button',{class:'btn ghost', style:'flex:1;', onclick:(e)=>{ e.stopPropagation(); usarGolpePessoal(f, entrada.indicePoderesClasse); }}, '⚔️ Usar (-'+calcularCustoGolpePessoal(golpeRow.golpeConstruido.escolhas)+' PM)') : null
-          )
-        ) : null
-      ]);
-    });
-  }));
+  wrap.appendChild(renderPoderesNotas(f));
 
   // ---- Habilidades Iniciais ----
   const habilidadesDeNivel = habilidadesAutomaticasDeNiveis(f);
-  wrap.appendChild(renderSecaoNotasColapsavel('habilidades-iniciais', '🎁', 'Habilidades Iniciais',
+  wrap.appendChild(renderSecaoNotasColapsavel('habilidades-iniciais', '🎁', 'Habilidades',
     ((f.habilidadesIniciais||[]).length+habilidadesDeNivel.length)+' registrada(s)', ()=>{
     const corpo = [el('div',{class:'tip', style:'font-size:0.8rem;'}, 'Habilidades de raça, itens de origem e outras concessões iniciais — não precisam ser anotadas manualmente.')];
     if((!f.habilidadesIniciais || f.habilidadesIniciais.length===0) && habilidadesDeNivel.length===0){
@@ -1858,35 +1762,23 @@ function renderPersonagemNotas(){
     return corpo;
   }));
 
-  // ---- Descanso ----
-  wrap.appendChild(renderSecaoNotasColapsavel('descanso', '🌙', 'Descanso',
-    '+'+Math.floor(nivelTotal(f)*Math.max(...Object.values(QUALIDADE_DESCANSO)))+' PV/PM (no melhor caso)', ()=>{
-    const corpo = [el('div',{class:'tip', style:'font-size:0.78rem;'},
-      f.raca==='Golem'
-        ? 'Golem (Criatura Artificial): fica inerte por 8h em vez de dormir. Recupera PV e PM normalmente, mas sempre no ritmo Normal (nível '+nivelTotal(f)+') — não é afetado por condições boas ou ruins de descanso.'
-        : 'Uma noite de sono (8h+) recupera PV e PM iguais ao seu nível ('+nivelTotal(f)+') vezes a qualidade do descanso, e reinicia poderes de uso "por cena" e "por dia" (pág. 106 do livro).'
-    )];
-    if(f._descansoBonusPendente && (f._descansoBonusPendente.pv>0 || f._descansoBonusPendente.pm>0)){
-      corpo.push(el('div',{class:'meta', style:'color:var(--gold);margin-top:4px;'}, '🍲 Bônus guardado de comida: +'+f._descansoBonusPendente.pv+' PV/nível e +'+f._descansoBonusPendente.pm+' PM/nível no próximo descanso.'));
-    }
-    const rowDescanso = el('div',{class:'option-grid', style:'margin-top:8px;'});
-    Object.keys(QUALIDADE_DESCANSO).forEach(qualidade=>{
-      const valorRecup = f.raca==='Golem' ? nivelTotal(f) : Math.floor(nivelTotal(f)*QUALIDADE_DESCANSO[qualidade]);
-      rowDescanso.appendChild(el('button',{class:'option-card', onclick:()=>aplicarDescanso(f, qualidade)},
-        el('div',{class:'opt-nome'}, qualidade),
-        // PV em vermelho e PM em azul, as mesmas cores dos cards de Vida/Mana na Ficha
-        el('div',{class:'opt-sub'},
-          el('span',{style:'color:var(--pv-accent);'}, '+'+valorRecup+' PV'),
-          ' · ',
-          el('span',{style:'color:var(--pm-accent);'}, '+'+valorRecup+' PM'),
-          f.raca==='Golem' ? ' (sempre)' : ''
-        )
-      ));
-    });
-    corpo.push(rowDescanso);
-    corpo.push(el('button',{class:'btn ghost', style:'margin-top:10px;', onclick:()=>novaCena(f)}, 'Nova Cena 🎬 (só reinicia poderes "por cena", sem recuperar PV/PM)'));
-    return corpo;
-  }));
+  // ---- Proficiências ----
+  const prof = proficienciasPersonagem(f);
+  const racaObj = getRacaObj(f);
+  const armasExtrasRaca = racaObj && racaObj.armasComoSimples ? racaObj.armasComoSimples : [];
+  const extrasContagem = [prof.armasMarciais, prof.armasFogo, prof.armadurasPesadas, prof.escudos].filter(Boolean).length;
+  wrap.appendChild(renderSecaoNotasColapsavel('proficiencias', '🛡️', 'Proficiências',
+    extrasContagem>0 ? extrasContagem+' proficiência(s) extra' : 'Só as básicas', ()=>[
+    el('div',{class:'tip', style:'font-size:0.8rem;'},
+      el('div',{}, el('b',{},'Sempre: '), 'armas simples, armaduras leves, ataques desarmados'),
+      el('div',{}, el('b',{},'Armas marciais: '), prof.armasMarciais?'Sim ✓':'Não'),
+      el('div',{}, el('b',{},'Armas de fogo: '), prof.armasFogo?'Sim ✓':'Não'),
+      el('div',{}, el('b',{},'Armaduras pesadas: '), prof.armadurasPesadas?'Sim ✓':'Não'),
+      el('div',{}, el('b',{},'Escudos: '), prof.escudos?'Sim ✓':'Não'),
+      armasExtrasRaca.length ? el('div',{}, el('b',{},'Bônus racial: '), armasExtrasRaca.join(', ')+' contam como arma simples para você') : null,
+    ),
+    el('div',{class:'meta', style:'font-size:0.7rem;color:var(--ink-soft);margin-top:6px;'}, 'Usar arma sem proficiência: –5 no teste de ataque. Vestir armadura/escudo sem proficiência: a penalidade dele passa a valer em toda perícia de Força e Destreza (não só Acrobacia/Furtividade/Ladinagem).')
+  ]));
 
   if(f.arcanistaCaminho && ARCANISTA_CAMINHOS[f.arcanistaCaminho]){
     const info = ARCANISTA_CAMINHOS[f.arcanistaCaminho];
@@ -1907,17 +1799,42 @@ function renderPersonagemNotas(){
     }));
   }
 
-  wrap.appendChild(renderPainelMissoes(f));
-  wrap.appendChild(renderPainelFaccoes(f));
-  wrap.appendChild(renderPainelRelacionamentos(f));
-  wrap.appendChild(renderPainelLocais(f));
-
-  wrap.appendChild(el('div',{class:'panel'},
-    el('h2',{},'Anotações'),
-    textareaAutoResize({oninput:(e)=>f.notas=e.target.value, placeholder:'poderes escolhidos, tesouro, combinações com o Mestre, etc.'}, f.notas)
-  ));
-
   return wrap;
+}
+
+// Poderes com selo: "ativa" (também está no Em jogo da Ficha) ou "automático" (o app já soma).
+// Os automáticos ficam recolhidos atrás de um link, porque não pedem nada do jogador.
+function renderPoderesNotas(f){
+  const entradas = coletarPoderes(f).map(e=> Object.assign({}, e, classificarPoder(f, e)));
+  const nAuto = entradas.filter(e=> e.tipo==='auto').length;
+  return renderSecaoNotasColapsavel('poderes', '⚡', 'Poderes', entradas.length+' poder(es)', ()=>{
+    if(entradas.length===0) return [el('div',{class:'empty'},'Nenhum poder registrado ainda.')];
+    const mostrarAuto = !!state._notasMostrarAuto;
+    const corpo = entradas.filter(e=> e.tipo!=='auto' || mostrarAuto).map((entrada, idx)=>{
+      const ativa = entrada.tipo && entrada.tipo!=='auto';
+      const usado = entrada.limite ? poderFoiUsado(f, entrada.chaveBase) : false;
+      const ehGolpePessoal = entrada.chaveBase==='Golpe Pessoal' && entrada.indicePoderesClasse!=null;
+      const golpeRow = ehGolpePessoal ? f.poderesClasse[entrada.indicePoderesClasse] : null;
+      const golpeJaConstruido = golpeRow && golpeRow.golpeConstruido && golpeRow.golpeConstruido.arma;
+      const selo = entrada.tipo==='auto' ? el('span',{class:'selo-poder auto'}, 'automático') : ativa ? el('span',{class:'selo-poder'}, 'ativa') : null;
+      return renderItemColapsavel('poder-'+idx+'-'+entrada.nome, el('span',{}, entrada.nome+(usado?' (usado)':''), selo ? ' ' : null, selo), entrada.fonte, [
+        el('div',{class:'meta', style:'margin-bottom:4px;'+(entrada.tipo==='auto'?'color:var(--gold);':'')},
+          entrada.tipo==='auto' ? '⚡ Já calculado na ficha automaticamente' : ativa ? '🎯 Está no "Em jogo", no painel Vida & Mana da Ficha' : '📖 Só referência: acompanhe o efeito na mesa'
+        ),
+        el('div',{class:'desc'}, entrada.desc),
+        ehGolpePessoal ? el('div',{style:'margin-top:8px;'},
+          golpeJaConstruido ? el('div',{class:'tip', style:'margin-bottom:6px;'},
+            el('div',{}, el('b',{}, golpeRow.golpeConstruido.nomeGolpe||'Seu golpe'), ' — ', golpeRow.golpeConstruido.arma, ' · ', el('b',{style:'color:var(--gold);'}, calcularCustoGolpePessoal(golpeRow.golpeConstruido.escolhas)+' PM')),
+            el('div',{style:'margin-top:4px;'}, Object.keys(golpeRow.golpeConstruido.escolhas||{}).filter(n=>golpeRow.golpeConstruido.escolhas[n]>0).map(n=> n+(golpeRow.golpeConstruido.escolhas[n]>1?' ×'+golpeRow.golpeConstruido.escolhas[n]:'')).join(', '))
+          ) : null,
+          el('button',{class:'btn ghost', onclick:(e)=>{ e.stopPropagation(); abrirConstrutorGolpePessoal(entrada.indicePoderesClasse); }}, golpeJaConstruido ? '✏️ Reconstruir' : '🔨 Construir Golpe')
+        ) : null
+      ]);
+    });
+    if(nAuto) corpo.push(el('button',{class:'recolhido-auto', onclick:()=>{ state._notasMostrarAuto = !mostrarAuto; render(); }},
+      mostrarAuto ? 'esconder os automáticos' : '+ '+nAuto+' automático(s) (já somados na ficha)'));
+    return corpo;
+  });
 }
 
 // ---- Missões: checklist simples de objetivos ativos/concluídos ----
@@ -2106,7 +2023,7 @@ function renderItensEquipados(){
   return renderSecaoNotasColapsavel('itens-equipados', '⚔️', 'Itens Equipados',
     temAlgo ? totalItens+' equipado(s)' : 'Nada equipado', ()=>{
     if(!temAlgo){
-      return [el('div',{class:'empty'},'Nada equipado ainda. Vá na aba Itens para buscar e equipar armas ou esotéricos.')];
+      return [el('div',{class:'empty'},'Nada equipado ainda. Vá na aba Itens para buscar e equipar armas ou esotéricos.'), renderLinhaManobras(f)];
     }
     const corpo = [];
     f.armas.forEach((a,idx)=>{
@@ -2138,6 +2055,7 @@ function renderItensEquipados(){
       }
       corpo.push(card);
     });
+    corpo.push(renderLinhaManobras(f));
 
     (f.esotericos||[]).forEach((eso, idx)=>{
       const card = el('div',{class:'spell-card'},
