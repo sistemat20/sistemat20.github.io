@@ -87,9 +87,32 @@ const h = require('./harness');
     h.igual('o + soma 1', f.equip[0].qtd, '3');
     [...w.document.querySelectorAll('.qtd-step button')][0].click();
     h.igual('o − tira 1', f.equip[0].qtd, '2');
-    [...w.document.querySelectorAll('.link-editar-item')][0].click();
+    [...w.document.querySelectorAll('.link-editar-item')].find((b) => b.textContent === 'editar').click();
     h.ok('"editar" mostra os campos', !!w.document.getElementById('mochila-nome-0') && !!w.document.getElementById('mochila-carga-0'));
     w.state._editandoItem = null; w.state._itensExpandidos = {};
+  }
+
+  h.secao('Botões de cada tipo de item');
+  {
+    const f = h.usarFicha(w, h.fichaBase({ pmatual: 5, pmmax: 30, equip: [
+      { tipo: 'geral', item: 'Essência de mana', qtd: '2', carga: '0.5' },
+      { tipo: 'geral', item: 'Pó de giz', qtd: '1', carga: '0.5' },
+      { tipo: 'geral', item: 'Chapéu arcano', qtd: '1', carga: '1' },
+      { tipo: 'geral', item: 'Corda', qtd: '1', carga: '1' },
+    ] }));
+    w.state.personagemTab = 'mochila';
+    const botoes = (i) => { w.state._itensExpandidos = { ['mochila-' + i]: true }; h.renderizar(w, 'personagem'); return [...w.document.querySelectorAll('.spell-card .acoes-mochila button')].map((b) => b.textContent); };
+    h.igual('Essência: Usar (abre o dado) e Enviar', botoes(0).join('|'), 'Usar|Enviar');
+    [...w.document.querySelectorAll('.acoes-mochila button')].find((b) => b.textContent === 'Usar').click();
+    h.ok('Usar abre as teclas do 1d4', w.document.querySelectorAll('.spell-card .gaveta .teclas button').length === 4);
+    w.usarDoCinto(f, 'Essência de mana', { recurso: 'pm', dado: '1d4' }, 4);
+    h.igual('e aplica na mana', f.pmatual, 9);
+    w.state._usoAberto = null;
+    h.igual('catalisador: Deixar pronto, sem Usar', botoes(1).join('|'), 'Deixar pronto|Enviar');
+    h.igual('vestível do catálogo: Vestir primeiro, Forjar (vestuário), sem Essências', botoes(2).join('|'), 'Vestir|🔨 Forjar|Enviar');
+    h.igual('item comum: só Enviar', botoes(3).join('|'), 'Enviar');
+    h.ok('remover virou link discreto', !botoes(3).includes('Remover') && !!w.document.querySelector('.link-editar-item.remover'));
+    w.state._itensExpandidos = {};
   }
 
   // ------------------------------------------------------------ bolsa

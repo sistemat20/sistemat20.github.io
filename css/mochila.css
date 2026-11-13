@@ -223,3 +223,7 @@
 .link-editar-item{ justify-self:end; display:block; margin:8px 0 0 auto; background:none; border:0; padding:0; font-size:.66rem; color:var(--ink-soft); text-decoration:underline; cursor:pointer; }
 .edicao-item{ margin-top:8px; padding-top:6px; border-top:1px dotted var(--line); }
 .edicao-item label{ margin:4px 0 0; }
+.links-item{ display:flex; justify-content:flex-end; gap:14px; margin-top:8px; }
+.links-item .link-editar-item{ margin:0; }
+.link-editar-item.remover{ color:var(--red-bright); }
+.acoes-mochila .btn:not(.ghost){ flex:2 1 auto; }

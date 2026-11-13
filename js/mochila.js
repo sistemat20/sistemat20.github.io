@@ -201,15 +201,8 @@ function corpoLinhaMochila(f, row, idx){
     corpo.push(
       descItem ? el('div',{class:'desc'}, descItem) : null,
       row.melhoriasTxt ? el('div',{class:'meta', style:'text-transform:none;color:var(--gold);'}, row.melhoriasTxt) : null,
-      el('div',{class:'acoes-mochila'},
-        (/^\d+$/.test(String(row.qtd).trim()) && parseInt(row.qtd)>0 && ehConsumivel(row)) ? el('button',{class:'btn', onclick:()=> usarItemMochila(f, idx)}, 'Usar (−1)') : null,
-        ehVestivel ? el('button',{class:'btn ghost', onclick:()=> vestirLinha(f, idx)}, row.vestido?'Guardar':'Vestir') : null,
-        ehConsumivel(row) && temBandoleira(f) ? el('button',{class:'btn ghost', onclick:()=> alternarNoCinto(f, nomeCat)}, noCinto?'Tirar do cinto':'Pôr no cinto') : null,
-        ehVestivel ? el('button',{class:'btn ghost', onclick:()=> abrirOficina({editarIdx:idx})}, '⚗️ Essências') : null,
-        podeForjarLinha(row) ? el('button',{class:'btn ghost', onclick:()=> forjarLinhaDaMochila(f, idx)}, '🔨 Forjar') : null,
-        el('button',{class:'btn ghost', onclick:()=>abrirEnviarItem(idx)}, 'Enviar'),
-        el('button',{class:'btn ghost', onclick:()=>{ if(!confirm('Remover "'+row.item+'" da mochila? Não tem como desfazer.')) return; registrarLog(f, 'Removeu da mochila: '+row.item); removerItemMochila(f, idx); salvarPerfis(); render(); }}, 'Remover')
-      )
+      acoesItemGeral(f, row, idx, {ehVestivel, reconhecidoAutomatico, noCinto, nomeCat}),
+      state._usoAberto===row ? renderGavetaUso(f, row) : null
     );
   } else {
     let descCatalogo = null;
@@ -223,10 +216,9 @@ function corpoLinhaMochila(f, row, idx){
       descCatalogo ? el('div',{class:'desc'}, descCatalogo) : null,
       row.melhoriasTxt ? el('div',{class:'meta', style:'text-transform:none;color:var(--gold);'}, row.melhoriasTxt) : null,
       el('div',{class:'acoes-mochila'},
-        podeEquipar ? el('button',{class:'btn ghost', onclick:()=> row.tipo==='esoterico' ? equiparEsotericoDaMochila(idx) : equiparDaMochila(idx)}, 'Equipar') : null,
+        podeEquipar ? el('button',{class:'btn', onclick:()=> row.tipo==='esoterico' ? equiparEsotericoDaMochila(idx) : equiparDaMochila(idx)}, 'Equipar') : null,
         podeForjarLinha(row) ? el('button',{class:'btn ghost', onclick:()=> forjarLinhaDaMochila(f, idx)}, '🔨 Forjar') : null,
-        el('button',{class:'btn ghost', onclick:()=>abrirEnviarItem(idx)}, 'Enviar'),
-        el('button',{class:'btn ghost', onclick:()=>{ if(!confirm('Remover "'+row.item+'" da mochila? Não tem como desfazer.')) return; registrarLog(f, 'Removeu da mochila: '+row.item); removerItemMochila(f, idx); salvarPerfis(); render(); }}, 'Remover')
+        el('button',{class:'btn ghost', onclick:()=>abrirEnviarItem(idx)}, 'Enviar')
       )
     );
   }
@@ -238,7 +230,9 @@ function corpoLinhaMochila(f, row, idx){
 }
 // Nome, quantidade e espaço ficam escondidos: só um link "editar" para corrigir algum erro.
 function camposEdicaoItem(row, idx, mostrarVestivel){
-  if(state._editandoItem!==row) return el('button',{class:'link-editar-item', onclick:()=>{ state._editandoItem = row; render(); }}, 'editar');
+  const f = fichaAtual();
+  const remover = el('button',{class:'link-editar-item remover', onclick:()=>{ if(!confirm('Remover "'+nomeBaseItem(row.item)+'" da mochila? Não tem como desfazer.')) return; registrarLog(f, 'Removeu da mochila: '+row.item); removerItemMochila(f, idx); salvarPerfis(); render(); }}, 'remover');
+  if(state._editandoItem!==row) return el('div',{class:'links-item'}, remover, el('button',{class:'link-editar-item', onclick:()=>{ state._editandoItem = row; render(); }}, 'editar'));
   return el('div',{class:'edicao-item'},
     el('label',{},'Nome'),
     el('input',{id:'mochila-nome-'+idx, type:'text', value:row.item, oninput:(e)=>{row.item=e.target.value;}, onchange:()=>{salvarPerfis(); render();}}),
@@ -249,6 +243,50 @@ function camposEdicaoItem(row, idx, mostrarVestivel){
       el('input',{type:'checkbox', id:'mochila-vestivel-'+idx, checked: row.marcadoVestivel?'checked':undefined, onchange:(e)=>{ row.marcadoVestivel=e.target.checked; if(!e.target.checked) row.vestido=false; salvarPerfis(); render(); }}),
       el('label',{for:'mochila-vestivel-'+idx, style:'margin:0;font-size:0.78rem;text-transform:none;'}, 'É um item vestível (ocupa 1 medalhão)')) : null,
     el('button',{class:'link-editar-item', onclick:()=>{ state._editandoItem = null; render(); }}, 'concluir'));
+}
+// Botões de um item geral, um por necessidade (13/11/2026):
+//  · ação principal em destaque e primeiro: Usar (com dado: abre as teclas e aplica na vida ou
+//    mana), Deixar pronto (catalisador: é gasto ao lançar a magia), Vestir/Guardar (vestível);
+//  · depois: Pôr no cinto (só com Bandoleira), Forjar (vestuário e ferramenta), Essências (só item
+//    personalizado: o do catálogo já tem o efeito certo), Enviar;
+//  · remover e editar ficam como links discretos no fim (o − do contador também remove).
+function acoesItemGeral(f, row, idx, ctx){
+  const nomeCat = ctx.nomeCat;
+  const ehCatalisador = typeof CATALISADORES_CUSTO_ESCOLA!=='undefined' && (CATALISADORES_CUSTO_ESCOLA[nomeCat] || CATALISADORES_CD_ESCOLA[nomeCat] || CATALISADORES_DANO_LEMBRETE[nomeCat]);
+  const uso = usoDoItem(row);
+  const temQtd = /^\d+$/.test(String(row.qtd).trim()) && parseInt(row.qtd)>0;
+  const personalizado = !ctx.reconhecidoAutomatico && !catalogoDaLinha(row);
+  let principal = null;
+  if(ehCatalisador){
+    const pronto = state._catalisadorPronto===nomeCat;
+    principal = el('button',{class:'btn', onclick:()=>{ state._catalisadorPronto = pronto ? null : nomeCat; if(!pronto){ Som.tocar('brilho'); flashMsg('"'+nomeCat+'" pronto: a carta da magia que combina já abre com ele marcado.'); } render(); }}, pronto ? 'Tirar de pronto' : 'Deixar pronto');
+  } else if(uso && temQtd){
+    principal = el('button',{class:'btn', onclick:()=>{ state._usoAberto = state._usoAberto===row ? null : row; state._cintoValor = null; render(); }}, 'Usar');
+  } else if(ehConsumivel(row) && temQtd){
+    principal = el('button',{class:'btn', onclick:()=> usarItemMochila(f, idx)}, 'Usar (−1)');
+  } else if(ctx.ehVestivel){
+    principal = el('button',{class:'btn', onclick:()=> vestirLinha(f, idx)}, row.vestido ? 'Guardar' : 'Vestir');
+  }
+  return el('div',{class:'acoes-mochila'},
+    principal,
+    ctx.ehVestivel && principal && !principal.textContent.match(/^(Vestir|Guardar)$/) ? el('button',{class:'btn ghost', onclick:()=> vestirLinha(f, idx)}, row.vestido ? 'Guardar' : 'Vestir') : null,
+    ehConsumivel(row) && temBandoleira(f) ? el('button',{class:'btn ghost', onclick:()=> alternarNoCinto(f, nomeCat)}, ctx.noCinto ? 'Tirar do cinto' : 'Pôr no cinto') : null,
+    podeForjarLinha(row) ? el('button',{class:'btn ghost', onclick:()=> forjarLinhaDaMochila(f, idx)}, '🔨 Forjar') : null,
+    ctx.ehVestivel && personalizado ? el('button',{class:'btn ghost', onclick:()=> abrirOficina({editarIdx:idx})}, '⚗️ Essências') : null,
+    el('button',{class:'btn ghost', onclick:()=> abrirEnviarItem(idx)}, 'Enviar'));
+}
+// Usar um item com dado direto da Mochila: as mesmas teclas do cinto, aplicando na vida ou mana.
+function renderGavetaUso(f, row){
+  const uso = usoDoItem(row); if(!uso) return null;
+  const fx = faixaDado(uso.dado) || {min:1, max:20};
+  const v = state._cintoValor;
+  const recurso = uso.recurso==='pv' ? 'PV' : 'PM';
+  const nome = nomeCatalogoDaLinha(row);
+  return el('div',{class:'gaveta'},
+    el('div',{class:'pergunta'}, 'Recupera ', el('b',{}, uso.dado), ' '+recurso+'. Role na mesa: quanto saiu?'),
+    el('div',{class:'teclas'}, Array.from({length:fx.max-fx.min+1}, (_,k)=> fx.min+k).map(t=> el('button',{class:v===t?'on':'', onclick:()=>{ state._cintoValor = t; render(); }}, String(t)))),
+    el('div',{class:'duo'}, el('button',{class:'btn ghost', onclick:()=>{ state._usoAberto = null; state._cintoValor = null; render(); }}, 'Cancelar'),
+      el('button',{class:'btn', disabled: v==null, onclick:()=>{ state._usoAberto = null; usarDoCinto(f, nome, uso, v); }}, v==null ? 'Escolha o valor' : 'Usar · +'+v+' '+recurso)));
 }
 // Contador − qtd + no cabeçalho do item aberto (com 1, o − pergunta se é para remover).
 function mudarQuantidade(f, idx, delta){
