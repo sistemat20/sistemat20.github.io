@@ -59,6 +59,8 @@ function carregarApp(opcoes) {
   const html = fs.readFileSync(path.join(RAIZ, 'index.html'), 'utf8');
   const dom = new JSDOM(html, { runScripts: 'outside-only', url: 'https://example.org/' });
   const w = dom.window;
+  // jsdom não tem requestAnimationFrame (a caixa de texto que cresce sozinha usa)
+  if(!w.requestAnimationFrame) w.requestAnimationFrame = (cb) => setTimeout(() => cb(Date.now()), 0);
   const erros = [];
 
   // Sem sessão toda tela cai no login e o teste falha pelo motivo errado, então por padrão o

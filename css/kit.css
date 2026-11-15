@@ -61,3 +61,28 @@
 .custo-golpe{ position:sticky; top:0; z-index:2; margin:8px 14px; padding:8px; text-align:center; border:1px solid var(--gold-deep); border-radius:12px; background:rgba(20,14,10,.96); font-size:.78rem; color:var(--ink-soft); }
 .custo-golpe b{ font:800 1.1rem 'Cinzel',serif; color:var(--gold); margin-left:4px; }
 .option-card .custo-efeito{ font:700 .66rem 'Inter',sans-serif; color:var(--pm-accent); }
+
+/* ---- Campanha da Notas, Log e Pendências no kit (15/11/2026) ---- */
+.k-adicionar{ display:flex; gap:6px; align-items:center; margin-top:10px; }
+.k-adicionar input{ flex:1; margin:0; }
+.k-mais{ flex-shrink:0; width:36px; height:36px; border-radius:10px; border:1px solid var(--gold-deep); background:linear-gradient(180deg,#c94a40,var(--red-deep)); color:#f7f1e3; font:800 1.1rem 'Inter',sans-serif; cursor:pointer; padding:0; }
+.k-mais.secundario{ background:transparent; color:var(--gold); font-size:.95rem; }
+.k-check{ display:grid; grid-template-columns:auto 1fr auto; gap:9px; align-items:center; padding:7px 9px; margin-top:5px; border:1px solid rgba(166,129,47,.25); border-radius:12px; background:var(--card-2); font-size:.8rem; }
+.k-check .txt{ min-width:0; }
+.k-check .marca{ width:24px; height:24px; border-radius:50%; border:1.5px solid var(--gold-deep); background:transparent; color:#1a120c; font:800 .8rem 'Inter',sans-serif; cursor:pointer; padding:0; }
+.k-check.feito .marca{ background:var(--status-saudavel); border-color:var(--status-saudavel); }
+.k-check.feito .txt{ text-decoration:line-through; color:var(--ink-soft); }
+.k-check .x{ background:none; border:0; color:var(--ink-soft); font-size:.8rem; cursor:pointer; padding:2px 4px; }
+.k-check:has(.k-pil){ grid-template-columns:1fr auto auto; }
+.k-pil.status-amigo{ border-color:var(--status-saudavel); color:var(--status-saudavel); }
+.k-pil.status-inimigo{ border-color:#c94a3a; color:#f0b0a6; }
+.log-kit{ margin:0 14px; }
+.log-linha{ display:grid; grid-template-columns:8px 1fr auto; gap:8px; align-items:baseline; padding:5px 0; border-bottom:1px solid rgba(166,129,47,.12); font-size:.76rem; }
+.log-linha .ponto{ width:7px; height:7px; border-radius:50%; align-self:center; }
+.log-linha .hora{ font-size:.64rem; color:var(--ink-soft); white-space:nowrap; }
+.pendencia-kit{ margin:8px 14px; }
+.pendencia-cab{ display:flex; gap:9px; align-items:flex-start; }
+.pendencia-cab b{ display:block; font:700 .8rem 'Cinzel',serif; color:var(--ink); }
+.pendencia-cab small{ display:block; font-size:.7rem; color:var(--ink-soft); margin-top:2px; }
+input[type="search"].busca-notas, input[type="search"]#cond-busca{ background:rgba(0,0,0,.28); color:var(--ink); border:1px solid var(--line); border-radius:10px; padding:8px 11px; -webkit-appearance:none; appearance:none; }
+input[type="search"].busca-notas::placeholder, input[type="search"]#cond-busca::placeholder{ color:var(--ink-soft); }

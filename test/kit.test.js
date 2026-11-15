@@ -69,5 +69,32 @@ const h = require('./harness');
     w.state._adicionarParceiroPopup = null;
   }
 
+  h.secao('Campanha da Notas, Log e Pendências');
+  {
+    const f = h.usarFicha(w, h.fichaBase({ missoes: [{ texto: 'Achar o mapa', concluida: false }, { texto: 'Salvar o vilarejo', concluida: true }],
+      faccoes: [{ nome: 'Martelos agrícolas', status: 'inimigo' }], relacionamentos: [{ nome: 'Wynnk', tipo: 'Aliado', nota: 'amigo de infância' }], locais: [{ nome: 'Tahafett', nota: 'mapa antigo' }],
+      log: [{ ts: Date.now(), texto: '+5 PV (10 → 15)' }, { ts: Date.now() - 86400e3 * 2, texto: 'Usou "Bênção" (-1 PM)' }] }));
+    w.state.personagemTab = 'notas'; w.state._notasParte = 'campanha'; w.state._notasBusca = '';
+    w.state._secoesNotasAbertas = { missoes: true, faccoes: true, relacionamentos: true, locais: true };
+    h.renderizar(w, 'personagem');
+    h.ok('missões: só as pendentes, as concluídas recolhidas', q('.k-check .txt').some((t) => t.textContent === 'Achar o mapa') && !q('.k-check .txt').some((t) => t.textContent === 'Salvar o vilarejo') && texto().includes('+ 1 concluída(s)'));
+    q('.k-check').find((c) => c.textContent.includes('Achar o mapa')).querySelector('.marca').click();
+    h.ok('tocar no círculo conclui', f.missoes[0].concluida === true);
+    w.state._novaMissaoTexto = 'Falar com o Mestre'; h.renderizar(w, 'personagem');
+    q('.k-adicionar').find((x) => x.querySelector('#nova-missao')).querySelector('.k-mais').click();
+    h.ok('o "+" na mesma linha adiciona', f.missoes.some((m) => m.texto === 'Falar com o Mestre'));
+    q('.k-pil.status-inimigo')[0].click();
+    h.igual('facção: a pílula troca o status', f.faccoes[0].status, 'neutro');
+    q('.k-linha').find((l) => l.textContent.includes('Wynnk')).click();
+    h.ok('relacionamento: gaveta com o tipo em pílulas e a nota', q('.k-gaveta .k-pil').length === 6 && !!w.document.querySelector('.k-gaveta textarea'));
+    h.ok('local: linha com a nota', q('.k-linha').some((l) => l.textContent.includes('Tahafett') && l.textContent.includes('mapa antigo')));
+    w.state._logAberto = true; h.renderizar(w, 'personagem');
+    h.ok('log agrupado por dia, com a hora à direita', q('.log-kit .k-rot').length === 2 && q('.log-linha .hora').length === f.log.length);
+    w.state._logAberto = false;
+    w.state._pendenciasAberto = true; h.renderizar(w, 'personagem');
+    h.ok('pendências sem os painéis grandes', !q('.menu-sheet .panel h2').some((x) => x.textContent.startsWith('⚠️')));
+    w.state._pendenciasAberto = false;
+  }
+
   h.resumo();
 })();

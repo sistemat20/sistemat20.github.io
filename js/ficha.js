@@ -154,15 +154,17 @@ function renderPopupLog(f){
   if(log.length===0){
     sheet.appendChild(el('div',{class:'empty'},'Nada registrado ainda — as próximas mudanças na ficha vão aparecer aqui.'));
   } else {
-    sheet.appendChild(el('div',{class:'tip', style:'margin:6px 14px;font-size:0.78rem;'}, 'Mostrando as '+log.length+' alterações mais recentes (mais nova primeiro).'));
-    const lista = el('div',{style:'margin:0 14px;'});
-    log.forEach(entrada=>{
+    // Kit (15/11/2026): agrupado por dia, uma linha por mudança e a hora à direita.
+    const lista = el('div',{class:'log-kit'});
+    let diaAnterior = null;
+    log.slice().sort((x,y)=> (y.ts||0)-(x.ts||0)).forEach(entrada=>{
       const data = new Date(entrada.ts);
-      const horaTxt = data.toLocaleDateString('pt-BR')+' '+data.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-      lista.appendChild(el('div',{style:'padding:8px 0;border-bottom:1px solid var(--line);'},
-        el('div',{}, entrada.texto),
-        el('div',{class:'meta', style:'font-size:0.68rem;'}, horaTxt)
-      ));
+      const dia = data.toLocaleDateString('pt-BR', {weekday:'short', day:'2-digit', month:'2-digit'});
+      if(dia!==diaAnterior){ diaAnterior = dia; lista.appendChild(el('div',{class:'k-rot'}, dia)); }
+      lista.appendChild(el('div',{class:'log-linha'},
+        el('span',{class:'ponto', style:'background:'+(typeof corEventoLog==='function' ? corEventoLog(entrada.texto) : 'var(--gold-deep)')+';'}),
+        el('span',{class:'txt'}, entrada.texto),
+        el('span',{class:'hora'}, data.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}))));
     });
     sheet.appendChild(lista);
   }
@@ -189,9 +191,9 @@ function renderPopupPendencias(f){
 
   pendencias.forEach(p=>{
     const resolvendo = state._pendenciaResolvendo === p.tipo;
-    const card = el('div',{class:'panel', style:'margin:8px 14px;'});
-    card.appendChild(el('h2',{}, '⚠️ '+p.titulo));
-    card.appendChild(el('div',{class:'tip'}, p.resumo));
+    // Kit (15/11/2026): título e resumo numa linha só; o conserto logo abaixo, como uma gaveta.
+    const card = el('div',{class:'k-gaveta pendencia-kit'});
+    card.appendChild(el('div',{class:'pendencia-cab'}, el('span',{class:'ic'}, '⚠️'), el('span',{}, el('b',{}, p.titulo), el('small',{}, p.resumo))));
 
     if(p.tipo==='divindadeForcada'){
       card.appendChild(el('button',{class:'btn', onclick:()=>{ state._pendenciasAberto=false; state._divindadeFluxo={passo:'escolher'}; render(); }}, 'Resolver agora →'));
@@ -1600,160 +1602,16 @@ function renderPoderesNotas(f){
 }
 
 // ---- Missões: checklist simples de objetivos ativos/concluídos ----
-function renderPainelMissoes(f){
-  if(!f.missoes) f.missoes = [];
-  const pendentes = f.missoes.filter(m=>!m.concluida).length;
-  const resumo = f.missoes.length===0 ? null : (pendentes>0 ? pendentes+' pendente(s)' : 'Tudo concluído ✓');
-  return renderSecaoNotasColapsavel('missoes', '📜', 'Missões', resumo, ()=>{
-    const corpo = [];
-    if(f.missoes.length===0){
-      corpo.push(el('div',{class:'empty'},'Nenhuma missão anotada ainda.'));
-    } else {
-      f.missoes.forEach((m,idx)=>{
-        corpo.push(el('div',{class:'row', style:'align-items:center;margin-top:4px;'},
-          el('button',{class:'btn ghost', style:'width:auto;padding:4px 10px;flex-shrink:0;', onclick:()=>{ m.concluida=!m.concluida; salvarPerfis(); render(); }}, m.concluida?'✓':'○'),
-          el('div',{style:'flex:1;'+(m.concluida?'text-decoration:line-through;color:var(--ink-soft);':'')}, m.texto),
-          el('button',{class:'remove-x', onclick:()=>{ f.missoes.splice(idx,1); salvarPerfis(); render(); }},'✕')
-        ));
-      });
-    }
-    if(!state._novaMissaoTexto) state._novaMissaoTexto = '';
-    corpo.push(el('input',{id:'nova-missao', type:'text', placeholder:'nova missão ou objetivo...', style:'margin-top:8px;', value:state._novaMissaoTexto, oninput:(e)=>{state._novaMissaoTexto=e.target.value;}}));
-    corpo.push(el('button',{class:'btn ghost', onclick:()=>{
-      if(!state._novaMissaoTexto.trim()) return;
-      f.missoes.push({texto:state._novaMissaoTexto.trim(), concluida:false});
-      state._novaMissaoTexto = '';
-      salvarPerfis(); render();
-    }}, 'Adicionar missão +'));
-    return corpo;
-  });
-}
 
 // ---- Facções: reputação simples (amigo/neutro/inimigo) com grupos importantes ----
 const CICLO_STATUS_FACCAO = ['neutro','amigo','inimigo'];
 const ICONE_STATUS_FACCAO = {neutro:'😐 Neutro', amigo:'🤝 Amigo', inimigo:'⚔️ Inimigo'};
-function renderPainelFaccoes(f){
-  if(!f.faccoes) f.faccoes = [];
-  return renderSecaoNotasColapsavel('faccoes', '🏳️', 'Facções',
-    f.faccoes.length>0 ? f.faccoes.length+' registrada(s)' : null, ()=>{
-    const corpo = [];
-    if(f.faccoes.length===0){
-      corpo.push(el('div',{class:'empty'},'Nenhuma facção anotada ainda.'));
-    } else {
-      f.faccoes.forEach((fac,idx)=>{
-        corpo.push(el('div',{class:'row', style:'align-items:center;margin-top:4px;'},
-          el('div',{style:'flex:1;'}, el('b',{},fac.nome)),
-          el('button',{class:'btn ghost', style:'width:auto;padding:4px 10px;flex-shrink:0;', onclick:()=>{
-            const idxCiclo = CICLO_STATUS_FACCAO.indexOf(fac.status);
-            fac.status = CICLO_STATUS_FACCAO[(idxCiclo+1)%CICLO_STATUS_FACCAO.length];
-            salvarPerfis(); render();
-          }}, ICONE_STATUS_FACCAO[fac.status]||ICONE_STATUS_FACCAO.neutro),
-          el('button',{class:'remove-x', onclick:()=>{ f.faccoes.splice(idx,1); salvarPerfis(); render(); }},'✕')
-        ));
-      });
-    }
-    if(!state._novaFaccaoNome) state._novaFaccaoNome = '';
-    corpo.push(el('input',{id:'nova-faccao', type:'text', placeholder:'nome da facção/grupo...', style:'margin-top:8px;', value:state._novaFaccaoNome, oninput:(e)=>{state._novaFaccaoNome=e.target.value;}}));
-    corpo.push(el('button',{class:'btn ghost', onclick:()=>{
-      if(!state._novaFaccaoNome.trim()) return;
-      f.faccoes.push({nome:state._novaFaccaoNome.trim(), status:'neutro'});
-      state._novaFaccaoNome = '';
-      salvarPerfis(); render();
-    }}, 'Adicionar facção +'));
-    return corpo;
-  });
-}
 
 // ---- Relacionamentos: PNJs importantes pro personagem (aliados, rivais, família...) ----
 const TIPOS_RELACIONAMENTO = ['Aliado','Rival','Família','Mentor','Amor','Outro'];
 const ICONE_RELACIONAMENTO = {Aliado:'🤝', Rival:'⚔️', Família:'👪', Mentor:'📖', Amor:'❤️', Outro:'👤'};
-function renderPainelRelacionamentos(f){
-  if(!f.relacionamentos) f.relacionamentos = [];
-  return renderSecaoNotasColapsavel('relacionamentos', '👥', 'Relacionamentos',
-    f.relacionamentos.length>0 ? f.relacionamentos.length+' registrado(s)' : null, ()=>{
-    const corpo = [el('div',{class:'tip', style:'font-size:0.78rem;'}, 'PNJs importantes pro seu personagem — aliados, rivais, família, quem for. Toque num nome pra ver/editar a nota. Também dá pra vincular a outro personagem de verdade da mesa.')];
-    if(f.relacionamentos.length===0){
-      corpo.push(el('div',{class:'empty'},'Nenhum relacionamento anotado ainda.'));
-    } else {
-      f.relacionamentos.forEach((rel,idx)=>{
-        const aberto = state._relacionamentoAberto === idx;
-        const card = el('div',{class:'option-card', style:'margin-top:8px;cursor:pointer;', onclick:(e)=>{ if(e.target.closest('button')) return; state._relacionamentoAberto = aberto?null:idx; render(); }},
-          el('div',{class:'row', style:'align-items:center;'},
-            el('div',{style:'flex:1;'},
-              el('div',{class:'opt-nome'}, ICONE_RELACIONAMENTO[rel.tipo]||'👤', ' ', rel.nome, rel.personagemId?' 🔗':''),
-              el('div',{class:'opt-sub'}, rel.tipo)
-            ),
-            rel.personagemId ? el('button',{class:'btn ghost', style:'width:auto;padding:5px 10px;font-size:0.7rem;flex-shrink:0;', onclick:(e)=>{ e.stopPropagation(); abrirPerfilJogador(rel.personagemId); }}, '👁️ Perfil') : null,
-            el('button',{class:'remove-x', onclick:()=>{ if(!confirm('Remover "'+rel.nome+'" dos relacionamentos?')) return; f.relacionamentos.splice(idx,1); salvarPerfis(); render(); }},'✕')
-          )
-        );
-        if(aberto){
-          if(!rel.personagemId){
-            card.appendChild(el('input',{type:'text', value:rel.nome, placeholder:'nome do PNJ', style:'margin-top:8px;', oninput:(e)=>{rel.nome=e.target.value;}, onchange:()=>{salvarPerfis(); render();}, onclick:(e)=>e.stopPropagation()}));
-          } else {
-            card.appendChild(el('div',{class:'meta', style:'margin-top:8px;color:var(--gold);'}, '🔗 Vinculado a um personagem de verdade da mesa — o nome acompanha automaticamente.'));
-          }
-          const selTipo = el('select',{style:'margin-top:6px;', onchange:(e)=>{rel.tipo=e.target.value; salvarPerfis(); render();}, onclick:(e)=>e.stopPropagation()});
-          TIPOS_RELACIONAMENTO.forEach(t=> selTipo.appendChild(el('option',{value:t, ...(rel.tipo===t?{selected:'selected'}:{})}, t)));
-          card.appendChild(selTipo);
-          card.appendChild(textareaAutoResize({oninput:(e)=>{rel.nota=e.target.value;}, onchange:()=>salvarPerfis(), onclick:(e)=>e.stopPropagation(), placeholder:'quem é, como se conheceram, o que sente por essa pessoa...'}, rel.nota||''));
-        }
-        corpo.push(card);
-      });
-    }
-    if(!state._novoRelNome) state._novoRelNome = '';
-    corpo.push(el('input',{id:'novo-rel-nome', type:'text', placeholder:'nome do PNJ...', style:'margin-top:10px;', value:state._novoRelNome, oninput:(e)=>{state._novoRelNome=e.target.value;}}));
-    corpo.push(el('div',{class:'row', style:'margin-top:6px;gap:8px;'},
-      el('button',{class:'btn ghost', style:'flex:1;', onclick:()=>{
-        if(!state._novoRelNome.trim()) return;
-        f.relacionamentos.push({nome:state._novoRelNome.trim(), tipo:'Aliado', nota:'', personagemId:null});
-        registrarLog(f, 'Novo relacionamento anotado: '+state._novoRelNome.trim());
-        state._novoRelNome = '';
-        salvarPerfis(); render();
-      }}, 'Adicionar PNJ +'),
-      el('button',{class:'btn ghost', style:'flex:1;', onclick:abrirEscolherJogadorRelacionamento}, '👤 Vincular jogador')
-    ));
-    return corpo;
-  });
-}
 
 // ---- Locais: diário de exploração simples (onde estivemos + uma nota) ----
-function renderPainelLocais(f){
-  if(!f.locais) f.locais = [];
-  return renderSecaoNotasColapsavel('locais', '🗺️', 'Locais',
-    f.locais.length>0 ? f.locais.length+' visitado(s)' : null, ()=>{
-    const corpo = [];
-    if(f.locais.length===0){
-      corpo.push(el('div',{class:'empty'},'Nenhum local anotado ainda.'));
-    } else {
-      f.locais.forEach((loc,idx)=>{
-        corpo.push(el('div',{style:'margin-top:6px;padding-bottom:6px;border-bottom:1px solid var(--line);'},
-          el('div',{class:'row', style:'align-items:flex-start;'},
-            el('div',{style:'flex:1;'},
-              loc.mapaUrl
-                ? el('div',{style:'font-weight:700;cursor:pointer;color:var(--gold);', onclick:()=>abrirVisualizarMapa(loc.nome, loc.mapaUrl)}, '🗺️ ', loc.nome)
-                : el('div',{style:'font-weight:700;'}, loc.nome),
-              el('input',{id:'local-nota-'+idx, type:'text', placeholder:'nota (opcional)', value:loc.nota||'', style:'margin-top:4px;', oninput:(e)=>{loc.nota=e.target.value;}, onchange:()=>salvarPerfis()})
-            ),
-            el('button',{class:'remove-x', onclick:()=>{ f.locais.splice(idx,1); salvarPerfis(); render(); }},'✕')
-          )
-        ));
-      });
-    }
-    if(!state._novoLocalNome) state._novoLocalNome = '';
-    corpo.push(el('input',{id:'novo-local', type:'text', placeholder:'nome do lugar...', style:'margin-top:10px;', value:state._novoLocalNome, oninput:(e)=>{state._novoLocalNome=e.target.value;}}));
-    corpo.push(el('div',{class:'row', style:'margin-top:6px;gap:8px;'},
-      el('button',{class:'btn ghost', style:'flex:1;', onclick:()=>{
-        if(!state._novoLocalNome.trim()) return;
-        f.locais.push({nome:state._novoLocalNome.trim(), nota:''});
-        state._novoLocalNome = '';
-        salvarPerfis(); render();
-      }}, 'Adicionar local +'),
-      el('button',{class:'btn ghost', style:'flex:1;', onclick:abrirEscolherMapaMestre}, '🗺️ Mapa do Mestre')
-    ));
-    return corpo;
-  });
-}
 
 // Liga uma arma de disparo à munição correspondente na mochila. Arco usa flecha, besta usa
 // virote — sem isso, o jogador tinha que ir na Mochila procurar e editar a quantidade na mão.
