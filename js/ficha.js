@@ -520,7 +520,7 @@ function renderPersonagemScreen(){
   const wrap = el('div',{});
   if(!state.personagemTab) state.personagemTab = 'ficha';
   const nav = el('nav',{class:'tabs', style:'margin:0 0 4px;padding:0;'});
-  [['ficha','Ficha'],['magias','Magias'],['mochila','Mochila'],['notas','Notas']].forEach(([id,label])=>{
+  [['ficha','Status'],['magias','Magias'],['mochila','Mochila'],['notas','Notas']].forEach(([id,label])=>{
     nav.appendChild(el('button',{class: state.personagemTab===id?'active':'', 'data-efx-alvo': id==='mochila' ? 'mochila' : null, onclick:()=>{state.personagemTab=id; render();}}, label));
   });
   wrap.appendChild(nav);
@@ -1339,54 +1339,21 @@ function renderPersonagemFicha(){
   // Vida & Mana e Defesa vêm logo aqui, ANTES de Atributos — são os números que você realmente
   // fica olhando toda hora numa sessão de jogo; Atributos você define uma vez e quase nunca
   // mexe de novo, então não precisa disputar espaço com o que importa durante o combate.
+  // Vida · Defesa · Mana (15/11/2026, variante B): o escudo da Defesa fica encaixado entre os
+  // anéis e abre a conta ao tocar; o painel Defesa separado deixou de existir (js/status.js).
   wrap.appendChild(el('div',{class:'panel faixa'},
-    el('h2',{},'Vida & Mana'),
-    renderAneisVidaMana(f),
+    el('h2',{},'Vida · Defesa · Mana'),
+    renderVidaDefesaMana(f),
     renderEmJogo(f),
     renderCinto(f),
     renderPericiasFixadasFicha(f)
-  ));
-
-  wrap.appendChild(el('div',{class:'panel faixa'},
-    el('h2',{}, 'Defesa'),
-    el('div',{class:'defesa-shield'},
-      el('div',{class:'defesa-circle'}, defesaTotal(f)),
-      el('div',{class:'defesa-breakdown'},
-        el('div',{}, el('span',{},'Base'), el('b',{},'10')),
-        el('div',{}, el('span',{},'Destreza'), el('b',{}, usaArmaduraPesada(f) ? '+0*' : (((parseInt(f.des)||0)>=0?'+':'')+(parseInt(f.des)||0)))),
-        el('div',{}, el('span',{},'Armadura'), el('b',{}, '+'+(f.armadura?f.armadura.def:0))),
-        el('div',{}, el('span',{},'Escudo'), el('b',{}, '+'+(f.escudo?(f.escudo.def+bonusEscudoPoderes(f)):0))),
-        el('div',{}, el('span',{},'Poderes'), el('b',{}, '+'+bonusDefesaPoderes(f))),
-        el('div',{}, el('span',{},'Raça'), el('b',{}, (bonusDefesaRaca(f)>=0?'+':'')+bonusDefesaRaca(f))),
-        el('div',{}, el('span',{},'Outros'), el('input',{type:'number', value:f.defOutros||0, style:'width:44px;margin:0;padding:2px 4px;font-size:0.78rem;text-align:right;font-weight:700;color:var(--red-deep);border:none;background:transparent;', oninput:(e)=>{f.defOutros=e.target.value;}, onchange:()=>{salvarPerfis(); render();}})),
-      )
-    ),
-    usaArmaduraPesada(f) ? el('div',{class:'tip', style:'font-size:0.75rem;margin-top:10px;'}, el('b',{},'* Armadura pesada'), 'Você não aplica Destreza na Defesa'+(getRacaObj(f)&&getRacaObj(f).deslocamentoImune?'':' e seu deslocamento é reduzido em 3m')+' (regras do livro básico, pág. 157). O poder Encouraçado dá +2 na Defesa mesmo assim, mas não devolve a Destreza.') : null,
-    penalidadeArmaduraRaca(f) ? el('div',{class:'tip', style:'margin-top:10px;'}, el('b',{},'Penalidade racial fixa'), penalidadeArmaduraRaca(f)+' de penalidade de armadura sempre presente (corpo rígido de '+f.raca+'), somada a qualquer armadura equipada.') : null,
-    penalidadeTotal(f) ? el('div',{class:'tip', style:'margin-top:10px;'}, el('b',{},'Penalidade de armadura total'), penalidadeTotal(f)+' em Acrobacia, Furtividade, Ladinagem e natação') : null,
-    el('div',{class:'row', style:'margin-top:10px;'},
-      el('div',{},
-        el('label',{},'Armadura equipada'),
-        el('div',{style:'padding:8px 0;font-weight:600;'}, f.armadura?f.armadura.nome+' (+'+f.armadura.def+')':'nenhuma — adicione na aba Itens'),
-        f.armadura && f.armadura.superior && f.armadura.melhoriasTxt ? el('div',{class:'meta', style:'color:var(--gold);'}, '⭐ '+f.armadura.melhoriasTxt) : null,
-        f.armadura ? el('button',{class:'btn ghost', style:'font-size:0.7rem;padding:5px 8px;', onclick:guardarArmaduraNaMochila},'Guardar na mochila') : null
-      ),
-      el('div',{},
-        el('label',{},'Escudo equipado'),
-        el('div',{style:'padding:8px 0;font-weight:600;'}, f.escudo?f.escudo.nome+' (+'+f.escudo.def+')':'nenhum — adicione na aba Itens'),
-        f.escudo && f.escudo.superior && f.escudo.melhoriasTxt ? el('div',{class:'meta', style:'color:var(--gold);'}, '⭐ '+f.escudo.melhoriasTxt) : null,
-        f.escudo ? el('button',{class:'btn ghost', style:'font-size:0.7rem;padding:5px 8px;', onclick:guardarEscudoNaMochila},'Guardar na mochila') : null
-      ),
-    )
   ));
 
   wrap.appendChild(renderPainelCondicoes(f));
   wrap.appendChild(renderPainelParceiros(f));
   const painelLembretes = renderPainelLembretesMecanicos(f);
   if(painelLembretes) wrap.appendChild(painelLembretes);
-  // Manobras de Combate foi movido pra Notas (agora colapsável, junto com Proficiências,
-  // Poderes, Habilidades Iniciais e Descanso).
-  wrap.appendChild(renderItensEquipados());
+  wrap.appendChild(renderNasMaos(f));
   wrap.appendChild(renderPainelVestidos(f));
 
   return wrap;
@@ -1449,92 +1416,6 @@ function renderPainelLembretesMecanicos(f){
 }
 
 // ---- Painel de Parceiros (Notas) ----
-function renderPainelParceiros(f){
-  const ativos = parceirosAtivos(f);
-  const limite = limiteParceiros(f);
-  const temPoderFamiliar = nomesPoderesConhecidos(f).includes('Familiar');
-  const famAtual = familiarAtivo(f);
-  return renderSecaoNotasColapsavel('parceiros-ativos', '🐾', 'Parceiros',
-    (ativos.length+'/'+limite)+(famAtual?' + familiar':''), ()=>{
-    const corpo = [];
-    // Familiar Arcano — sistema separado dos parceiros comuns (vem do poder "Familiar" do
-    // Arcanista; é um bicho com UM efeito fixo, sem níveis de poder). Só aparece pra quem tem
-    // o poder, pra não poluir a ficha de quem não usa.
-    if(temPoderFamiliar){
-      corpo.push(el('div',{class:'grupo-rot', style:'font-family:Cinzel,serif;font-size:0.64rem;color:var(--gold);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;'}, '✨ Familiar Arcano'));
-      if(famAtual){
-        corpo.push(renderItemColapsavel('familiar-'+famAtual.nome, famAtual.nome, famAtual.auto?'⚡ automático':'📖 referência', [
-          el('div',{class:'desc'}, famAtual.efeito),
-          famAtual.auto ? el('div',{class:'meta', style:'color:var(--gold);margin-top:4px;'}, '⚡ já entra sozinho no cálculo') : null,
-          el('button',{class:'btn ghost', style:'margin-top:8px;', onclick:()=>{ state._escolhendoFamiliar = true; render(); }}, 'Trocar familiar'),
-          el('button',{class:'btn ghost', style:'margin-top:6px;color:var(--red-bright);', onclick:()=>{
-            if(!confirm('Remover o familiar '+famAtual.nome+'?')) return;
-            registrarLog(f, 'Perdeu o familiar: '+famAtual.nome);
-            f.familiarEscolhido = null; salvarPerfis(); render();
-          }}, 'Remover familiar 🗑️')
-        ]));
-      } else if(!state._escolhendoFamiliar){
-        corpo.push(el('div',{class:'empty', style:'margin-bottom:6px;'},'Você tem o poder Familiar mas ainda não escolheu qual bicho.'));
-        corpo.push(el('button',{class:'btn ghost', onclick:()=>{ state._escolhendoFamiliar=true; render(); }}, '+ Escolher Familiar'));
-      }
-      if(state._escolhendoFamiliar){
-        corpo.push(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Cada familiar dá um efeito fixo. Os marcados com ⚡ já entram sozinhos nos cálculos da ficha.'));
-        const grid = el('div',{class:'option-grid'});
-        FAMILIARES_ARCANOS.forEach(fam=>{
-          grid.appendChild(el('button',{class:'option-card'+(f.familiarEscolhido===fam.nome?' selected':''), onclick:()=>{
-            f.familiarEscolhido = fam.nome;
-            registrarLog(f, 'Familiar escolhido: '+fam.nome);
-            state._escolhendoFamiliar = false;
-            salvarPerfis(); render();
-          }},
-            el('div',{class:'opt-nome'}, fam.nome+(fam.auto?' ⚡':'')),
-            el('div',{class:'opt-sub'}, fam.efeito)
-          ));
-        });
-        corpo.push(grid);
-        corpo.push(el('button',{class:'btn ghost', style:'margin-top:8px;', onclick:()=>{ state._escolhendoFamiliar=false; render(); }}, 'Cancelar'));
-      }
-      corpo.push(el('div',{class:'secao-divisor', style:'margin:12px 0;'}));
-      corpo.push(el('div',{class:'grupo-rot', style:'font-family:Cinzel,serif;font-size:0.64rem;color:var(--gold);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;'}, '🐾 Parceiros'));
-    }
-    corpo.push(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Parceiros não têm turno nem agem sozinhos — só dão um bônus fixo, que depende do tipo e do nível de poder (iniciante/veterano/mestre). Limite de '+limite+' pro seu nível atual.'));
-    if(ativos.length===0){
-      corpo.push(el('div',{class:'empty'},'Nenhum parceiro ainda.'));
-    } else {
-      ativos.forEach((p, idx)=>{
-        const infoTipo = p.fonteAmeacasArton ? PARCEIROS_AMEACAS_ARTON.find(t=>t.nome===p.fonteAmeacasArton) : p.ehMontaria ? MONTARIA_TIPOS_ESPECIFICOS.find(m=>m.nome===p.tipoMontaria) : PARCEIRO_TIPOS.find(t=>t.nome===p.tipo);
-        const textoAtual = infoTipo ? infoTipo.niveis[p.poder] : '';
-        const ehAutomatizavel = ['Guardião','Combatente','Perseguidor','Vigilante','Ajudante'].includes(p.tipo);
-        const corpoCard = [
-          el('div',{class:'meta'}, p.ehMontaria ? ('Montaria: '+p.tipoMontaria+' ('+infoTipo.tamanho+')') : ('Tipo: '+p.tipo)),
-          p.origem ? el('div',{class:'meta'}, 'Origem: '+p.origem) : null,
-          el('div',{class:'desc', style:'margin-top:4px;'}, textoAtual),
-          ehAutomatizavel ? el('div',{class:'meta', style:'color:var(--gold);margin-top:4px;'}, '⚡ o bônus fixo já entra sozinho no cálculo') : null,
-          el('div',{class:'row', style:'gap:6px;margin-top:8px;'},
-            ...['iniciante','veterano','mestre'].map(nivel=>
-              el('button',{class:'btn ghost'+(p.poder===nivel?' selected':''), style:'flex:1;padding:5px;font-size:0.72rem;'+(p.poder===nivel?'border-color:var(--gold);color:var(--gold);':''), onclick:()=>alterarPoderParceiro(f, idx, nivel)}, nivel)
-            )
-          ),
-        ];
-        if(p.ehMontaria){
-          corpoCard.push(el('label',{style:'margin-top:8px;display:flex;align-items:center;gap:6px;'},
-            el('input',{type:'checkbox', checked:!!p.montadoAgora, onchange:(e)=>{ p.montadoAgora=e.target.checked; salvarPerfis(); render(); }}),
-            'Estou montado nele agora (aplica os bônus de montaria)'
-          ));
-        }
-        if(p.tipo==='Ajudante'){
-          corpoCard.push(el('div',{class:'meta', style:'margin-top:6px;'}, 'Perícias escolhidas: '+((p.periciasEscolhidas||[]).join(', ')||'nenhuma ainda')));
-        }
-        corpoCard.push(el('button',{class:'btn ghost', style:'margin-top:8px;color:var(--red-bright);', onclick:()=>{ if(confirm('Remover o parceiro "'+p.nome+'"?')) removerParceiro(f, idx); }}, 'Remover parceiro 🗑️'));
-        corpo.push(renderItemColapsavel('parceiro-'+idx, p.nome, p.ehMontaria?p.tipoMontaria:p.tipo, corpoCard));
-      });
-    }
-    if(ativos.length < limite){
-      corpo.push(el('button',{class:'btn ghost', style:'margin-top:10px;', onclick:()=>abrirAdicionarParceiro()}, '+ Adicionar Parceiro'));
-    }
-    return corpo;
-  });
-}
 function abrirAdicionarParceiro(){
   state._adicionarParceiroPopup = {categoria:null, tipoEscolhido:null, nome:'', origem:'', poder:'iniciante', periciasEscolhidas:[]};
   render();
@@ -1805,7 +1686,7 @@ function renderPoderesNotas(f){
       const selo = entrada.tipo==='auto' ? el('span',{class:'selo-poder auto'}, 'automático') : ativa ? el('span',{class:'selo-poder'}, 'ativa') : null;
       return renderItemColapsavel('poder-'+idx+'-'+entrada.nome, el('span',{}, entrada.nome+(usado?' (usado)':''), selo ? ' ' : null, selo), entrada.fonte, [
         el('div',{class:'meta', style:'margin-bottom:4px;'+(entrada.tipo==='auto'?'color:var(--gold);':'')},
-          entrada.tipo==='auto' ? '⚡ Já calculado na ficha automaticamente' : ativa ? '🎯 Está no "Em jogo", no painel Vida & Mana da Ficha' : '📖 Só referência: acompanhe o efeito na mesa'
+          entrada.tipo==='auto' ? '⚡ Já calculado na ficha automaticamente' : ativa ? '🎯 Está no "Em jogo", na aba Status' : '📖 Só referência: acompanhe o efeito na mesa'
         ),
         el('div',{class:'desc'}, entrada.desc),
         ehGolpePessoal ? el('div',{style:'margin-top:8px;'},
@@ -2002,88 +1883,6 @@ function gastarMunicao(f, idx){
   salvarPerfis(); render();
 }
 
-function renderItensEquipados(){
-  const f = fichaAtual();
-  const temAlgo = (f.armas.length>0) || ((f.esotericos||[]).length>0);
-  const totalItens = f.armas.length + (f.esotericos||[]).length;
-  return renderSecaoNotasColapsavel('itens-equipados', '⚔️', 'Itens Equipados',
-    temAlgo ? totalItens+' equipado(s)' : 'Nada equipado', ()=>{
-    if(!temAlgo){
-      return [el('div',{class:'empty'},'Nada equipado ainda. Vá na aba Itens para buscar e equipar armas ou esotéricos.'), renderLinhaManobras(f)];
-    }
-    const corpo = [];
-    f.armas.forEach((a,idx)=>{
-      const efetivo = danoEfetivoArma(f, a);
-      const testeAtaque = testeAtaqueArma(f, a);
-      const bonusDano = bonusDanoArma(f, a);
-      const semProf = !proficienteComArma(f, a);
-      const card = el('div',{class:'spell-card'},
-        el('div',{class:'head'},
-          el('span',{class:'name'}, a.nome+(a.maos>=2?' (2 mãos)':'')),
-          el('button',{class:'remove-x', onclick:()=>guardarArmaNaMochila(idx)},'📦')
-        ),
-        el('div',{class:'desc'},
-          'Ataque='+(testeAtaque>=0?'+':'')+testeAtaque+' · Dano='+efetivo.dano+(bonusDano?'+'+bonusDano:'')+' · Crítico='+a.critico+' · Alcance='+a.alcance
-        )
-      );
-      if(semProf) card.appendChild(el('div',{class:'meta', style:'color:var(--red-bright);'}, '⚠ Sem proficiência — já aplicado o –5 acima'));
-      if(efetivo.nota) card.appendChild(el('div',{class:'meta', style:'color:var(--gold);'}, efetivo.nota));
-      if(a.superior && a.melhoriasTxt) card.appendChild(el('div',{class:'meta', style:'color:var(--gold);'}, '⭐ '+a.melhoriasTxt));
-      // Munição — pra arma de disparo, mostra quanto tem na mochila e deixa gastar sem precisar
-      // ir procurar lá. Antes só dava pra acompanhar indo na Mochila e editando a quantidade.
-      const municao = municaoDaArma(f, a);
-      if(municao){
-        card.appendChild(el('div',{class:'row', style:'align-items:center;margin-top:6px;gap:8px;'},
-          el('div',{class:'meta', style:'flex:1;'+(municao.qtd<=0?'color:var(--red-bright);':'color:var(--gold);')},
-            '🏹 '+municao.nome+': '+municao.qtd+(municao.qtd<=0?' — acabou!':'')),
-          municao.qtd>0 ? el('button',{class:'btn ghost', style:'width:auto;padding:5px 10px;font-size:0.7rem;flex-shrink:0;', onclick:()=>gastarMunicao(f, municao.idx)}, 'Disparar (−1)') : null
-        ));
-      }
-      corpo.push(card);
-    });
-    corpo.push(renderLinhaManobras(f));
-
-    (f.esotericos||[]).forEach((eso, idx)=>{
-      const card = el('div',{class:'spell-card'},
-        el('div',{class:'head'}, el('span',{class:'name'}, eso.nome+' 🔮'+(eso.maos>=2?' (2 mãos)':'')), el('button',{class:'remove-x', onclick:()=>guardarEsotericoNaMochila(idx)},'📦'))
-      );
-      const efeitoTxt = (buscarItemEmpunhavel(eso.refBase||eso.nome)||{}).desc;
-      if(efeitoTxt) card.appendChild(el('div',{class:'desc'}, efeitoTxt));
-      if(eso.superior && eso.melhoriasTxt) card.appendChild(el('div',{class:'meta', style:'color:var(--gold);'}, '⭐ '+eso.melhoriasTxt));
-      // Harmonizado: mostra qual magia está com o desconto de PM ativo, e deixa trocar caso o
-      // item tenha vindo de antes (ou de presente) sem a magia definida.
-      const temHarmonizado = (eso.efeito||[]).some(ef=>ef.tipo==='custo_pm_magia');
-      if(temHarmonizado){
-        if(eso.magiaHarmonizada){
-          card.appendChild(el('div',{class:'meta', style:'color:var(--gold);'}, '🎵 Harmonizado com "'+eso.magiaHarmonizada+'" — essa magia custa 1 PM a menos.'));
-        }
-        const conhecidas = f.magias||[];
-        if(conhecidas.length){
-          const selH = el('select',{onchange:(e)=>{ eso.magiaHarmonizada=e.target.value||null; salvarPerfis(); render(); }});
-          selH.appendChild(el('option',{value:''}, eso.magiaHarmonizada ? 'Trocar a magia harmonizada...' : 'Escolha a magia harmonizada...'));
-          conhecidas.forEach(m=> selH.appendChild(el('option',{value:m.n, selected: eso.magiaHarmonizada===m.n}, m.n)));
-          card.appendChild(selH);
-        } else if(!eso.magiaHarmonizada){
-          card.appendChild(el('div',{class:'meta'}, '🎵 Harmonizado: escolha a magia quando o personagem conhecer alguma.'));
-        }
-      }
-      if((eso.efeito||[]).some(ef=>ef.tipo==='defesa_esoterico')){
-        card.appendChild(el('div',{class:'meta', style:'color:var(--gold);'}, '🛡️ Vigilante: +2 na Defesa (já somado no total da ficha).'));
-      }
-      const precisaEscola = (eso.efeito||[]).some(ef=>ef.tipo==='cd_arcana_escola');
-      if(precisaEscola){
-        const sel = el('select',{onchange:(e)=>{ eso.escolaFoco=e.target.value; salvarPerfis(); render(); }});
-        sel.appendChild(el('option',{value:''}, 'Escolha a escola de foco...'));
-        Object.keys(ESCOLAS).forEach(esc=> sel.appendChild(el('option',{value:esc, selected: eso.escolaFoco===esc}, esc)));
-        card.appendChild(sel);
-      }
-      corpo.push(card);
-    });
-
-    corpo.push(el('div',{class:'meta', style:'font-size:0.68rem;color:var(--ink-soft);margin-top:6px;'}, '📦 guarda na mochila (dá pra reequipar depois). 🔮 marca itens esotéricos.'));
-    return corpo;
-  }, temAlgo);
-}
 
 // "Usar" um item consumível da mochila — desconta 1 da quantidade, e se chegar a 0, remove o
 // item sozinho (com um aviso, pra não sumir sem explicação).

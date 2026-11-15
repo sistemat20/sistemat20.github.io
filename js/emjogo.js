@@ -1,5 +1,5 @@
 // ============ EM JOGO (13/11/2026, prancha "Em jogo e Notas") ============
-// Uma linha curta no painel Vida & Mana só com o que o jogador ATIVA na mesa:
+// Uma linha curta no painel Vida · Defesa · Mana (aba Status) só com o que o jogador ATIVA na mesa:
 //   · gasta PM fixo (Busca Interior, 1 PM; Golpe Pessoal já construído);
 //   · PM à escolha (Canalizar Energia: teclas de quantos PM gastar);
 //   · modo liga e desliga (Ataque Poderoso, Lobo Solitário): só lembrete, acende em verde;
@@ -169,7 +169,8 @@ function renderEmJogo(f){
   if(descAberto) wrap.appendChild(renderGavetaDescanso(f));
 
   const lista = poderesEmJogo(f);
-  if(!lista.length) return wrap;
+  const doParceiro = parceirosEmJogo(f);
+  if(!lista.length && !doParceiro.length) return wrap;
   wrap.appendChild(el('div',{class:'rot-emjogo'}, 'Em jogo'));
   const fichas = el('div',{class:'emjogo'});
   lista.forEach(p=>{
@@ -184,9 +185,21 @@ function renderEmJogo(f){
       p.tipo==='pm' ? el('span',{class:'c'}, p.custo+' PM') : p.tipo==='pmesc' ? el('span',{class:'c'}, p.opcoes[0]+'–'+p.opcoes[p.opcoes.length-1]+' PM') : p.tipo==='pmvar' ? el('span',{class:'c'}, 'PM') : null,
       p.limite ? el('span',{class:'pip'+(usado ? ' usado' : ''), title:'1 por '+p.limite}) : null));
   });
+  // Parceiros que se usam na mesa (borda tracejada): montaria liga e desliga, quem gasta PM abre a gaveta.
+  doParceiro.forEach(x=>{
+    if(x.tipo==='montaria'){
+      fichas.appendChild(el('button',{class:'ej pc2 modo'+(x.p.montadoAgora ? ' on' : ''), onclick:()=>{ state._ejSel = null; alternarMontado(f, x.p); }}, '🐎 Montado'+(parceirosAtivos(f).filter(p=>p.ehMontaria).length>1 ? ' ('+x.p.nome+')' : '')));
+    } else {
+      const chave = 'parc:'+x.idx;
+      fichas.appendChild(el('button',{class:'ej pc2'+(state._ejSel===chave ? ' sel' : ''), onclick:()=>{ state._ejSel = state._ejSel===chave ? null : chave; state._ejValor = null; render(); }},
+        iconeParceiro(x.p)+' '+x.p.nome, el('span',{class:'c'}, (x.custos.length>1 ? x.custos[0]+'–'+x.custos[x.custos.length-1] : x.custos[0])+' PM')));
+    }
+  });
   wrap.appendChild(fichas);
   const sel = lista.find(p=> p.chaveBase===state._ejSel);
   if(sel) wrap.appendChild(renderGavetaPoder(f, sel));
+  const selParc = doParceiro.find(x=> x.tipo==='pm' && state._ejSel==='parc:'+x.idx);
+  if(selParc) wrap.appendChild(renderGavetaParceiroEmJogo(f, selParc));
   return wrap;
 }
 

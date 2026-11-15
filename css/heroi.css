@@ -151,3 +151,52 @@
 .selo-poder{ font:700 .54rem 'Inter',sans-serif; padding:1px 6px; border-radius:999px; border:1px solid var(--pm-accent); color:var(--pm-accent); vertical-align:middle; text-transform:none; letter-spacing:0; }
 .selo-poder.auto{ border-color:var(--status-saudavel); color:var(--status-saudavel); }
 .recolhido-auto{ display:block; margin:6px 0 0; background:none; border:0; padding:0; font-size:.68rem; color:var(--ink-soft); text-decoration:underline; cursor:pointer; }
+
+/* ---- Status: Vida · Defesa · Mana, Nas mãos e Parceiros (15/11/2026) ---- */
+.vdm{ position:relative; display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:10px; justify-items:center; padding-bottom:30px; }
+.vdm .anel-caixa{ max-width:150px; }
+.escudo-def{ position:absolute; left:50%; bottom:0; transform:translateX(-50%); width:58px; height:64px; padding:0; border:0; background:none; cursor:pointer; display:grid; place-items:center; }
+.escudo-def svg{ position:absolute; inset:0; width:100%; height:100%; }
+.escudo-def .esc-fundo{ fill:#1d1510; stroke:var(--gold-deep); stroke-width:2; transition:stroke .3s; }
+.escudo-def .esc-brilho{ fill:none; stroke:rgba(216,189,116,.35); stroke-width:1; }
+.escudo-def.aberto .esc-fundo{ stroke:var(--gold); }
+.escudo-def:focus-visible{ outline:2px solid var(--gold); outline-offset:2px; border-radius:12px; }
+.esc-num{ position:relative; font:800 1.2rem 'Cinzel',serif; color:var(--ink); line-height:1; text-align:center; }
+.esc-num small{ display:block; font:700 .44rem 'Cinzel',serif; color:var(--gold); letter-spacing:.1em; margin-top:2px; }
+.conta-def{ display:grid; grid-template-columns:1fr auto; gap:3px 10px; font-size:.74rem; align-items:center; }
+.conta-def span{ color:var(--ink-soft); }
+.conta-def > b{ text-align:right; font-family:'Cinzel',serif; color:var(--ink); }
+.conta-def .tot{ border-top:1px solid var(--line); padding-top:3px; color:var(--gold); }
+.linha-equip{ display:flex; justify-content:space-between; align-items:center; gap:8px; }
+.linha-equip small{ display:block; color:var(--gold); font-size:.64rem; }
+.linha-equip .link-editar-item{ margin:0; }
+.btn-mini{ width:auto; padding:4px 10px; font-size:.68rem; flex-shrink:0; }
+.maos{ display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+.mao{ border:1px solid var(--line); border-radius:12px; padding:7px 9px; background:var(--card-2); color:var(--ink); cursor:pointer; display:grid; align-content:start; gap:1px; text-align:left; font:inherit; transition:border-color .3s, box-shadow .3s; }
+.mao .q{ font:700 .52rem 'Cinzel',serif; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-soft); }
+.mao .it{ font:700 .76rem 'Cinzel',serif; color:var(--gold); line-height:1.15; }
+.mao .at{ display:flex; align-items:baseline; gap:6px; margin-top:2px; }
+.mao .at b{ font:800 1.2rem 'Cinzel',serif; transition:color .3s; }
+.mao .at span{ font-size:.66rem; color:var(--ink-soft); transition:color .3s; }
+.mao .d{ font-size:.62rem; color:var(--ink-soft); }
+.mao.duas{ grid-column:1 / -1; }
+.mao.livre{ border-style:dashed; opacity:.8; }
+.mao.mod{ border-color:var(--status-saudavel); }
+.mao.mod .at b, .mao.mod .at span{ color:var(--status-saudavel); }
+.mao.sel{ border-color:var(--gold); box-shadow:0 0 10px rgba(216,189,116,.35); }
+.tag-modo{ justify-self:start; margin-top:2px; font:700 .52rem 'Inter',sans-serif; padding:1px 6px; border-radius:999px; border:1px solid var(--status-saudavel); color:var(--status-saudavel); }
+.opc-troca{ display:grid; gap:4px; }
+.opc-troca button{ display:flex; justify-content:space-between; gap:8px; text-align:left; font:600 .72rem 'Inter',sans-serif; padding:7px 9px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--ink); cursor:pointer; }
+.opc-troca button small{ color:var(--ink-soft); text-align:right; }
+.pc{ display:grid; grid-template-columns:24px 1fr auto; gap:8px; align-items:center; width:100%; text-align:left; font:inherit; color:var(--ink); padding:7px 9px; border:1px solid rgba(166,129,47,.25); border-radius:10px; background:var(--card-2); cursor:pointer; margin-top:5px; transition:border-color .3s, box-shadow .3s; }
+.pc .ic{ font-size:1rem; text-align:center; }
+.pc .nm{ font:700 .78rem 'Cinzel',serif; min-width:0; }
+.pc .nm small{ display:block; font:500 .64rem 'Inter',sans-serif; color:var(--ink-soft); margin-top:1px; }
+.pc.on{ border-color:var(--status-saudavel); box-shadow:0 0 10px rgba(94,168,94,.3); }
+.pips{ display:inline-flex; gap:3px; }
+.pips i{ width:7px; height:7px; border-radius:50%; border:1px solid var(--gold); display:inline-block; }
+.pips i.on{ background:var(--gold); }
+.seg3{ display:grid; grid-template-columns:repeat(3,1fr); border:1px solid var(--gold-deep); border-radius:999px; overflow:hidden; }
+.seg3 button{ font:700 .64rem 'Cinzel',serif; padding:6px 0; background:transparent; color:var(--gold); border:0; cursor:pointer; }
+.seg3 button.on{ background:var(--gold); color:#1a120c; }
+.ej.pc2{ border-style:dashed; }
