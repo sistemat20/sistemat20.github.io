@@ -2705,9 +2705,9 @@ function render(){
     else if(state.screen==='ficha') root.appendChild(renderFichaScreen());
     else if(state.screen==='mestre') root.appendChild(renderMestreScreen());
     // Faixa fixa do herói (fica fora da trilha de arrastar, que tem transform e prenderia o fixed).
-    if(state.screen==='ficha' && state.tab==='personagem' && (state.personagemTab||'ficha')==='ficha' && fichaAtual()){
-      root.appendChild(renderFaixaHeroi(fichaAtual()));
-      setTimeout(ligarFaixaHeroi, 0);
+    // Barra de telas embaixo (fora da trilha de arrastar, que tem transform e prenderia o fixed).
+    if(state.screen==='ficha' && fichaAtual() && !(precisaCodigoJogador() && !obterCodigoJogador())){
+      root.appendChild(renderBarraBaixo(fichaAtual()));
     }
     if(typeof atualizarEfeitoCondicoes==='function') atualizarEfeitoCondicoes();
   }catch(erro){

@@ -18,7 +18,7 @@ const h = require('./harness');
   {
     const f = aeon();
     abrir(f);
-    h.ok('a aba continua Ficha', q('nav.tabs button').some((b) => b.textContent === 'Ficha'));
+    h.ok('a barra embaixo tem Ficha · Perícias · Magias · Mochila · Mais', q('.barra-baixo button').map((b) => b.textContent.replace(/[^A-Za-zíê ]/g, '').trim()).join(',') === 'Ficha,Perícias,Magias,Mochila,Mais');
     h.ok('o painel Defesa separado saiu', !q('.panel.faixa > h2').some((x) => x.textContent === 'Defesa'));
     h.ok('o painel de vida, Defesa e mana se chama Status', q('.panel.faixa > h2').some((x) => x.textContent === 'Status'));
     const esc = w.document.querySelector('.escudo-def');

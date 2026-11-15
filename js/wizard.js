@@ -969,6 +969,7 @@ function stepRevisao(w){
   panel.appendChild(el('div',{class:'tip'}, el('b',{},'Poderes gerais'), podersTxt.length? podersTxt.join(' · ') : 'nenhum — nem toda origem/raça concede um poder geral no 1º nível, e tudo bem.'));
 
   wrap.appendChild(panel);
+  wrap.appendChild(renderConfiraCriacao(w)); // 3B: de onde vem cada número (js/conferir.js)
   return wrap;
 }
 

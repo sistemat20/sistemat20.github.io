@@ -244,7 +244,7 @@ function corpoLinhaMochila(f, row, idx){
 function camposEdicaoItem(row, idx, mostrarVestivel){
   const f = fichaAtual();
   const remover = el('button',{class:'link-editar-item remover', onclick:()=>{ if(!confirm('Remover "'+nomeBaseItem(row.item)+'" da mochila? Não tem como desfazer.')) return; registrarLog(f, 'Removeu da mochila: '+row.item); removerItemMochila(f, idx); salvarPerfis(); render(); }}, 'remover');
-  if(state._editandoItem!==row) return el('div',{class:'links-item'}, remover, el('button',{class:'link-editar-item', onclick:()=>{ state._editandoItem = row; render(); }}, 'editar'));
+  if(state._editandoItem!==row) return el('div',{}, renderAvisoEspaco(f, row), el('div',{class:'links-item'}, remover, el('button',{class:'link-editar-item', onclick:()=>{ state._editandoItem = row; render(); }}, 'editar')));
   return el('div',{class:'edicao-item'},
     el('label',{},'Nome'),
     el('input',{id:'mochila-nome-'+idx, type:'text', value:row.item, oninput:(e)=>{row.item=e.target.value;}, onchange:()=>{salvarPerfis(); render();}}),

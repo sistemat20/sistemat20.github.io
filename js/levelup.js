@@ -265,6 +265,8 @@ function renderLevelUpPanel(f){
   const podeConfirmar = (!ganhaPoderClasse || (lv.poderModo==='classe' && lv.poderClasseEscolhido && !poderClassePendente) || (lv.poderModo==='geral' && lv.poderGeralEscolhido && (!PODERES_GERAIS.find(p=>p.nome===lv.poderGeralEscolhido).escolha || lv.poderSubEscolha)))
     && (!precisaEscolherCaminho || (lv.arcanistaCaminho && (lv.arcanistaCaminho!=='Feiticeiro' || lv.arcanistaLinhagem)))
     && (!precisaEscolherEscolas || (lv.escolasMagia||[]).length===3);
+  const confira = renderConfiraLevelUp(f, lv); // 3B (js/conferir.js)
+  if(confira) wrap.appendChild(confira);
   const navRow = el('div',{class:'wizard-nav', style:'position:static;'});
   navRow.appendChild(el('button',{class:'btn ghost', onclick:fecharLevelUp},'Cancelar'));
   const confirmBtn = el('button',{class:'btn', onclick:()=> aplicarLevelUp(f)}, 'Aplicar Level Up');

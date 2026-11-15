@@ -203,3 +203,19 @@ button.grimorio-carta:hover, button.grimorio-carta:active{ transform:translateY(
   .atm-abalado header.top, .atm-veneno, .atm-fadiga, .atm-fio, .presente-voo .item, .presente-voo .rosto, .presente-voo .aviso,
   .mana-previa .gasto, .magia-lancada, .resumo-sessao *, .mesa-card, .mesa-card .trilho > div, .mesa-feed .ev, .iniciativa-chip.atual, .grimorio-carta.aberta.abrindo, .selo-aprim.ativo .disco, .mana-previa .resta.escoando, .log-lancamento.novo, .anel-temp, .anel-base.anima, .anel-temp.anima, .anel-pulo{ animation:none !important; }
 }
+
+/* ---- Magias 2A: linhas por círculo (15/11/2026) ---- */
+.grimorio-grade.lista{ display:grid; grid-template-columns:1fr; gap:4px; }
+.circulo-magias{ display:flex; justify-content:space-between; margin:8px 2px 0; font:700 .6rem 'Cinzel',serif; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); }
+.circulo-magias:first-child{ margin-top:0; }
+.linha-magia{ display:grid; grid-template-columns:32px 1fr auto; gap:9px; align-items:center; width:100%; text-align:left; padding:8px 10px; border:1px solid rgba(166,129,47,.28); border-radius:12px; background:var(--card-2); color:var(--ink); font:inherit; cursor:pointer; transition:border-color .25s, opacity .25s; }
+.linha-magia .selo-escola{ width:30px; height:30px; border-radius:50%; border:1px solid #6f8fc4; display:grid; place-items:center; font:800 .64rem 'Cinzel',serif; color:#b9cdf0; }
+.linha-magia .nome{ font:700 .8rem 'Cinzel',serif; min-width:0; }
+.linha-magia .nome small{ display:block; font:500 .64rem 'Inter',sans-serif; color:var(--ink-soft); margin-top:1px; }
+.linha-magia .selos{ display:flex; gap:4px; margin-top:3px; }
+.linha-magia .custo{ font:800 .74rem 'Cinzel',serif; color:var(--pm-accent); border:1px solid rgba(156,199,232,.4); border-radius:999px; padding:2px 9px; white-space:nowrap; }
+.linha-magia.sem-mana{ opacity:.45; }
+.topo-magias{ display:flex; align-items:center; gap:10px; font-size:.74rem; color:var(--ink-soft); margin-bottom:8px; }
+.topo-magias b{ font:800 .95rem 'Cinzel',serif; color:var(--ink); }
+.topo-magias .pm-agora{ margin-left:auto; font:700 .74rem 'Cinzel',serif; color:var(--pm-accent); }
+.topo-magias .link-editar-item{ margin:0; }

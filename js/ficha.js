@@ -24,13 +24,11 @@ function renderPersonagemComSwipeParaPericias(){
     el('div',{style:'width:7px;height:7px;border-radius:50%;transition:all 200ms;background:'+(!naPericias?'var(--gold)':'var(--line)')+';'+(!naPericias?'width:20px;border-radius:4px;':'')}),
     el('div',{style:'width:7px;height:7px;border-radius:50%;transition:all 200ms;background:'+(naPericias?'var(--gold)':'var(--line)')+';'+(naPericias?'width:20px;border-radius:4px;':'')})
   );
-  wrap.appendChild(pontos);
 
   const track = el('div',{style:'display:flex;width:200%;transition:transform 220ms ease;transform:translateX('+(naPericias?'-50%':'0')+');'});
   track.appendChild(el('div',{style:'width:50%;flex-shrink:0;'}, renderPersonagemScreen()));
   track.appendChild(el('div',{style:'width:50%;flex-shrink:0;'}, renderPericias()));
   wrap.appendChild(track);
-  wrap.appendChild(el('div',{class:'meta', style:'text-align:center;padding:4px 0 8px;opacity:0.6;'}, naPericias ? '› arraste pra voltar' : '‹ arraste pra ver Perícias ›'));
 
   let inicioX = null, deslocamentoAtual = 0;
   const larguraContainer = ()=> wrap.offsetWidth || 380;
@@ -73,9 +71,9 @@ function renderMenuOverlay(){
   const overlay = el('div',{class:'menu-overlay', onclick:(e)=>{ if(e.target===e.currentTarget){ state._menuAberto=false; render(); } }});
   const sheet = el('div',{class:'menu-sheet'});
 
-  sheet.appendChild(el('div',{class:'lista-secao-titulo'}, 'Navegar'));
-  MENU_SECOES.forEach(([id,label,ico])=>{
-    sheet.appendChild(el('button',{class:'menu-item'+(state.tab===id?' active':''), onclick:()=>{ state.tab=id; state._menuAberto=false; render(); }},
+  sheet.appendChild(el('div',{class:'lista-secao-titulo'}, 'Mais telas'));
+  itensNavegarMais().forEach(([ico,label,ir])=>{
+    sheet.appendChild(el('button',{class:'menu-item', onclick:()=>{ ir(); state._menuAberto=false; render(); try{ window.scrollTo(0,0); }catch(e){} }},
       el('span',{class:'ico'}, ico), el('span',{}, label)
     ));
   });
@@ -519,12 +517,7 @@ function renderPopupPendencias(f){
 function renderPersonagemScreen(){
   const wrap = el('div',{});
   if(!state.personagemTab) state.personagemTab = 'ficha';
-  const nav = el('nav',{class:'tabs', style:'margin:0 0 4px;padding:0;'});
-  [['ficha','Ficha'],['magias','Magias'],['mochila','Mochila'],['notas','Notas']].forEach(([id,label])=>{
-    nav.appendChild(el('button',{class: state.personagemTab===id?'active':'', 'data-efx-alvo': id==='mochila' ? 'mochila' : null, onclick:()=>{state.personagemTab=id; render();}}, label));
-  });
-  wrap.appendChild(nav);
-  const content = el('div',{style:'padding-top:10px;'});
+  const content = el('div',{style:'padding-top:4px;'});
   if(state.personagemTab==='ficha') content.appendChild(renderPersonagemFicha());
   if(state.personagemTab==='magias') content.appendChild(renderPersonagemMagias());
   if(state.personagemTab==='mochila') content.appendChild(renderPersonagemMochila());
@@ -544,28 +537,9 @@ function renderFichaScreen(){
   const wrap = el('div',{class: (emPerigoDeMorte ? 'vinheta-tormenta' : '') + (atmosfera && atmosfera.classe ? ' '+atmosfera.classe : '')});
   if(atmosfera && atmosfera.camada) wrap.appendChild(el('div',{class:'atm-camada '+atmosfera.camada, 'aria-hidden':'true'}));
   verificarResumoAoAbrir(f);
-  const secaoAtual = MENU_SECOES.find(s=>s[0]===state.tab) || MENU_SECOES[0];
 
-  wrap.appendChild(el('header',{class:'top'},
-    el('div',{style:'display:flex;justify-content:space-between;align-items:center;gap:10px;'},
-      el('button',{class:'btn ghost', style:'width:auto;flex-shrink:0;padding:6px 12px;background:transparent;border-color:var(--ink);color:var(--ink);', onclick:()=>{ pararAtualizacaoAutomaticaJogador(); state.screen='perfis'; state.perfilAtualId=null; render(); }}, '← Perfis'),
-      el('h1',{class:'display', style:'font-size:1.1rem;margin:0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;text-align:center;'}, f.nome || 'Personagem'),
-      (()=>{
-        // Selo de cera no próprio botão de Menu quando tem pendência — antes só aparecia DENTRO
-        // do menu, ou seja, a pessoa precisava abrir pra descobrir que tinha algo pendente.
-        // Reaproveita a mesma peça visual usada no card do personagem em Perfis.
-        const temPendencia = detectarPendencias(f).length > 0;
-        const btnMenu = el('button',{class:'menu-trigger', style:'flex-shrink:0;position:relative;', onclick:()=>{ state._menuAberto=true; render(); }},
-          el('span',{}, secaoAtual[2]), el('span',{},'Menu')
-        );
-        if(temPendencia){
-          btnMenu.appendChild(el('span',{class:'selo-cera', style:'top:-8px;left:auto;right:-8px;width:20px;height:20px;font-size:0.62rem;', title:detectarPendencias(f).length+' pendência(s)'}, '!'));
-        }
-        return btnMenu;
-      })()
-    ),
-    el('div',{class:'sub', style:'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'}, (f.raca||'—')+' · '+classeDisplay(f)+' · Nível total '+nivelTotal(f))
-  ));
+  // Topo de uma linha (15/11/2026, ideia 1A); a barra de telas fica embaixo (js/navegacao.js).
+  wrap.appendChild(renderTopoHeroi(f));
 
   if(state._menuAberto){
     wrap.appendChild(renderMenuOverlay());
@@ -2743,6 +2717,7 @@ function lancarMagia(f, s, fluxo){
   salvarPerfis();
   flashMsg('✨ "'+s.n+'" usada! -'+total+' PM.'+(catalisadorTxt?' Catalisador consumido.':''));
   animarMagiaLancada(s.n, {pmAntes:pmAtual, pmDepois:f.pmatual, texto:textoLog});
+  if(typeof tocarFeitico==='function') tocarFeitico(s); // efeito de tela da magia (js/feiticos.js)
   return true;
 }
 function renderPopupUsarMagia(f){
@@ -2885,11 +2860,11 @@ function renderPersonagemMagias(){
   const magPanel = el('div',{class:'panel faixa'}, el('h2',{},'Minhas Magias'));
   const attrChave = atributoChaveMagia(f);
   if(attrChave){
-    magPanel.appendChild(el('div',{class:'tip'},
-      el('div',{}, el('b',{},'Atributo-chave: '), NOME_ATRIBUTO[attrChave]),
-      el('div',{}, el('b',{},'Valor: '), (valorAtributoChaveMagia(f)>=0?'+':'')+valorAtributoChaveMagia(f)),
-      el('div',{}, el('b',{},'CD de resistência às suas magias: '), cdMagias(f), ' (10 + 1/2 nível + atributo-chave)'),
-    ));
+    // Uma linha só (2A): CD, atributo-chave e a mana de agora; o "+" leva ao grimório completo.
+    magPanel.appendChild(el('div',{class:'topo-magias'},
+      el('span',{}, el('b',{}, 'CD '+cdMagias(f)), ' · '+NOME_ATRIBUTO[attrChave]+' '+(valorAtributoChaveMagia(f)>=0?'+':'')+valorAtributoChaveMagia(f)),
+      el('span',{class:'pm-agora'}, (parseInt(f.pmatual)||0)+'/'+pmMaxEfetivo(f)+' PM'),
+      el('button',{class:'link-editar-item', onclick:()=>{ state.tab = 'magias'; render(); try{ window.scrollTo(0,0); }catch(e){} }}, '+ aprender')));
   } else {
     magPanel.appendChild(el('div',{class:'tip'}, el('b',{},'Sem classe conjuradora'), 'Esse personagem ainda não tem uma classe que lança magias.'));
   }
@@ -2913,8 +2888,8 @@ function renderPersonagemMagias(){
     const esperadas = magiasArcanistaEsperadas(f.arcanistaCaminho, ccArc.nivel);
     const acimaDoEsperado = f.magias.length > esperadas;
     magPanel.appendChild(el('div',{class:'meta', style:'margin-bottom:8px;'+(acimaDoEsperado?'color:var(--gold);':'')},
-      'Magias conhecidas: '+f.magias.length+' (esperado até aqui, como '+f.arcanistaCaminho+': '+esperadas+')'
-      + (acimaDoEsperado ? ' — acima do ritmo normal, confira com o Mestre.' : '')
+      f.magias.length+' de '+esperadas+' magias de '+f.arcanistaCaminho+' até aqui'
+      + (acimaDoEsperado ? ' (acima do ritmo normal: confira com o Mestre)' : '')
     ));
   }
 
@@ -3106,98 +3081,77 @@ function renderGuia(){
     g._perfilId = f.id;
   }
   const wrap = el('div',{});
-
-  wrap.appendChild(el('div',{class:'panel'},
-    el('h2',{},'Escolha sua classe e nível'),
-    el('div',{class:'row'},
-      el('div',{},
-        el('label',{},'Classe'),
-        (()=>{ const s = el('select',{onchange:(e)=>{g.classe=e.target.value; render();}});
-          Object.keys(CLASSES).forEach(c=> s.appendChild(el('option',{value:c, ...(g.classe===c?{selected:'selected'}:{})}, c)));
-          return s; })()
-      ),
-      el('div',{},
-        el('label',{},'Nível atual'),
-        (()=>{ const s = el('select',{onchange:(e)=>{g.nivel=parseInt(e.target.value); render();}});
-          for(let i=1;i<=20;i++) s.appendChild(el('option',{value:i, ...(g.nivel===i?{selected:'selected'}:{})}, i+'º'));
-          return s; })()
-      )
-    )
-  ));
-
+  // 3A (15/11/2026): o próximo nível primeiro, num cartão; o resto em linhas fechadas.
   const cls = CLASSES[g.classe];
   const nivelAtual = g.nivel;
   const nivelProx = Math.min(nivelAtual+1, 20);
-
-  wrap.appendChild(el('div',{class:'panel'},
-    el('h2',{},'Papel em combate'),
-    el('div',{class:'tip'}, el('b',{},cls.tradicao?('Conjurador '+cls.tradicao):'Sem magias próprias'), cls.papel),
-    el('div',{class:'tip'}, el('b',{},'Dica de iniciante'), cls.dica)
-  ));
-
-  const habAtual = cls.tabela.find(t=>t.nivel===nivelAtual);
   const habProx = cls.tabela.find(t=>t.nivel===nivelProx);
-
-  wrap.appendChild(el('div',{class:'panel'},
-    el('h2',{}, el('span',{class:'n'}, nivelAtual+'→'+nivelProx), 'O que muda no próximo nível'),
-    el('div',{class:'tip'}, el('b',{},'Nível '+nivelAtual+' (agora)'), habAtual?habAtual.hab:'—'),
-    el('div',{class:'tip'}, el('b',{},'Nível '+nivelProx+' (ao subir)'), habProx?habProx.hab:'Nível máximo já alcançado'),
+  const ehDoHeroi = (f.classesNiveis||[]).some(c=> c.classe===g.classe && c.nivel===g.nivel);
+  const ci = CLASSES_INICIAL[g.classe] || {};
+  const con = parseInt(f.con)||0;
+  const racaObj = getRacaObj(f);
+  const bonusRaca = racaObj && racaObj.pvBonusPorNivel ? racaObj.pvBonusPorNivel : 0;
+  const ganhoPV = Math.max(1, (ci.pvPorNivel||0) + (ehDoHeroi ? con : 0)) + (ehDoHeroi ? bonusRaca : 0);
+  const partes = habProx ? habProx.hab.split(',').map(x=> x.trim()).filter(Boolean) : [];
+  const proxMarco = cls.tabela.find(t=> t.nivel>nivelProx && /círculo/.test(t.hab));
+  const trocando = !!state._guiaTrocando;
+  wrap.appendChild(el('div',{class:'panel faixa'},
+    el('h2',{}, 'Evolução'),
+    el('div',{class:'linha-equip guia-vendo'},
+      el('span',{}, 'Vendo: ', el('b',{}, g.classe+' '+nivelAtual+'º'), ehDoHeroi ? ' (o seu)' : ''),
+      el('button',{class:'link-editar-item', onclick:()=>{ state._guiaTrocando = !trocando; render(); }}, trocando ? 'pronto' : 'trocar')),
+    trocando ? el('div',{class:'row'},
+      el('div',{}, el('label',{},'Classe'), (()=>{ const sel = el('select',{onchange:(e)=>{ g.classe = e.target.value; render(); }}); Object.keys(CLASSES).forEach(c=> sel.appendChild(el('option',{value:c, ...(g.classe===c?{selected:'selected'}:{})}, c))); return sel; })()),
+      el('div',{}, el('label',{},'Nível atual'), (()=>{ const sel = el('select',{onchange:(e)=>{ g.nivel = parseInt(e.target.value); render(); }}); for(let i=1;i<=20;i++) sel.appendChild(el('option',{value:i, ...(g.nivel===i?{selected:'selected'}:{})}, i+'º')); return sel; })())
+    ) : null,
+    nivelAtual>=20 ? el('div',{class:'empty'}, 'Nível máximo alcançado.') : el('div',{class:'cartao-prox-nivel'},
+      el('div',{class:'titulo'}, 'Nível '+nivelAtual+' → '+nivelProx),
+      el('div',{class:'ganhos'},
+        el('div',{}, el('b',{style:'color:var(--pv-accent);'}, '+'+ganhoPV), ehDoHeroi ? 'PV ('+(ci.pvPorNivel||0)+' + Con '+con+(bonusRaca?' + raça '+bonusRaca:'')+')' : 'PV + Con'),
+        el('div',{}, el('b',{style:'color:var(--pm-accent);'}, '+'+(ci.pm||0)), 'PM'),
+        partes.map(p=> el('div',{class:'largo'}, el('b',{}, /poder de/i.test(p) ? '1 poder' : '★'), p))),
+      proxMarco ? el('div',{class:'marco'}, 'Próximo marco: '+proxMarco.nivel+'º nível, '+proxMarco.hab.match(/[^,]*círculo[^,]*/)[0].trim()) : null)
   ));
 
-  // detect new spell circle unlocking
   if(cls.tradicao && habProx && /círculo/.test(habProx.hab)){
     const m = habProx.hab.match(/(\d)º círculo/);
     if(m){
       const novoCirc = parseInt(m[1]);
-      const spellsList = magiasPorTradicao(cls.tradicao).filter(s=>s.c===novoCirc).slice(0,6);
-      const panel = el('div',{class:'panel'},
-        el('h2',{}, 'Novo círculo: magias sugeridas'),
-        el('div',{class:'tip'}, el('b',{},'Por que essas'), 'Alguns exemplos versáteis de '+novoCirc+'º círculo '+(cls.tradicao)+' para começar — veja a lista completa na aba Magias.')
-      );
-      spellsList.forEach(s=>{
-        panel.appendChild(renderCardMagia(s, 'guia', null));
-      });
-      wrap.appendChild(panel);
+      const sugeridas = magiasPorTradicao(cls.tradicao).filter(s=>s.c===novoCirc).slice(0,6);
+      wrap.appendChild(renderSecaoNotasColapsavel('guia-circulo', '✨', 'Novo círculo: magias sugeridas', sugeridas.length+' magia(s)', ()=> sugeridas.map(s=> renderCardMagia(s, 'guia', null))));
     }
   }
 
-  // powers suggestions
+  const poderesDoHeroi = new Set((f.poderesClasse||[]).map(p=> p.nome));
   const listaCompletaGuia = PODERES_CLASSE_COMPLETO[g.classe] || [];
-  const powPanel = el('div',{class:'panel'},
-    el('h2',{},'Poderes de '+g.classe+' ('+listaCompletaGuia.length+')'),
-    el('div',{class:'tip'}, el('b',{},'Como funciona'), 'A cada "poder de '+g.classe.toLowerCase()+'" você escolhe UM da lista abaixo (respeitando os pré-requisitos, se houver). Lista completa do livro:')
-  );
-  listaCompletaGuia.forEach((p, idx)=>{
-    powPanel.appendChild(renderItemAcordeao('guia-poderes-'+g.classe, p.nome, p.nome, p.nivelMin?('nível '+p.nivelMin+'+'):'', [
-      el('div',{class:'desc'}, p.desc),
-      p.prereq ? el('div',{class:'meta', style:'color:var(--red-bright);'}, 'Pré-requisito: '+p.prereq) : null
-    ]));
-  });
-  wrap.appendChild(powPanel);
-
-  // Trilha de progressão com patamares (Novato/Veterano/Campeão/Lenda), como na ficha oficial
-  const tablePanel = el('div',{class:'panel faixa'}, el('h2',{},'Progressão (1º ao 20º)'));
-  PATAMARES.forEach(pat=>{
-    const linhasPatamar = cls.tabela.filter(t=> t.nivel>=pat.de && t.nivel<=pat.ate);
-    if(linhasPatamar.length===0) return;
-    const bloco = el('div',{class:'patamar-bloco'},
-      el('div',{class:'patamar-tag', style:'background:'+pat.cor+';'}, pat.nome+' ('+pat.de+'–'+pat.ate+'º)')
-    );
-    const table = el('table',{class:'lvl-table'});
-    linhasPatamar.forEach(t=>{
-      let cls2 = '';
-      if(t.nivel===nivelAtual) cls2='current';
-      else if(t.nivel===nivelProx) cls2='next';
-      table.appendChild(el('tr',{class:cls2}, el('td',{},t.nivel+'º'), el('td',{},t.hab)));
+  wrap.appendChild(renderSecaoNotasColapsavel('guia-poderes', '⚡', 'Poderes que posso escolher', listaCompletaGuia.length+' poderes', ()=>{
+    const corpo = [el('div',{class:'meta-ej', style:'margin-bottom:6px;'}, 'A cada "poder de '+g.classe.toLowerCase()+'" você escolhe um destes (respeitando os pré-requisitos). ✓ = você já tem.')];
+    listaCompletaGuia.forEach(p=>{
+      const tem = poderesDoHeroi.has(p.nome);
+      corpo.push(renderItemAcordeao('guia-poderes-'+g.classe, p.nome, (tem?'✓ ':'')+p.nome, p.nivelMin?('nível '+p.nivelMin+'+'):'', [
+        el('div',{class:'desc'}, p.desc),
+        p.prereq ? el('div',{class:'meta', style:'color:var(--red-bright);'}, 'Pré-requisito: '+p.prereq) : null
+      ]));
     });
-    bloco.appendChild(table);
-    tablePanel.appendChild(bloco);
-  });
-  wrap.appendChild(tablePanel);
+    return corpo;
+  }));
 
-  const tipsPanel = el('div',{class:'panel'}, el('h2',{},'Glossário rápido'));
-  TIPS_GERAIS.forEach(([t,d])=> tipsPanel.appendChild(el('div',{class:'tip'}, el('b',{},t), d)));
-  wrap.appendChild(tipsPanel);
+  wrap.appendChild(renderSecaoNotasColapsavel('guia-progressao', '📜', 'Progressão do 1º ao 20º', 'tabela', ()=>{
+    const corpo = [];
+    PATAMARES.forEach(pat=>{
+      const linhas = cls.tabela.filter(t=> t.nivel>=pat.de && t.nivel<=pat.ate);
+      if(!linhas.length) return;
+      const table = el('table',{class:'lvl-table'});
+      linhas.forEach(t=> table.appendChild(el('tr',{class: t.nivel===nivelAtual ? 'current' : t.nivel===nivelProx ? 'next' : ''}, el('td',{}, t.nivel+'º'), el('td',{}, t.hab))));
+      corpo.push(el('div',{class:'patamar-bloco'}, el('div',{class:'patamar-tag', style:'background:'+pat.cor+';'}, pat.nome+' ('+pat.de+'–'+pat.ate+'º)'), table));
+    });
+    return corpo;
+  }));
 
+  wrap.appendChild(renderSecaoNotasColapsavel('guia-papel', '🎭', 'Papel em combate', null, ()=>[
+    el('div',{class:'tip'}, el('b',{}, cls.tradicao ? ('Conjurador '+cls.tradicao) : 'Sem magias próprias'), cls.papel),
+    el('div',{class:'tip'}, el('b',{}, 'Dica de iniciante'), cls.dica)
+  ]));
+  wrap.appendChild(renderSecaoNotasColapsavel('guia-glossario', '📖', 'Glossário rápido', null, ()=> TIPS_GERAIS.map(([t,d])=> el('div',{class:'tip'}, el('b',{},t), d))));
   return wrap;
 }

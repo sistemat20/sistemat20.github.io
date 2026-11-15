@@ -88,8 +88,16 @@ function renderGrimorioCartas(f, aoEsquecer){
   if(!f.magias || !f.magias.length) return null;
   const pm = parseInt(f.pmatual)||0;
   const mago = f.arcanistaCaminho==='Mago';
-  const grade = el('div',{class:'grimorio-grade'});
-  f.magias.forEach((s, idx)=>{
+  // 2A (15/11/2026): uma linha por magia, agrupadas por círculo; a carta completa abre ao tocar.
+  const grade = el('div',{class:'grimorio-grade lista'});
+  const ordem = f.magias.map((s, idx)=> ({s, idx})).sort((a,b)=> (a.s.c||0)-(b.s.c||0));
+  let circuloAnterior = null;
+  ordem.forEach(({s, idx})=>{
+    if((s.c||0)!==circuloAnterior){
+      circuloAnterior = s.c||0;
+      const custos = [...new Set(ordem.filter(x=> (x.s.c||0)===circuloAnterior).map(x=> custoPMAjustado(f, x.s)))];
+      grade.appendChild(el('div',{class:'circulo-magias'}, el('span',{}, circuloAnterior ? circuloAnterior+'º círculo' : 'Sem círculo'), el('span',{}, custos.length===1 ? custos[0]+' PM' : '')));
+    }
     const custo = custoPMAjustado(f, s);
     const aberta = state._cartaMagiaAberta === s.n;
     const alternar = ()=>{ state._cartaMagiaAberta = aberta ? null : s.n; state._cartaAbertaEm = Date.now(); render(); };
@@ -105,12 +113,9 @@ function renderGrimorioCartas(f, aoEsquecer){
     if(!aberta){
       // Fechada: a carta de tarô (círculo, selo da escola, nome, escola, custo). O texto da
       // magia só aparece ao abrir.
-      grade.appendChild(el('button',{class:'grimorio-carta fechada'+(custo>pm?' sem-mana':''), 'aria-expanded':'false', 'aria-label':s.n+', '+custo+' PM. Toque para ver a descrição', onclick:alternar},
-        el('span',{class:'circulo'}, (s.c||'?')+'º CÍRCULO'),
+      grade.appendChild(el('button',{class:'linha-magia'+(custo>pm?' sem-mana':''), 'aria-expanded':'false', 'aria-label':s.n+', '+custo+' PM. Toque para ver e lançar', onclick:alternar},
         el('span',{class:'selo-escola', 'aria-hidden':'true'}, siglaEscola(s.e)),
-        el('span',{class:'nome'}, s.n),
-        el('span',{class:'escola'}, s.e||''),
-        el('span',{class:'selos'}, ...selos),
+        el('span',{class:'nome'}, s.n, el('small',{}, [s.execucao, s.alcance].filter(Boolean).join(' · ')), selos.some(Boolean) ? el('span',{class:'selos'}, ...selos) : null),
         el('span',{class:'custo'}, custo+' PM')
       ));
       return;
@@ -134,7 +139,6 @@ function renderGrimorioCartas(f, aoEsquecer){
     grade.appendChild(carta);
   });
   return el('div',{},
-    el('div',{class:'meta', style:'margin:6px 0 4px;'}, 'Toque numa carta para ver tudo e lançar. As apagadas custam mais do que a sua mana agora.'),
     grade
   );
 }
@@ -226,9 +230,8 @@ function renderManaPrevia(f, total, ultimo){
 }
 function animarMagiaLancada(nome, extra){
   const marca = Date.now();
-  state._magiaLancada = {nome, marca};
+  // A carta voando antiga deu lugar ao efeito de cada magia (tocarFeitico, js/feiticos.js).
   if(extra) state._grimorioUltimo = Object.assign({nome, marca}, extra);
-  setTimeout(()=>{ if(state._magiaLancada && state._magiaLancada.marca===marca){ state._magiaLancada = null; render(); } }, 1150);
 }
 function renderMagiaLancada(){
   return el('div',{class:'magia-lancada', 'aria-hidden':'true'}, state._magiaLancada.nome);

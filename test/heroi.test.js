@@ -36,7 +36,8 @@ const h = require('./harness');
     h.renderizar(w, 'personagem');
     [...w.document.querySelectorAll('.opc-heroi button')].find((b) => b.textContent === 'Neutro e Bondoso').click();
     h.igual('escolher o alinhamento grava', f.alinhamento, 'Neutro e Bondoso');
-    h.ok('a faixa fixa existe fora da trilha de arrastar', !!w.document.querySelector('#root > .faixa-fixa-heroi'));
+    h.ok('a barra de telas fica fora da trilha de arrastar', !!w.document.querySelector('#root > .barra-baixo'));
+    h.ok('o topo de uma linha mostra nome, vida e mana', !!w.document.querySelector('.topo-compacto') && w.document.querySelector('.topo-compacto').textContent.includes('Lucéa'));
   }
 
   h.secao('Perícias compactas');

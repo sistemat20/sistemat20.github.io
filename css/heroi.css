@@ -203,3 +203,46 @@
 .injecao{ display:grid; gap:6px; padding:6px 0; border-top:1px dotted var(--line); }
 .injecao .btn-mini{ justify-self:start; }
 .mao .injecao-mini{ color:var(--gold); }
+
+/* ---- Navegação 1A: topo de uma linha e barra embaixo (15/11/2026) ---- */
+.topo-compacto{ position:sticky; top:0; z-index:30; display:flex; align-items:center; gap:10px; padding:8px 14px; background:rgba(14,10,8,.94); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); border-bottom:1px solid var(--line); }
+.topo-compacto .foto-heroi{ width:32px; height:32px; font-size:.8rem; flex-shrink:0; }
+.topo-compacto .nm{ flex:1; min-width:0; line-height:1.15; }
+.topo-compacto .nm b{ display:block; font:800 .95rem 'Cinzel',serif; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.topo-compacto .nm small{ display:block; font-size:.66rem; color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.topo-compacto .vm{ display:grid; text-align:right; font:700 .7rem 'Cinzel',serif; line-height:1.2; }
+.topo-compacto .def{ display:grid; justify-items:center; font-size:.62rem; line-height:1; color:var(--ink-soft); }
+.topo-compacto .def b{ font:800 .8rem 'Cinzel',serif; color:var(--ink); }
+.barra-baixo{ position:fixed; left:0; right:0; bottom:0; z-index:45; display:grid; grid-template-columns:repeat(5,1fr); padding:4px 4px calc(6px + env(safe-area-inset-bottom)); background:rgba(10,7,5,.96); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); border-top:1px solid var(--gold-deep); }
+.barra-baixo button{ position:relative; display:grid; justify-items:center; gap:1px; background:none; border:0; padding:5px 0 2px; color:var(--ink-soft); font:600 .62rem 'Inter',sans-serif; cursor:pointer; }
+.barra-baixo .ico{ font-size:1.15rem; filter:grayscale(.7); opacity:.8; transition:transform .2s, filter .2s; }
+.barra-baixo button.on{ color:var(--gold); }
+.barra-baixo button.on .ico{ filter:none; opacity:1; transform:translateY(-2px); }
+.barra-baixo button.on::before{ content:''; position:absolute; top:-5px; left:28%; right:28%; height:2px; border-radius:2px; background:var(--gold); }
+.barra-baixo .barra-selo{ position:absolute; top:-2px; left:auto; right:24%; width:16px; height:16px; font-size:.56rem; }
+#root:has(> .barra-baixo){ padding-bottom:calc(70px + env(safe-area-inset-bottom)); }
+@media (min-width:900px){ .barra-baixo{ left:50%; right:auto; width:520px; transform:translateX(-50%); border:1px solid var(--gold-deep); border-bottom:0; border-radius:16px 16px 0 0; } }
+
+/* ---- Evolução 3A (15/11/2026) ---- */
+.guia-vendo{ font-size:.76rem; color:var(--ink-soft); margin-bottom:8px; }
+.guia-vendo b{ color:var(--ink); font-family:'Cinzel',serif; }
+.cartao-prox-nivel{ border:1px solid var(--gold-deep); border-radius:14px; padding:12px; background:linear-gradient(180deg, rgba(216,189,116,.08), transparent); }
+.cartao-prox-nivel .titulo{ text-align:center; font:800 1.05rem 'Cinzel',serif; color:var(--gold); margin-bottom:8px; }
+.cartao-prox-nivel .ganhos{ display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+.cartao-prox-nivel .ganhos > div{ border:1px solid var(--line); border-radius:10px; padding:7px; text-align:center; font-size:.68rem; color:var(--ink-soft); }
+.cartao-prox-nivel .ganhos > div.largo{ grid-column:1 / -1; text-align:left; display:flex; gap:8px; align-items:center; }
+.cartao-prox-nivel .ganhos b{ display:block; font:800 1.05rem 'Cinzel',serif; color:var(--ink); }
+.cartao-prox-nivel .ganhos .largo b{ display:inline; font-size:.8rem; color:var(--gold); white-space:nowrap; }
+.cartao-prox-nivel .marco{ margin-top:8px; text-align:center; font-size:.68rem; color:var(--ink-soft); }
+
+/* ---- Confira antes de salvar 3B (15/11/2026) ---- */
+.confira{ display:grid; gap:6px; margin-top:10px; }
+.confira-titulo{ font:800 .9rem 'Cinzel',serif; color:var(--gold); }
+.confira-attrs{ display:grid; gap:4px; }
+.confira-attr{ display:grid; grid-template-columns:40px 1fr auto; gap:8px; align-items:center; padding:6px 9px; border:1px solid var(--line); border-radius:10px; font-size:.7rem; color:var(--ink-soft); }
+.confira-attr b{ font:800 .8rem 'Cinzel',serif; color:var(--ink); }
+.confira-attr .v{ font:800 1rem 'Cinzel',serif; color:var(--gold); }
+.confira-ok{ padding:7px 10px; border-radius:10px; border:1px solid var(--status-saudavel); background:rgba(94,168,94,.1); color:#c9ebc9; font-size:.72rem; }
+.confira-aviso{ display:flex; justify-content:space-between; align-items:center; gap:8px; padding:7px 10px; border-radius:10px; border:1px solid var(--gold-deep); background:rgba(166,129,47,.14); color:#f3e2b2; font-size:.72rem; }
+.confira-aviso .link-editar-item{ margin:0; color:var(--gold); }
+.aviso-espaco{ margin-top:8px; }
