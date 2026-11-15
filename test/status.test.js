@@ -18,9 +18,9 @@ const h = require('./harness');
   {
     const f = aeon();
     abrir(f);
-    h.ok('a aba Ficha agora se chama Status', q('nav.tabs button').some((b) => b.textContent === 'Status'));
+    h.ok('a aba continua Ficha', q('nav.tabs button').some((b) => b.textContent === 'Ficha'));
     h.ok('o painel Defesa separado saiu', !q('.panel.faixa > h2').some((x) => x.textContent === 'Defesa'));
-    h.ok('painel Vida · Defesa · Mana', q('.panel.faixa > h2').some((x) => x.textContent === 'Vida · Defesa · Mana'));
+    h.ok('o painel de vida, Defesa e mana se chama Status', q('.panel.faixa > h2').some((x) => x.textContent === 'Status'));
     const esc = w.document.querySelector('.escudo-def');
     h.ok('o escudo mostra a Defesa total', esc && esc.textContent.startsWith(String(w.defesaTotal(f))));
     esc.click();
@@ -80,6 +80,29 @@ const h = require('./harness');
     q('.pc')[1].click();
     q('.seg3 button').find((b) => b.textContent === 'Mestre').click();
     h.igual('o seletor muda o nível', f.parceiros[1].poder, 'mestre');
+  }
+
+  h.secao('Condições: pílulas, alerta e efeito na tela');
+  {
+    const f = aeon();
+    abrir(f);
+    h.ok('sem condição: uma linha e o +', texto().includes('Nenhuma condição') && !w.document.querySelector('.alerta-cond'));
+    q('.cond-pilula.mais')[0].click();
+    h.igual('o + mostra as 32 condições em nomes curtos', q('.cond-nuvem .cond-pilula').length, 32);
+    w.state._condBusca = 'despre'; h.renderizar(w, 'personagem');
+    h.igual('a busca filtra', q('.cond-nuvem .cond-pilula').length, 1);
+    q('.cond-nuvem .cond-pilula')[0].click();
+    h.ok('tocar mostra o efeito em uma frase', w.document.querySelector('#painel-condicoes .gaveta-ej').textContent.includes('–5 na Defesa'));
+    q('#painel-condicoes .gaveta-ej button').find((b) => b.textContent === 'Aplicar').click();
+    h.ok('aplicou: vira pílula vermelha', f.condicoesAtivas.includes('Desprevenido') && q('.cond-linha .cond-pilula.on').length === 1);
+    h.ok('alerta no topo com o efeito curto', !!w.document.querySelector('.alerta-cond') && w.document.querySelector('.alerta-cond').textContent.includes('−5 Defesa'));
+    h.ok('o escudo fica vermelho quando a Defesa caiu', !!w.document.querySelector('.escudo-def.afetado') && w.defesaSemCondicoes(f) === w.defesaTotal(f) + 5);
+    h.ok('efeito de tela do desprevenido', !!w.document.querySelector('#efx-condicoes .efx-c.guarda'));
+    f.condicoesAtivas.push('Em Chamas'); h.renderizar(w, 'personagem');
+    h.ok('cada condição tem o seu efeito', w.efeitosDeTela(f).join(',') === 'guarda,chamas' && !!w.document.querySelector('#efx-condicoes .efx-c.chamas'));
+    f.condicoesAtivas = []; h.renderizar(w, 'personagem');
+    h.ok('sem condição, o efeito some', !w.document.getElementById('efx-condicoes'));
+    w.state._condAberto = false;
   }
 
   h.resumo();

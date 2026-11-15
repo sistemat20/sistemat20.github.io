@@ -68,7 +68,7 @@ function espacoUnidade(f, row){
   if(poderesAtivos(f).includes('Inventário Organizado') && e===0.5) e = 0.25;
   return e;
 }
-function pesoDaLinha(f, row){ return espacoUnidade(f, row) * (parseFloat(row.qtd)||1); }
+function pesoDaLinha(f, row){ return espacoDaLinha(row, espacoUnidade(f, row)); }
 function fmtEsp(n){ return String(Math.round(n*100)/100).replace('.',','); }
 // Bolinhas de espaço: cheia = 1, meia = ½, um quarto = ¼.
 function pipsEspaco(e){
@@ -85,6 +85,8 @@ function nomeLimpoComSelos(row){
   const p = separarPresente(row.item);
   let nome = p.base;
   const selos = [];
+  // Munição: o "(20)" do pacote sai do nome; a quantidade de flechas aparece no contador.
+  if(pacoteMunicao(row)){ nome = nome.replace(/\s*\(\d+\)\s*$/, ''); selos.push({txt:'pacote de '+pacoteMunicao(row)+' = 1 esp.'}); }
   if(row.superior || row.melhoriasTxt){
     const m = nome.match(/^(.*?)\s*\(([^()]*)\)\s*$/);
     if(m && m[2] && !/\d+d\d+/.test(m[2])){ nome = m[1]; m[2].split(',').map(x=>x.trim()).filter(Boolean).forEach(x=> selos.push({txt:x})); }
@@ -319,7 +321,7 @@ function linhaMochila(f, row, idx){
   const qtd = aberto
     ? el('span',{class:'qtd-step'}, el('button',{'aria-label':'menos um', onclick:parar(()=> mudarQuantidade(fichaAtual(), idx, -1))}, '−'), el('b',{class:'num'}, String(row.qtd)), el('button',{'aria-label':'mais um', onclick:parar(()=> mudarQuantidade(fichaAtual(), idx, 1))}, '+'))
     : 'qtd '+row.qtd;
-  const meta = el('span',{class:'meta-mochila'}, pipsEspaco(e), ' '+rotulo+' · ', qtd, ' · '+fmtEsp(e*(parseFloat(row.qtd)||1))+' esp');
+  const meta = el('span',{class:'meta-mochila'}, pipsEspaco(e), ' '+rotulo+' · ', qtd, ' · '+fmtEsp(espacoDaLinha(row, e))+' esp');
   return renderItemColapsavel('mochila-'+idx, titulo, meta, corpoLinhaMochila(f, row, idx));
 }
 

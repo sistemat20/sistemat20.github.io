@@ -200,3 +200,6 @@
 .seg3 button{ font:700 .64rem 'Cinzel',serif; padding:6px 0; background:transparent; color:var(--gold); border:0; cursor:pointer; }
 .seg3 button.on{ background:var(--gold); color:#1a120c; }
 .ej.pc2{ border-style:dashed; }
+.injecao{ display:grid; gap:6px; padding:6px 0; border-top:1px dotted var(--line); }
+.injecao .btn-mini{ justify-self:start; }
+.mao .injecao-mini{ color:var(--gold); }

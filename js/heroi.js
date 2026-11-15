@@ -227,7 +227,7 @@ function gavetaCartao(f, aberto){
 function renderFaixaHeroi(f){
   return el('div',{class:'faixa-fixa-heroi', 'aria-hidden':'true'},
     retratoHeroi(f, 'mini'),
-    el('div',{}, el('b',{}, f.nome||''), el('small',{}, classeDisplay(f)+' · Defesa '+defesaTotal(f))),
+    el('div',{}, el('b',{}, f.nome||''), el('small',{}, classeDisplay(f)+' · Defesa '+defesaTotal(f), condicoesAtivas(f).length ? el('span',{class:'cond-mini'}, ' · ⚠️ '+condicoesAtivas(f).join(', ')) : null)),
     el('div',{class:'mini-vm'}, el('span',{style:'color:var(--pv-accent);'}, (parseInt(f.pvatual)||0)+'/'+pvMaxEfetivo(f)), el('span',{style:'color:var(--pm-accent);'}, (parseInt(f.pmatual)||0)+'/'+pmMaxEfetivo(f))));
 }
 // Checagem simples na rolagem (funciona em qualquer celular): a faixa aparece quando o cartão

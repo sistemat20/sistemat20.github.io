@@ -1,5 +1,5 @@
 // ============ EM JOGO (13/11/2026, prancha "Em jogo e Notas") ============
-// Uma linha curta no painel Vida · Defesa · Mana (aba Status) só com o que o jogador ATIVA na mesa:
+// Uma linha curta no painel Status (aba Ficha) só com o que o jogador ATIVA na mesa:
 //   · gasta PM fixo (Busca Interior, 1 PM; Golpe Pessoal já construído);
 //   · PM à escolha (Canalizar Energia: teclas de quantos PM gastar);
 //   · modo liga e desliga (Ataque Poderoso, Lobo Solitário): só lembrete, acende em verde;

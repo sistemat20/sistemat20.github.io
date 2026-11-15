@@ -1,5 +1,5 @@
 // ============ STATUS (15/11/2026, prancha "Defesa e companhia", variante B) ============
-// A aba Ficha passa a se chamar Status. Aqui moram:
+// O antigo painel Vida & Mana passa a se chamar Status (a aba continua Ficha). Aqui moram:
 //   · Vida · Defesa · Mana: os dois anéis e o escudo da Defesa encaixado entre eles, por baixo;
 //     tocar no escudo abre a conta (o painel Defesa separado deixou de existir);
 //   · Nas mãos: a mão principal e a outra mão, a linha de ataque de cada arma com os números já
@@ -10,7 +10,8 @@
 // ---- Vida · Defesa · Mana ----
 function renderVidaDefesaMana(f){
   const aberta = state._defesaAberta===f.id;
-  const escudo = el('button',{class:'escudo-def'+(aberta?' aberto':''), 'aria-label':'Defesa '+defesaTotal(f)+', tocar para ver a conta', onclick:()=>{ state._defesaAberta = aberta ? null : f.id; render(); }});
+  const afetado = defesaTotal(f) < defesaSemCondicoes(f);
+  const escudo = el('button',{class:'escudo-def'+(aberta?' aberto':'')+(afetado?' afetado':''), 'aria-label':'Defesa '+defesaTotal(f)+', tocar para ver a conta', onclick:()=>{ state._defesaAberta = aberta ? null : f.id; render(); }});
   escudo.innerHTML = '<svg viewBox="0 0 58 64" aria-hidden="true"><path d="M29 3 L53 11 V30 C53 45 42 56 29 61 C16 56 5 45 5 30 V11 Z" class="esc-fundo"/><path d="M29 8 L48 14.5 V30 C48 42 39.5 51 29 55.5" class="esc-brilho"/></svg>';
   escudo.appendChild(el('span',{class:'esc-num'}, String(defesaTotal(f)), el('small',{}, 'DEFESA')));
   return el('div',{},
@@ -114,6 +115,7 @@ function renderMao(f, s, k){
     filhos.push(el('span',{class:'d'}, [it.critico, it.distancia ? (it.alcance||'distância') : 'corpo a corpo'].filter(Boolean).join(' · ')));
     if(!proficienteComArma(f, it)) filhos.push(el('span',{class:'d aviso-ej'}, 'sem proficiência (−5 já aplicado)'));
     if(mod) filhos.push(el('span',{class:'tag-modo'}, 'Ataque Poderoso'));
+    if(temInjecao(it)) filhos.push(el('span',{class:'d injecao-mini'}, '💉 '+((it.injecao||[]).length ? it.injecao.join(', ') : 'injeção vazia')));
   } else if(e.tipo==='escudo'){
     filhos.push(el('span',{class:'d'}, '+'+((parseInt(it.def)||0)+bonusEscudoPoderes(f))+' na Defesa'));
   } else {
@@ -131,6 +133,7 @@ function renderGavetaMao(f, s){
     if(e.tipo==='arma'){
       const n = numerosAtaque(f, it);
       if(n.nota) filhos.push(el('div',{class:'meta-ej'}, n.nota));
+      if(temInjecao(it)) filhos.push(renderInjecao(f, it));
       const municao = municaoDaArma(f, it);
       if(municao) filhos.push(el('div',{class:'linha-equip'}, el('span',{style: municao.qtd<=0 ? 'color:var(--red-bright);' : ''}, '🏹 '+municao.nome+': '+municao.qtd+(municao.qtd<=0?' (acabou)':'')),
         municao.qtd>0 ? el('button',{class:'btn ghost btn-mini', onclick:()=> gastarMunicao(f, municao.idx)}, 'Disparar (−1)') : null));
@@ -303,4 +306,56 @@ function renderPainelParceiros(f){
     if(ativos.length < limite) corpo.push(el('button',{class:'btn ghost', style:'margin-top:8px;', onclick:()=> abrirAdicionarParceiro()}, '+ Adicionar parceiro'));
     return corpo;
   }, ativos.length>0 || !!fam);
+}
+
+// ---- Injeção alquímica (Livro Básico, melhorias de arma) ----
+// "Um ataque que acerte causa seu dano normal e libera uma carga de um preparado (como ácido ou
+// fogo alquímico) ou de água benta, que atinge o alvo automaticamente. A melhoria tem espaço
+// para 2 doses. Carregá-la exige uma ação completa e o gasto dos itens com os quais você
+// quiser carregá-la." As doses ficam na arma (arma.injecao) e vão junto se ela for guardada.
+const DOSES_INJECAO = 2;
+function temInjecao(arma){ return /Inje[çc][ãa]o alqu[íi]mica/i.test((arma.melhoriasTxt||'')+' '+(arma.nome||'')); }
+function preparadosParaInjecao(f){
+  const vistos = {};
+  (f.equip||[]).forEach(row=>{
+    if(row.tipo!=='geral' || !(parseInt(row.qtd)>0)) return;
+    const nome = nomeCatalogoDaLinha(row);
+    const cat = ITENS_GERAIS.find(i=> i.n===nome);
+    if(!(nome==='Água benta' || (cat && cat.cat==='Alquímico'))) return;
+    vistos[nome] = (vistos[nome]||0) + (parseInt(row.qtd)||0);
+  });
+  return Object.keys(vistos).map(nome=> ({nome, qtd: vistos[nome], desc: (ITENS_GERAIS.find(i=> i.n===nome)||{}).desc || ''}));
+}
+function carregarInjecao(f, arma, nome){
+  if(!arma.injecao) arma.injecao = [];
+  if(arma.injecao.length >= DOSES_INJECAO){ flashMsg('A injeção já está cheia (2 doses).'); return; }
+  if(!consumirUm(f, nome)){ flashMsg('Não tem mais '+nome+' na mochila.'); return; }
+  arma.injecao.push(nome);
+  registrarLog(f, 'Carregou a Injeção alquímica com '+nome+' ('+arma.injecao.length+'/'+DOSES_INJECAO+')');
+  salvarPerfis();
+  if(typeof Som!=='undefined') Som.tocar('gole');
+  render();
+}
+function injetarDose(f, arma){
+  if(!(arma.injecao||[]).length) return;
+  const nome = arma.injecao.shift();
+  const desc = (ITENS_GERAIS.find(i=> i.n===nome)||{}).desc || '';
+  registrarLog(f, 'Injeção alquímica: '+nome+' no alvo'+(desc ? ' ('+desc+')' : ''));
+  salvarPerfis();
+  if(typeof Som!=='undefined') Som.tocar('fogo');
+  flashMsg('💉 '+nome+' no alvo'+(desc ? ': '+desc : '')+'. Role na mesa.');
+  render();
+}
+function renderInjecao(f, arma){
+  const doses = arma.injecao||[];
+  const abrindo = state._carregandoInjecao===arma;
+  const opcoes = abrindo ? preparadosParaInjecao(f) : [];
+  return el('div',{class:'injecao'},
+    el('div',{class:'linha-equip'},
+      el('span',{}, el('b',{}, '💉 Injeção alquímica '), doses.length+'/'+DOSES_INJECAO+(doses.length ? ': '+doses.join(', ') : ' (vazia)')),
+      doses.length < DOSES_INJECAO ? el('button',{class:'link-editar-item', onclick:()=>{ state._carregandoInjecao = abrindo ? null : arma; render(); }}, abrindo ? 'fechar' : 'carregar') : null),
+    doses.length ? el('button',{class:'btn btn-mini', onclick:()=> injetarDose(f, arma)}, 'Acertou: injetar '+doses[0]) : null,
+    abrindo ? (opcoes.length
+      ? el('div',{class:'opc-troca'}, el('div',{class:'pergunta'}, 'Carregar é uma ação completa e gasta o item da mochila:'), opcoes.map(o=> el('button',{onclick:()=> carregarInjecao(f, arma, o.nome)}, el('span',{}, o.nome+' ('+o.qtd+')'), el('small',{}, o.desc))))
+      : el('div',{class:'meta-ej'}, 'Nenhum preparado alquímico ou água benta na mochila.')) : null);
 }

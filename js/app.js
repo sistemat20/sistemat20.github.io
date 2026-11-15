@@ -1165,6 +1165,21 @@ function limiteCargaPartes(f){
   return partes;
 }
 function limiteCarga(f){ return limiteCargaPartes(f).reduce((t,p)=>t+p.valor,0); }
+// Munição (15/11/2026): "Flechas (20)" é um pacote de 20 que ocupa 1 espaço. A linha guarda
+// quantas flechas sobram (qtd = 14 flechas, não 14 pacotes); o espaço é por pacote começado.
+function pacoteMunicao(row){
+  if(!row || row.tipo!=='geral') return 0;
+  const nome = nomeCatalogoDaLinha(row);
+  const cat = ITENS_GERAIS.find(i=> i.n===nome);
+  if(!cat || cat.cat!=='Munição') return 0;
+  const m = nome.match(/\((\d+)\)\s*$/);
+  return m ? parseInt(m[1]) : 0;
+}
+function espacoDaLinha(row, porUnidade){
+  const qtd = parseFloat(row.qtd)||1;
+  const pacote = pacoteMunicao(row);
+  return pacote ? porUnidade * Math.ceil(Math.max(0, qtd) / pacote) : porUnidade * qtd;
+}
 function cargaMaxima(f){ return limiteCarga(f)*2; }
 function cargaUsada(f){
   let total = 0;
@@ -1184,8 +1199,7 @@ function cargaUsada(f){
     let porUnidade = parseFloat(String(it.carga).replace(',','.'))||0; // "0,5" digitado com vírgula valia 0
     if(it.tipo==='geral' && it.vestido && MOCHILAS_VESTIVEIS[nomeCatalogoDaLinha(it)]) porUnidade = 0; // vestida, a mochila não gasta espaço
     if(temInventarioOrganizado && porUnidade===0.5) porUnidade = 0.25;
-    const qtd = parseFloat(it.qtd)||1;
-    total += porUnidade * qtd;
+    total += espacoDaLinha(it, porUnidade);
   });
   return Math.round(total*100)/100;
 }
@@ -2217,6 +2231,28 @@ function aplicarMigracoesPerfis(){
   migrarEfeitoCustomParaEssencias();
   migrarMochilaQuintoVestido();
   migrarCargaZeradaDoCatalogo();
+  migrarMunicaoPorUnidade();
+}
+// Migração (15/11/2026): munição passa a contar unidade por unidade. "Flechas (20)" com qtd 2
+// vira 40 flechas; "Flechas (14)" (nome editado para acompanhar à mão) vira 14 flechas do pacote
+// de 20. Linhas repetidas do mesmo tipo juntam numa só. Roda uma vez por ficha.
+function migrarMunicaoPorUnidade(){
+  state.perfis.forEach(f=>{
+    if(f._municaoPorUnidade) return;
+    const vistas = {};
+    (f.equip||[]).slice().forEach(row=>{
+      if(!row || row.tipo!=='geral') return;
+      const m = nomeBaseItem(row.item).trim().match(/^(Flechas|Virotes|Balas)\s*\((\d+)\)$/i);
+      if(!m) return;
+      const canon = ITENS_GERAIS.find(i=> i.cat==='Munição' && i.n.toLowerCase().startsWith(m[1].toLowerCase()+' ('));
+      if(!canon) return;
+      const unidades = parseInt(m[2]) * (parseInt(row.qtd)||1);
+      if(vistas[canon.n]){ vistas[canon.n].qtd = String((parseInt(vistas[canon.n].qtd)||0) + unidades); f.equip.splice(f.equip.indexOf(row), 1); return; }
+      row.item = canon.n; row.ref = canon.n; row.qtd = String(unidades); row.carga = String(canon.esp);
+      vistas[canon.n] = row;
+    });
+    f._municaoPorUnidade = true;
+  });
 }
 // Migração (13/11/2026, revisão): uma mochila vestida como 5º item não dá os +2 (só 4 vestidos
 // valem) e a tela não deixa vestir um quinto. Ela volta para guardada, sem mudar nenhuma conta.
@@ -2673,6 +2709,7 @@ function render(){
       root.appendChild(renderFaixaHeroi(fichaAtual()));
       setTimeout(ligarFaixaHeroi, 0);
     }
+    if(typeof atualizarEfeitoCondicoes==='function') atualizarEfeitoCondicoes();
   }catch(erro){
     // Nunca deixa a tela em branco silenciosamente — sem isso, qualquer erro no meio da
     // montagem (ex: um dado incompleto chegando de uma sincronização) apagava a tela inteira

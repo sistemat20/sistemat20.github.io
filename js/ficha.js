@@ -520,7 +520,7 @@ function renderPersonagemScreen(){
   const wrap = el('div',{});
   if(!state.personagemTab) state.personagemTab = 'ficha';
   const nav = el('nav',{class:'tabs', style:'margin:0 0 4px;padding:0;'});
-  [['ficha','Status'],['magias','Magias'],['mochila','Mochila'],['notas','Notas']].forEach(([id,label])=>{
+  [['ficha','Ficha'],['magias','Magias'],['mochila','Mochila'],['notas','Notas']].forEach(([id,label])=>{
     nav.appendChild(el('button',{class: state.personagemTab===id?'active':'', 'data-efx-alvo': id==='mochila' ? 'mochila' : null, onclick:()=>{state.personagemTab=id; render();}}, label));
   });
   wrap.appendChild(nav);
@@ -648,11 +648,9 @@ function renderFichaScreen(){
       '⚠ Sem proficiência com '+semProf.join(', ')+' — penalidade já aplicada, toque pra ver'
     ));
   }
-  if(condicoesAtivas(f).length>0 && semMenuAberto){
-    wrap.appendChild(el('div',{class:'aviso-sobrecarga', style:'background:linear-gradient(90deg, rgba(122,90,18,0.25), rgba(122,90,18,0.1));border-bottom-color:var(--gold);', onclick:()=>{ state.tab='personagem'; state.personagemTab='ficha'; render(); }},
-      '🩹 Condições ativas: '+condicoesAtivas(f).join(', ')
-    ));
-  }
+  // Alerta das condições (C3, 15/11/2026): o efeito curto de cada uma, em todas as abas;
+  // tocar leva ao painel Condições da Ficha.
+  if(semMenuAberto){ const alerta = renderAlertaCondicoes(f); if(alerta) wrap.appendChild(alerta); }
 
   const main = el('main',{});
   if(state.tab === 'personagem' || state.tab === 'pericias') main.appendChild(renderPersonagemComSwipeParaPericias());
@@ -785,7 +783,7 @@ function liberarMaos(f, maosNecessarias){
   while(maosOcupadas(f) + maosNecessarias > 2 && seguranca-->0){
     if(f.armas && f.armas.length>0){
       const arma = f.armas.shift();
-      f.equip.push({tipo:'arma', ref:arma.refBase||arma.nome, item:arma.nome, qtd:'1', carga:String(arma.esp||1), superior:arma.superior, bonusTesteExtra:arma.bonusTesteExtra, bonusDanoExtra:arma.bonusDanoExtra, melhoriasTxt:arma.melhoriasTxt});
+      f.equip.push({tipo:'arma', ref:arma.refBase||arma.nome, item:arma.nome, qtd:'1', carga:String(arma.esp||1), superior:arma.superior, bonusTesteExtra:arma.bonusTesteExtra, bonusDanoExtra:arma.bonusDanoExtra, melhoriasTxt:arma.melhoriasTxt, injecao:arma.injecao||null});
       flashMsg('"'+arma.nome+'" foi para a mochila para liberar as mãos.');
     } else if(f.esotericos && f.esotericos.length>0){
       const eso = f.esotericos.shift();
@@ -889,7 +887,11 @@ function equiparEsotericoDaMochila(idx){
 }
 function addItemGeral(it, vestir){
   const f = fichaAtual();
-  f.equip.push({tipo:'geral', item:it.n, qtd:'1', carga:String(it.esp), vestido:!!vestir});
+  // Munição: um pacote soma 20 flechas na linha que já existe (conta unidade por unidade).
+  const pacote = pacoteMunicao({tipo:'geral', item:it.n});
+  const jaTem = pacote ? f.equip.find(r=> r.tipo==='geral' && nomeCatalogoDaLinha(r)===it.n) : null;
+  if(jaTem) jaTem.qtd = String((parseInt(jaTem.qtd)||0) + pacote);
+  else f.equip.push({tipo:'geral', item:it.n, qtd: pacote ? String(pacote) : '1', carga:String(it.esp), vestido:!!vestir});
   registrarLog(f, (vestir?'Vestiu: ':'Adicionou à mochila: ')+it.n);
   salvarPerfis();
   flashMsg(vestir ? '"'+it.n+'" vestido — já contando nos 4 slots (aba Ficha).' : '"'+it.n+'" adicionado à mochila (aba Ficha).');
@@ -987,6 +989,7 @@ function equiparDaMochila(idx){
       armaMontada.bonusDanoExtra = row.bonusDanoExtra||0;
       armaMontada.melhoriasTxt = row.melhoriasTxt||null;
       armaMontada.superior = true;
+      if(row.injecao) armaMontada.injecao = row.injecao; // doses da Injeção alquímica vão junto
     }
     f.armas.push(armaMontada);
     removerItemMochila(f, idx);
@@ -1026,7 +1029,7 @@ function guardarArmaNaMochila(idx){
   const arma = f.armas[idx];
   if(!arma) return;
   f.armas.splice(idx,1);
-  f.equip.push({tipo:'arma', ref:arma.refBase||arma.nome, item:arma.nome, qtd:'1', carga:String(arma.esp||1), superior:arma.superior, bonusTesteExtra:arma.bonusTesteExtra, bonusDanoExtra:arma.bonusDanoExtra, melhoriasTxt:arma.melhoriasTxt});
+  f.equip.push({tipo:'arma', ref:arma.refBase||arma.nome, item:arma.nome, qtd:'1', carga:String(arma.esp||1), superior:arma.superior, bonusTesteExtra:arma.bonusTesteExtra, bonusDanoExtra:arma.bonusDanoExtra, melhoriasTxt:arma.melhoriasTxt, injecao:arma.injecao||null});
   salvarPerfis();
   flashMsg('"'+arma.nome+'" guardada na mochila.');
   render();
@@ -1339,10 +1342,10 @@ function renderPersonagemFicha(){
   // Vida & Mana e Defesa vêm logo aqui, ANTES de Atributos — são os números que você realmente
   // fica olhando toda hora numa sessão de jogo; Atributos você define uma vez e quase nunca
   // mexe de novo, então não precisa disputar espaço com o que importa durante o combate.
-  // Vida · Defesa · Mana (15/11/2026, variante B): o escudo da Defesa fica encaixado entre os
+  // Painel Status (15/11/2026, variante B): vida, Defesa e mana: o escudo da Defesa fica encaixado entre os
   // anéis e abre a conta ao tocar; o painel Defesa separado deixou de existir (js/status.js).
   wrap.appendChild(el('div',{class:'panel faixa'},
-    el('h2',{},'Vida · Defesa · Mana'),
+    el('h2',{},'Status'),
     renderVidaDefesaMana(f),
     renderEmJogo(f),
     renderCinto(f),
@@ -1508,87 +1511,6 @@ function renderPopupAdicionarParceiro(f){
   return overlay;
 }
 
-function renderPainelCondicoes(f){
-  const ativas = condicoesAtivas(f);
-  const maldicoes = maldicoesAtivas(f);
-  const totalAtivo = ativas.length + maldicoes.length;
-  return renderSecaoNotasColapsavel('condicoes-ativas', '☣️', 'Condições e Maldições',
-    totalAtivo>0 ? totalAtivo+' ativa(s)' : 'Nenhuma agora', ()=>{
-    const corpo = [];
-    if(!state._gerenciandoCondicoes){
-      if(totalAtivo===0){
-        corpo.push(el('div',{class:'empty'},'Nenhuma condição ou maldição ativa agora.'));
-      } else {
-        const row = el('div',{class:'option-grid'});
-        ativas.forEach(nome=>{
-          const info = CONDICOES_LISTA.find(c=>c[0]===nome);
-          const temEfeito = !!CONDICOES_EFEITOS[nome];
-          row.appendChild(el('button',{class:'option-card selected', onclick:()=>alternarCondicao(f,nome)},
-            el('div',{class:'opt-nome'}, nome+' ✕'),
-            info ? el('div',{class:'opt-sub'}, info[1]) : null,
-            temEfeito ? el('div',{class:'opt-sub', style:'color:var(--gold);'}, '⚡ já aplicado nos cálculos') : null
-          ));
-        });
-        // Maldições ativas — visual levemente diferente (borda roxa) pra não confundir com
-        // condição normal, já que são efeitos mais graves e persistentes.
-        maldicoes.forEach(nome=>{
-          const info = MALDICOES_LISTA.find(c=>c[0]===nome);
-          const temEfeito = ['Maldição do Bardo','Toque de Tibar'].includes(nome);
-          row.appendChild(el('button',{class:'option-card selected', style:'border-color:#9b59b6;', onclick:()=>alternarMaldicao(f,nome)},
-            el('div',{class:'opt-nome'}, '🔮 '+nome+' ✕'),
-            info ? el('div',{class:'opt-sub'}, info[1]) : null,
-            temEfeito ? el('div',{class:'opt-sub', style:'color:var(--gold);'}, '⚡ já aplicado nos cálculos') : null
-          ));
-        });
-        corpo.push(row);
-      }
-      corpo.push(el('button',{class:'btn ghost', style:'margin-top:10px;', onclick:()=>{ state._gerenciandoCondicoes=true; state._abaCondicoesMaldicoes='condicoes'; render(); }}, 'Gerenciar'));
-      if(f.condicoesNota){
-        corpo.push(el('div',{class:'meta', style:'margin-top:8px;color:var(--gold);'}, '📝 '+f.condicoesNota));
-      }
-    } else {
-      if(!state._abaCondicoesMaldicoes) state._abaCondicoesMaldicoes = 'condicoes';
-      const tabs = el('div',{class:'tab-grid', style:'margin-bottom:10px;'},
-        el('button',{class: state._abaCondicoesMaldicoes==='condicoes'?'on':'', onclick:()=>{ state._abaCondicoesMaldicoes='condicoes'; render(); }}, 'Condições'),
-        el('button',{class: state._abaCondicoesMaldicoes==='maldicoes'?'on':'', onclick:()=>{ state._abaCondicoesMaldicoes='maldicoes'; render(); }}, '🔮 Maldições')
-      );
-      corpo.push(tabs);
-
-      if(state._abaCondicoesMaldicoes==='condicoes'){
-        corpo.push(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Condições com ⚡ já entram sozinhas no cálculo de Defesa/perícias/deslocamento. As outras são mais sobre o que dá ou não dá pra fazer no turno — combine com o Mestre na hora.'));
-        const row = el('div',{class:'option-grid'});
-        CONDICOES_LISTA.forEach(([nome,desc])=>{
-          const marcado = ativas.includes(nome);
-          const temEfeito = !!CONDICOES_EFEITOS[nome];
-          row.appendChild(el('button',{class:'option-card '+(marcado?'selected':''), onclick:()=>alternarCondicao(f,nome)},
-            el('div',{class:'opt-nome'}, nome+(temEfeito?' ⚡':'')),
-            el('div',{class:'opt-sub'}, desc)
-          ));
-        });
-        corpo.push(row);
-        corpo.push(el('label',{style:'margin-top:10px;'},'Nota livre (ex: "Veneno 2d6/turno", "Sangramento leve")'));
-        corpo.push(el('input',{id:'condicoes-nota', type:'text', value:f.condicoesNota||'', oninput:(e)=>{f.condicoesNota=e.target.value;}, onchange:()=>{salvarPerfis();}}));
-      } else {
-        // Maldições (Ameaças de Arton) — texto aqui é só a parte MECÂNICA (o que muda nos
-        // números). A origem/lore e como remover cada uma ficam de fora de propósito; isso é
-        // coisa que o Mestre narra na mesa, não pro jogador consultar aqui.
-        corpo.push(el('div',{class:'tip', style:'font-size:0.78rem;'}, 'Maldições (Ameaças de Arton). ⚡ = já entra sozinho nos cálculos. As outras ficam só de referência — combine o efeito com o Mestre.'));
-        const row = el('div',{class:'option-grid'});
-        MALDICOES_LISTA.forEach(([nome,desc])=>{
-          const marcado = maldicoes.includes(nome);
-          const temEfeito = ['Maldição do Bardo','Toque de Tibar'].includes(nome);
-          row.appendChild(el('button',{class:'option-card '+(marcado?'selected':''), style:'border-color:#9b59b6'+(marcado?';':';opacity:0.85;'), onclick:()=>alternarMaldicao(f,nome)},
-            el('div',{class:'opt-nome'}, nome+(temEfeito?' ⚡':'')),
-            el('div',{class:'opt-sub'}, desc)
-          ));
-        });
-        corpo.push(row);
-      }
-      corpo.push(el('button',{class:'btn ghost', style:'margin-top:10px;', onclick:()=>{ state._gerenciandoCondicoes=false; render(); }}, 'Fechar'));
-    }
-    return corpo;
-  }, totalAtivo>0);
-}
 
 function renderPersonagemNotas(){
   const f = fichaAtual();
@@ -1686,7 +1608,7 @@ function renderPoderesNotas(f){
       const selo = entrada.tipo==='auto' ? el('span',{class:'selo-poder auto'}, 'automático') : ativa ? el('span',{class:'selo-poder'}, 'ativa') : null;
       return renderItemColapsavel('poder-'+idx+'-'+entrada.nome, el('span',{}, entrada.nome+(usado?' (usado)':''), selo ? ' ' : null, selo), entrada.fonte, [
         el('div',{class:'meta', style:'margin-bottom:4px;'+(entrada.tipo==='auto'?'color:var(--gold);':'')},
-          entrada.tipo==='auto' ? '⚡ Já calculado na ficha automaticamente' : ativa ? '🎯 Está no "Em jogo", na aba Status' : '📖 Só referência: acompanhe o efeito na mesa'
+          entrada.tipo==='auto' ? '⚡ Já calculado na ficha automaticamente' : ativa ? '🎯 Está no "Em jogo", no painel Status da Ficha' : '📖 Só referência: acompanhe o efeito na mesa'
         ),
         el('div',{class:'desc'}, entrada.desc),
         ehGolpePessoal ? el('div',{style:'margin-top:8px;'},
@@ -1865,11 +1787,12 @@ function renderPainelLocais(f){
 const MUNICAO_POR_ARMA = [
   {padraoArma:/arco/i, itemMunicao:'Flechas (20)'},
   {padraoArma:/besta/i, itemMunicao:'Virotes (20)'},
+  {padraoArma:/pistola|mosquete|arcabuz|trabuco/i, itemMunicao:'Balas (20)'},
 ];
 function municaoDaArma(f, arma){
   const regra = MUNICAO_POR_ARMA.find(r=> r.padraoArma.test(arma.nome||''));
   if(!regra) return null;
-  const idx = (f.equip||[]).findIndex(row=> row.tipo==='geral' && nomeBaseItem(row.item)===regra.itemMunicao);
+  const idx = (f.equip||[]).findIndex(row=> row.tipo==='geral' && nomeCatalogoDaLinha(row)===regra.itemMunicao);
   if(idx<0) return null;
   return {nome: regra.itemMunicao.replace(' (20)',''), qtd: parseInt(f.equip[idx].qtd)||0, idx};
 }
