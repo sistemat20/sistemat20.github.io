@@ -48,6 +48,54 @@ const h = require('./harness');
     w.tocarFeitico(f.magias[1]);
     const fx = w.document.getElementById('feitico');
     h.ok('lançar mostra o efeito com símbolo e nome', fx && fx.classList.contains('tema-vampiro') && !!fx.querySelector('.sigilo-feitico svg') && fx.textContent.includes('Toque Vampírico'));
+    h.ok('e leva a classe do movimento', fx.classList.contains('mov-convergir'));
+  }
+
+  h.secao('Revisão das magias: grupo, movimento e efeito de cada uma (15/11/2026)');
+  {
+    const nomes = w.MAGIAS.map((s) => s.n);
+    const tabela = Object.keys(w.TEMA_DA_MAGIA);
+    const faltando = nomes.filter((n) => !w.TEMA_DA_MAGIA[n]);
+    const sobrando = tabela.filter((n) => !nomes.includes(n));
+    h.igual('toda magia do livro está na tabela (faltando: ' + faltando.join(', ') + ')', faltando.length, 0);
+    h.igual('nenhum nome na tabela que não exista (sobrando: ' + sobrando.join(', ') + ')', sobrando.length, 0);
+    const intencoes = w.INTENCOES_MAGIA.map((x) => x[0]);
+    const extrasOk = /^(x\d|grande|raios|elementos|i:\w+)$/;
+    const ruins = tabela.filter((n) => {
+      const [tema, mov, ...extras] = w.TEMA_DA_MAGIA[n].split(/\s+/);
+      return !w.TEMAS_FEITICO[tema] || !w.MOVIMENTOS_FEITICO.includes(mov) || extras.some((x) => !extrasOk.test(x) || (x.startsWith('i:') && !intencoes.includes(x.slice(2))));
+    });
+    h.igual('toda linha tem tema, movimento e extras válidos (' + ruins.join(', ') + ')', ruins.length, 0);
+    const temas = Object.keys(w.TEMAS_FEITICO);
+    h.ok('todo tema tem símbolo, som, movimento e intenção que existem', temas.every((t) => {
+      const c = w.TEMAS_FEITICO[t];
+      return w.SIGILOS_FEITICO.includes(c.sigilo) && w.Som.existe(c.som) && w.MOVIMENTOS_FEITICO.includes(c.mov) && intencoes.includes(c.i);
+    }));
+    const usados = new Set(w.MAGIAS.map((s) => w.temaDaMagia(s)));
+    h.igual('todos os temas são usados por alguma magia', temas.filter((t) => !usados.has(t)).join(','), '');
+    const desenhos = new Set(temas.map((t) => w.TEMAS_FEITICO[t].sigilo));
+    h.ok('quase todo tema tem um símbolo próprio', desenhos.size >= temas.length - 1);
+    const svgs = w.SIGILOS_FEITICO.map((k) => w.sigiloSVG(k, '#fff'));
+    h.igual('cada símbolo desenha algo diferente', new Set(svgs).size, svgs.length);
+    const usadasInt = new Set(w.MAGIAS.map((s) => w.intencaoDaMagia(s)));
+    h.igual('toda pílula de intenção tem magia', intencoes.filter((i) => !usadasInt.has(i)).join(','), '');
+    const m = (n) => w.estiloDaMagia(w.MAGIAS.find((s) => s.n === n));
+    h.igual('Sopro da Salvação é cura (era energia arcana)', m('Sopro da Salvação').tema, 'cura');
+    h.igual('Segunda Chance é cura', m('Segunda Chance').intencao, 'cura');
+    h.igual('Dispersar as Trevas é luz (era trevas)', m('Dispersar as Trevas').tema, 'luz');
+    h.igual('Anular a Luz é trevas (era luz)', m('Anular a Luz').tema, 'trevas');
+    h.igual('Terremoto é terra, em onda', m('Terremoto').tema + ' ' + m('Terremoto').mov, 'terra onda');
+    h.igual('Despedaçar é som', m('Despedaçar').tema, 'som');
+    h.igual('Teletransporte abre um portal', m('Teletransporte').mov, 'portal');
+    h.igual('Coluna de Chamas desce em coluna', m('Coluna de Chamas').mov, 'coluna');
+    h.igual('Seta Infalível solta duas setas', m('Seta Infalível de Talude').qtd, 2);
+    h.ok('Bola de Fogo é um projétil grande', m('Bola de Fogo').mov === 'projetil' && m('Bola de Fogo').grande);
+    h.ok('Relâmpago tem relâmpagos por cima', m('Relâmpago').raios);
+    h.igual('Teia prende', m('Teia').intencao, 'prender');
+    h.igual('magia fora do livro ainda acha tema pela regra (dano de frio)', w.temaDaMagia({ n: 'Magia Nova', e: 'Evocação', d: 'Causa 4d6 de dano de frio.' }), 'frio');
+    h.igual('e pela escola', w.temaDaMagia({ n: 'Outra', e: 'Adivinhação', d: '' }), 'olho');
+    const mini = w.sigiloMagiaPequeno(w.MAGIAS[0]);
+    h.ok('símbolo pequeno com um svg só (sem svg dentro de svg)', mini.querySelectorAll('svg').length === 1);
   }
 
   h.secao('Evolução: o próximo nível primeiro');

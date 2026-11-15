@@ -32,11 +32,45 @@
 @keyframes sigilo-gira-mais{ to{ transform:rotate(320deg); } }
 @keyframes ilusao-cor{ to{ filter:drop-shadow(0 0 12px var(--cor-feitico)) hue-rotate(300deg); } }
 
+/* ---- Revisão de 15/11/2026: movimentos (data/temas-magia.js) e temas novos ---- */
+/* Mortos que se levantam também ganham o círculo no chão */
+#feitico.tema-necro.mov-subir .sigilo-feitico{ top:58%; animation-name:sigilo-chao; }
+#feitico.tema-necro.mov-subir .nome-feitico{ top:calc(58% + 100px); }
+/* Coluna: o símbolo desce do céu junto com o feixe */
+#feitico.mov-coluna .sigilo-feitico{ animation-name:sigilo-desce; }
+@keyframes sigilo-desce{ 0%{ opacity:0; transform:translate(-50%,-160%) scale(.6); } 30%{ opacity:1; transform:translate(-50%,-50%) scale(1.05); } 75%{ opacity:1; transform:translate(-50%,-50%) scale(1); } 100%{ opacity:0; transform:translate(-50%,-50%) scale(1.2); } }
+/* Projétil: o símbolo só acende quando o tiro chega */
+#feitico.mov-projetil .sigilo-feitico{ animation-name:sigilo-impacto; }
+@keyframes sigilo-impacto{ 0%, 14%{ opacity:0; transform:translate(-50%,-50%) scale(.2); } 26%{ opacity:1; transform:translate(-50%,-50%) scale(1.12); } 36%{ transform:translate(-50%,-50%) scale(1); } 78%{ opacity:1; } 100%{ opacity:0; transform:translate(-50%,-50%) scale(1.25); } }
+/* Portal: o símbolo achata e gira como uma passagem */
+#feitico.mov-portal .sigilo-feitico svg{ animation:portal-gira 2.1s ease-in forwards; }
+@keyframes portal-gira{ 0%{ transform:scaleY(.45) rotate(0); } 70%{ transform:scaleY(.45) rotate(300deg) scale(.6); } 100%{ transform:scaleY(1) rotate(360deg) scale(1.2); } }
+/* Onda: pulsa para fora três vezes */
+#feitico.mov-onda .sigilo-feitico svg{ animation:sigilo-onda .62s ease-out 3; }
+@keyframes sigilo-onda{ 0%{ transform:scale(.92); } 40%{ transform:scale(1.08); } 100%{ transform:scale(1); } }
+/* Chuva: o símbolo balança de leve, como sob a tempestade */
+#feitico.mov-chuva .sigilo-feitico svg{ animation:sigilo-balanca 2.1s ease-in-out forwards; }
+@keyframes sigilo-balanca{ 25%{ transform:rotate(-6deg); } 50%{ transform:rotate(5deg); } 75%{ transform:rotate(-3deg); } 100%{ transform:rotate(0); } }
+/* Grande (Terremoto, Bola de Fogo, Chuva de Meteoros...): símbolo maior e tremendo */
+#feitico.grande .sigilo-feitico{ width:min(84vw, 380px); }
+#feitico.grande.mov-onda .sigilo-feitico svg, #feitico.grande.mov-chuva .sigilo-feitico svg, #feitico.grande.mov-projetil .sigilo-feitico svg{ animation:sigilo-treme .09s linear 10 .35s; }
+@keyframes sigilo-treme{ 0%{ transform:translate(0,0); } 25%{ transform:translate(-4px,2px); } 50%{ transform:translate(3px,-3px); } 75%{ transform:translate(-2px,-2px); } 100%{ transform:translate(0,0); } }
+/* Temas novos */
+#feitico.tema-tormenta::before{ background:rgba(36,0,6,.66); }
+#feitico.tema-tormenta .clarao{ background:radial-gradient(circle at 50% 44%, #e0283a 0%, transparent 55%); animation:feitico-relampago .9s steps(1); }
+#feitico.tema-terra .clarao{ background:radial-gradient(circle at 50% 70%, rgba(201,147,90,.7) 0%, transparent 60%); }
+#feitico.tema-tempo .sigilo-feitico svg{ animation:sigilo-volta 2.1s ease-in-out forwards; }
+@keyframes sigilo-volta{ 0%{ transform:rotate(0); } 45%{ transform:rotate(180deg); } 55%{ transform:rotate(180deg); } 100%{ transform:rotate(0); } }
+#feitico.tema-vento .sigilo-feitico svg{ animation:sigilo-gira-mais 2.1s cubic-bezier(.3,0,.2,1) forwards; }
+#feitico.tema-sono .sigilo-feitico svg{ animation:sigilo-balanca 2.1s ease-in-out forwards; }
+#feitico.tema-vampiro .sigilo-feitico svg{ animation:sigilo-pulsa .32s ease-in-out 3; }
+
 .nome-feitico{ position:absolute; left:0; right:0; top:calc(44% + min(36vw, 160px) + 12px); text-align:center; font:700 clamp(1.3rem, 6vw, 2rem) 'Cinzel Decorative','Cinzel',serif; color:#fff8e6; letter-spacing:.06em; text-shadow:0 0 8px var(--cor-feitico), 0 0 22px var(--cor-feitico), 0 2px 2px rgba(0,0,0,.8); opacity:0; animation:nome-feitico 2.1s ease-out forwards; padding:0 16px; }
 #feitico.tema-invocacao .nome-feitico{ top:calc(58% + 100px); }
 @keyframes nome-feitico{ 0%{ opacity:0; transform:translateY(10px); letter-spacing:.3em; } 25%{ opacity:1; transform:none; letter-spacing:.06em; } 80%{ opacity:1; } 100%{ opacity:0; } }
 
 /* Reduzir movimento: o símbolo e o nome aparecem parados e somem */
+#feitico.parado .sigilo-feitico{ transform:translate(-50%,-50%); }
 #feitico.parado .sigilo-feitico, #feitico.parado .sigilo-feitico svg, #feitico.parado .trac, #feitico.parado .nome-feitico, #feitico.parado .clarao, #feitico.parado .pupila{ animation:none !important; stroke-dashoffset:0; opacity:1; }
 #feitico.parado .clarao{ opacity:0 !important; }
 @media (prefers-reduced-motion: reduce){ #feitico::before,  #feitico .sigilo-feitico, #feitico .sigilo-feitico svg, #feitico .trac, #feitico .nome-feitico, #feitico .clarao{ animation:none !important; stroke-dashoffset:0; opacity:1; } }

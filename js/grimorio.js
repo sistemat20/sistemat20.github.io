@@ -99,27 +99,9 @@ function renderPainelMemorizacaoMago(f){
 // Aprender magias (prancha "Catálogo e Magias", 15/11/2026, ideias A + B + C):
 // · A Vagas: no topo, quantas magias ainda dá para aprender (conta do livro em magiasQuePodeConhecer);
 //   círculos em segmentos; as que você já conhece ficam recolhidas no fim.
-// · B Pelo que a magia faz: pílulas por intenção (Dano, Proteção, Mente...), tiradas dos temas de
-//   efeito (temaDaMagia); cada linha leva o símbolo colorido do efeito ao lançar.
+// · B Pelo que a magia faz: pílulas por intenção (Dano, Proteção, Mente...). A intenção de cada
+//   magia, o símbolo colorido e o efeito ficam no lugar central dos efeitos (js/feiticos.js).
 // · C Carta de prévia: tocar abre execução, alcance, duração e o custo em PM já para o herói.
-const INTENCOES_MAGIA = [
-  ['dano','🔥 Dano',['fogo','frio','raio','acido','setas','trevas','vampiro']],
-  ['cura','💚 Cura',['cura']],
-  ['protecao','🛡️ Proteção',['escudo']],
-  ['mente','💗 Mente',['encanto','sono']],
-  ['ilusao','🎭 Ilusão',['ilusao']],
-  ['saber','👁️ Saber',['olho']],
-  ['invocar','🌀 Invocar',['invocacao','necro']],
-  ['transformar','⚗️ Transformar',['alquimia']],
-  ['luz','☀️ Luz e bênção',['luz']],
-];
-function intencaoDaMagia(s){ const t = temaDaMagia(s); const i = INTENCOES_MAGIA.find(x=> x[2].includes(t)); return i ? i[0] : 'dano'; }
-function sigiloMagiaPequeno(s){
-  const t = temaDaMagia(s), cfg = TEMAS_FEITICO[t] || TEMAS_FEITICO.setas;
-  const e = el('span',{class:'sigilo-mini', style:'color:'+cfg.cor+';border-color:'+cfg.cor+';', 'aria-hidden':'true'});
-  e.innerHTML = '<svg viewBox="0 0 200 200">'+sigiloSVG(cfg.sigilo, cfg.cor)+'</svg>';
-  return e;
-}
 
 function gavetaMagiaAprender(f, s, cc, conhece, aprender){
   const custo = cc ? custoPMAjustado(f, s) : custoPM(s.c);
