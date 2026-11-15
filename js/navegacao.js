@@ -34,7 +34,7 @@ function renderBarraBaixo(f){
 function renderTopoHeroi(f){
   return el('header',{class:'topo-compacto'},
     retratoHeroi(f, 'mini'),
-    el('div',{class:'nm'}, el('b',{}, f.nome || 'Personagem'), el('small',{}, (f.raca||'—')+' · '+classeDisplay(f))),
+    el('div',{class:'nm'}, el('b',{}, f.nome || 'Personagem', typeof renderSeloConexao==='function' ? renderSeloConexao() : null), el('small',{}, (f.raca||'—')+' · '+classeDisplay(f))),
     el('div',{class:'vm'},
       el('span',{style:'color:var(--pv-accent);'}, (parseInt(f.pvatual)||0)+'/'+pvMaxEfetivo(f)),
       el('span',{style:'color:var(--pm-accent);'}, (parseInt(f.pmatual)||0)+'/'+pmMaxEfetivo(f))),

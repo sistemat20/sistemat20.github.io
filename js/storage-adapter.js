@@ -114,7 +114,18 @@ async function carregarPerfisArmazenamento(){
   }
   if(!obterSessao()) return []; // sem login ainda — a tela de entrada cuida disso antes de chegar aqui
   const r = await chamarSupabase('t20-api', comSessao({acao:'meusPersonagens'}));
-  if(r.ok) return removerPersonagensDuplicados(r.dados.personagens || []);
+  if(r.ok){
+    const doServidor = removerPersonagensDuplicados(r.dados.personagens || []);
+    // Algo foi salvo sem internet e ainda não chegou ao servidor (15/11/2026): a cópia do
+    // aparelho vence, juntando o que o servidor tiver de novo (presentes, dinheiro), e é enviada.
+    if(typeof envioPendente==='function' && envioPendente()){
+      const juntos = mesclarFichasPendentes(carregarDoLocalStorage(), doServidor);
+      salvarNoLocalStorage(juntos);
+      salvarPerfisSupabase(juntos, true);
+      return juntos;
+    }
+    return doServidor;
+  }
   // Falha passageira (rede, servidor acordando) não pode fazer a ficha "sumir" da tela: cai
   // para a cópia local deste navegador.
   console.error('Falha ao carregar do Supabase, usando cópia local salva no navegador.', r.erro);
@@ -140,7 +151,12 @@ async function salvarPerfisArmazenamento(perfis){
 // (mesclarSemPerderDados, o mesmo critério de sempre) e tenta UMA vez de novo.
 async function salvarPerfisSupabase(perfis, tentarDeNovo){
   const r = await chamarSupabase('t20-api', comSessao({acao:'salvarPersonagens', personagens: perfis}));
-  if(!r.ok){ console.error('Falha ao salvar no Supabase — os dados continuam salvos neste navegador.', r.erro); return; }
+  if(!r.ok){
+    console.error('Falha ao salvar no Supabase — os dados continuam salvos neste navegador.', r.erro);
+    if(typeof marcarEnvioPendente==='function') marcarEnvioPendente(true); // envia quando o sinal voltar
+    return;
+  }
+  if(typeof marcarEnvioPendente==='function') marcarEnvioPendente(false);
   (r.dados.salvos || []).forEach(s=>{
     const p = perfis.find(x=>x.id===s.id);
     if(p) p._versao = s._versao;
@@ -157,6 +173,20 @@ async function salvarPerfisSupabase(perfis, tentarDeNovo){
     local._versao = servidor._versao;
   });
   await salvarPerfisSupabase(perfis, false);
+}
+
+// Junta a lista do aparelho (com mudanças feitas sem internet) e a do servidor: cada ficha do
+// aparelho fica como está, ganhando o que o servidor tiver de novo (mesclarSemPerderDados) e a
+// versão dele (para o próximo envio não dar conflito); fichas que só o servidor tem entram também.
+function mesclarFichasPendentes(locais, doServidor){
+  const lista = (locais||[]).map(p=> p);
+  (doServidor||[]).forEach(srv=>{
+    const local = lista.find(p=> p.id===srv.id);
+    if(!local){ lista.push(srv); return; }
+    mesclarSemPerderDados(local, srv);
+    local._versao = srv._versao;
+  });
+  return removerPersonagensDuplicados(lista);
 }
 
 // Envia uma foto (data URL base64) pro Storage do Supabase e devolve o link público — evita

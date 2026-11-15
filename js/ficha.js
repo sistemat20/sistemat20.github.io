@@ -77,6 +77,8 @@ function renderMenuOverlay(){
       el('span',{class:'ico'}, ico), el('span',{}, label)
     ));
   });
+  const opcaoInstalar = typeof renderOpcaoInstalar==='function' ? renderOpcaoInstalar() : null;
+  if(opcaoInstalar) sheet.appendChild(opcaoInstalar);
 
   sheet.appendChild(el('div',{class:'lista-secao-titulo'}, 'Esta ficha'));
   const pendencias = detectarPendencias(fichaAtual());

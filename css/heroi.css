@@ -246,3 +246,10 @@
 .confira-aviso{ display:flex; justify-content:space-between; align-items:center; gap:8px; padding:7px 10px; border-radius:10px; border:1px solid var(--gold-deep); background:rgba(166,129,47,.14); color:#f3e2b2; font-size:.72rem; }
 .confira-aviso .link-editar-item{ margin:0; color:var(--gold); }
 .aviso-espaco{ margin-top:8px; }
+
+/* ---- App instalável e sem internet (15/11/2026) ---- */
+.selo-conexao{ display:inline-block; margin-left:6px; font-size:.72rem; vertical-align:middle; }
+.selo-conexao.pendente{ animation:respira 1.6s ease-in-out infinite; }
+.dica-iphone{ display:grid; gap:6px; margin:2px 6px 10px 42px; padding:9px 11px; border:1px solid var(--gold-deep); border-radius:12px; background:rgba(216,189,116,.06); font-size:.76rem; color:var(--ink-soft); }
+.dica-iphone b{ color:var(--ink); }
+.ic-compartilhar{ display:inline-grid; place-items:center; width:20px; height:20px; border:1px solid var(--gold); border-radius:5px; color:var(--gold); font-size:.7rem; }
