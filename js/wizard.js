@@ -362,23 +362,24 @@ function stepAtributos(w){
 function stepRaca(w){
   const wrap = el('div',{});
   wrap.appendChild(el('div',{class:'wizard-title'},'Escolha sua Raça'));
-  wrap.appendChild(el('div',{class:'wizard-sub'},'Cada raça dá modificadores de atributo e habilidades próprias.'));
-  const grid = el('div',{class:'option-grid'});
-  RACAS.forEach(r=>{
-    const modsTxt = Object.keys(r.mods||{}).length ? Object.entries(r.mods).map(([k,v])=>k.toUpperCase()+(v>0?'+':'')+v).join(', ') : (r.escolhaLivre? '+'+r.escolhaLivre.val+' em '+r.escolhaLivre.qtd+' atributos à escolha' : '—');
-    grid.appendChild(el('button',{class:'option-card ' + (w.racaNome===r.nome?'selected':''), onclick:()=>{ w.racaNome=r.nome; w.racaEscolhasAttr=[]; w.racaEscolhaExtra=null; w.racaEscolhaExtraSub=null; w.racaPoderExtraNome=null; w.racaPoderExtraSub=null; render(); }},
-      el('div',{class:'opt-nome'}, r.nome),
-      el('div',{class:'opt-sub'}, modsTxt)
-    ));
-  });
-  wrap.appendChild(grid);
-
+  wrap.appendChild(el('div',{class:'wizard-sub'},'Cada raça dá modificadores de atributo e habilidades próprias. Toque para ver.'));
+  // Kit (15/11/2026): raças em linhas com os atributos em pílulas, filtro por atributo e as
+  // habilidades numa gaveta embaixo da escolhida.
+  const filtro = w._filtroRacaAttr || null;
+  wrap.appendChild(el('div',{class:'k-pilulas', style:'margin:6px 0 4px;'}, ['for','des','con','int','sab','car'].map(a=>
+    el('button',{class:'k-pil'+(filtro===a?' on':''), onclick:()=>{ w._filtroRacaAttr = filtro===a ? null : a; render(); }}, '+'+a.charAt(0).toUpperCase()+a.slice(1)))));
+  const lista = RACAS.filter(r=> !filtro || (r.mods && r.mods[filtro]>0) || (r.escolhaLivre && !(r.escolhaLivre.exceto||[]).includes(filtro)));
   const raca = RACAS.find(r=>r.nome===w.racaNome);
+  lista.forEach(r=>{
+    const sel = w.racaNome===r.nome;
+    const livre = r.escolhaLivre ? el('span',{class:'k-pil mais'}, '+'+r.escolhaLivre.val+' em '+r.escolhaLivre.qtd+' à escolha'+((r.escolhaLivre.exceto||[]).length ? ' (menos '+r.escolhaLivre.exceto.map(x=>x.toUpperCase()).join(', ')+')' : '')) : null;
+    wrap.appendChild(kLinha({ic: r.nome.charAt(0), nome: r.nome, sel, extra: el('span',{class:'k-pilulas', style:'gap:3px;margin-top:3px;'}, livre, kPilulasMods(r.mods)),
+      onclick:()=>{ w.racaNome = sel ? null : r.nome; w.racaEscolhasAttr=[]; w.racaEscolhaExtra=null; w.racaEscolhaExtraSub=null; w.racaPoderExtraNome=null; w.racaPoderExtraSub=null; render(); }}));
+    if(sel) wrap.appendChild(kGaveta(...r.poderes.map(([n,d])=> el('div',{}, el('b',{}, n+'. '), d))));
+  });
+  if(!lista.length) wrap.appendChild(el('div',{class:'empty'}, 'Nenhuma raça dá esse atributo.'));
+
   if(raca){
-    wrap.appendChild(el('div',{class:'panel'},
-      el('h2',{},'Habilidades de '+raca.nome),
-      ...raca.poderes.map(([n,d])=> el('div',{class:'power-item'}, el('b',{},n), d))
-    ));
     if(raca.escolhaLivre){
       const opts = ['for','des','con','int','sab','car'].filter(a=> !(raca.escolhaLivre.exceto||[]).includes(a));
       wrap.appendChild(el('div',{class:'tip'}, el('b',{},'Escolha '+raca.escolhaLivre.qtd+' atributos diferentes'), 'para receber +'+raca.escolhaLivre.val+' em cada um.'));

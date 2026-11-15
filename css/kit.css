@@ -1,0 +1,50 @@
+/* ============ KIT: as oito peças do app (15/11/2026, prancha "Um visual só") ============
+   1 Linha · 2 Gaveta · 3 Pílula · 4 Seletor de partes · 5 Teclas · 6 Botões · 7 Aviso · 8 Seção.
+   Este arquivo também converte as peças antigas (cartões de opção e caixas de dica) para o
+   visual do kit, para o app inteiro falar a mesma língua sem mexer nas regras de cada tela. */
+
+/* ---- Cartões de opção antigos viram LINHAS (63 no app: criação, Level Up, menus) ---- */
+.option-grid{ display:grid; grid-template-columns:1fr; gap:5px; margin-bottom:12px; }
+.option-card{ position:relative; display:block; width:100%; text-align:left; padding:9px 34px 9px 12px; border:1px solid rgba(166,129,47,.28); border-radius:12px; background:var(--card-2); color:var(--ink); font:inherit; cursor:pointer; -webkit-backdrop-filter:none; backdrop-filter:none; transition:border-color .2s, box-shadow .2s, background .2s; }
+.option-card:hover{ transform:none; border-color:var(--gold-deep); box-shadow:none; }
+.option-card::after{ content:'▸'; position:absolute; right:12px; top:10px; color:var(--gold-deep); font-size:.75rem; }
+.option-card .opt-nome{ font:700 .82rem 'Cinzel',serif; color:var(--ink); margin:0; }
+.option-card .opt-sub{ font-size:.68rem; color:var(--ink-soft); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.option-card.selected{ border-color:var(--gold); background:rgba(216,189,116,.07); box-shadow:0 0 10px rgba(216,189,116,.22); }
+.option-card.selected::after{ content:'✓'; color:var(--gold); font-weight:800; }
+.option-card.selected .opt-nome{ color:var(--gold); }
+.option-card.selected .opt-sub{ white-space:normal; overflow:visible; }   /* selecionado: o texto inteiro, como uma gaveta */
+.option-card.disabled, .option-card.used-elsewhere{ opacity:.45; cursor:not-allowed; box-shadow:none; }
+/* Grades pequenas (atributos, escolhas curtas) continuam lado a lado, como pílulas */
+.row6 .option-card{ padding:8px 4px; text-align:center; }
+.row6 .option-card::after{ display:none; }
+
+/* ---- Caixas de dica antigas viram uma frase curta (158 no app) ---- */
+.tip{ padding:7px 11px !important; margin:6px 0 !important; border-radius:10px !important; font-size:.74rem !important; line-height:1.4; }
+.tip b{ display:inline !important; margin:0 4px 0 0 !important; font-size:.66rem !important; }
+.tip.corta{ display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; cursor:pointer; position:relative; }
+.tip.corta::after{ content:'mais'; position:absolute; right:8px; bottom:6px; padding-left:18px; font-size:.62rem; color:var(--gold); background:linear-gradient(90deg, transparent, var(--card-2) 40%); }
+.tip.aberta{ -webkit-line-clamp:unset; display:block; }
+.tip.aberta::after{ display:none; }
+
+/* ---- Peças novas (usadas pelas funções de js/kit.js) ---- */
+.k-linha{ display:grid; grid-template-columns:30px 1fr auto; gap:9px; align-items:center; width:100%; text-align:left; padding:8px 10px; border:1px solid rgba(166,129,47,.28); border-radius:12px; background:var(--card-2); color:var(--ink); font:inherit; cursor:pointer; margin-top:5px; transition:border-color .2s, box-shadow .2s; }
+.k-linha .ic{ width:28px; height:28px; border-radius:50%; border:1px solid var(--gold-deep); display:grid; place-items:center; font:800 .74rem 'Cinzel',serif; color:var(--gold); }
+.k-linha .nm{ font:700 .8rem 'Cinzel',serif; min-width:0; }
+.k-linha .nm small{ display:block; font:500 .64rem 'Inter',sans-serif; color:var(--ink-soft); margin-top:2px; }
+.k-linha .vl{ font:800 .74rem 'Cinzel',serif; color:var(--gold); white-space:nowrap; }
+.k-linha.sel{ border-color:var(--gold); box-shadow:0 0 10px rgba(216,189,116,.25); }
+.k-linha.off{ opacity:.45; }
+.k-gaveta{ margin-top:6px; padding:9px 11px; border-radius:12px; border:1px solid var(--gold-deep); background:rgba(216,189,116,.05); font-size:.74rem; color:var(--ink-soft); display:grid; gap:7px; animation:efx-sobe .3s; }
+.k-gaveta b{ color:var(--ink); }
+.k-pilulas{ display:flex; flex-wrap:wrap; gap:5px; }
+.k-pil{ font:600 .68rem 'Inter',sans-serif; padding:4px 10px; border-radius:999px; border:1px solid rgba(166,129,47,.45); background:var(--card-2); color:var(--ink); cursor:pointer; }
+.k-pil.on{ background:var(--gold); color:#1a120c; border-color:var(--gold); }
+.k-pil.mais{ border-color:var(--status-saudavel); color:var(--status-saudavel); padding:1px 7px; font-size:.6rem; }
+.k-pil.menos{ border-color:#c94a3a; color:#f0b0a6; padding:1px 7px; font-size:.6rem; }
+.k-seg{ display:grid; grid-auto-flow:column; grid-auto-columns:1fr; border:1px solid var(--gold-deep); border-radius:999px; overflow:hidden; margin-bottom:10px; }
+.k-seg button{ font:700 .66rem 'Cinzel',serif; padding:7px 0; background:transparent; color:var(--gold); border:0; cursor:pointer; }
+.k-seg button.on{ background:var(--gold); color:#1a120c; }
+.k-seg button.feito:not(.on){ color:var(--status-saudavel); }
+.k-seg button:disabled{ opacity:.4; cursor:not-allowed; }
+.k-rot{ font:700 .58rem 'Cinzel',serif; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); margin:10px 2px 4px; }

@@ -2710,6 +2710,7 @@ function render(){
       root.appendChild(renderBarraBaixo(fichaAtual()));
     }
     if(typeof atualizarEfeitoCondicoes==='function') atualizarEfeitoCondicoes();
+    if(typeof marcarDicasLongas==='function') (typeof requestAnimationFrame==='function' ? requestAnimationFrame : setTimeout)(marcarDicasLongas);
   }catch(erro){
     // Nunca deixa a tela em branco silenciosamente — sem isso, qualquer erro no meio da
     // montagem (ex: um dado incompleto chegando de uma sincronização) apagava a tela inteira

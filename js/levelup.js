@@ -80,6 +80,7 @@ function renderLevelUpPanel(f){
     wrap.appendChild(el('button',{class:'btn ghost', style:'margin-top:10px;', onclick:fecharLevelUp},'Cancelar'));
     return wrap;
   }
+  const fimDoPassoClasse = wrap.children.length; // daqui para baixo é o passo Poder (kit, 15/11/2026)
 
   const entradaAtual = (f.classesNiveis||[]).find(c=>c.classe===lv.classeEscolhida);
   const nivelAtualClasse = entradaAtual ? entradaAtual.nivel : 0;
@@ -265,6 +266,7 @@ function renderLevelUpPanel(f){
   const podeConfirmar = (!ganhaPoderClasse || (lv.poderModo==='classe' && lv.poderClasseEscolhido && !poderClassePendente) || (lv.poderModo==='geral' && lv.poderGeralEscolhido && (!PODERES_GERAIS.find(p=>p.nome===lv.poderGeralEscolhido).escolha || lv.poderSubEscolha)))
     && (!precisaEscolherCaminho || (lv.arcanistaCaminho && (lv.arcanistaCaminho!=='Feiticeiro' || lv.arcanistaLinhagem)))
     && (!precisaEscolherEscolas || (lv.escolasMagia||[]).length===3);
+  const inicioDoConferir = wrap.children.length;
   const confira = renderConfiraLevelUp(f, lv); // 3B (js/conferir.js)
   if(confira) wrap.appendChild(confira);
   const navRow = el('div',{class:'wizard-nav', style:'position:static;'});
@@ -273,8 +275,28 @@ function renderLevelUpPanel(f){
   if(!podeConfirmar){ confirmBtn.setAttribute('disabled','disabled'); confirmBtn.style.opacity='0.5'; }
   navRow.appendChild(confirmBtn);
   wrap.appendChild(navRow);
-
+  organizarPassosLevelUp(wrap, lv, fimDoPassoClasse, inicioDoConferir);
   return wrap;
+}
+
+// Passos no alto (kit): Classe · Poder · Conferir. Mostra só a parte do passo atual; ao escolher a
+// classe, vai sozinho para o Poder. O conteúdo de cada passo é o mesmo de antes.
+function organizarPassosLevelUp(wrap, lv, fimClasse, inicioConferir){
+  if(lv._classeVista !== lv.classeEscolhida){ lv._classeVista = lv.classeEscolhida; lv.passo = 'poder'; }
+  const passo = lv.passo || 'classe';
+  const filhos = [...wrap.children];
+  filhos.forEach((c, i)=>{
+    if(i===0) return; // o título
+    const parte = i < fimClasse ? 'classe' : i < inicioConferir ? 'poder' : 'conferir';
+    if(parte!==passo) c.style.display = 'none';
+  });
+  const ir = (p)=>{ lv.passo = p; render(); };
+  wrap.insertBefore(kSeg([
+    {id:'classe', rot:'Classe', feito: !!lv.classeEscolhida},
+    {id:'poder', rot:'Poder', feito: passo==='conferir'},
+    {id:'conferir', rot:'Conferir'}], passo, ir), wrap.children[1]);
+  if(passo==='poder') wrap.appendChild(el('button',{class:'btn', style:'margin-top:10px;', onclick:()=> ir('conferir')}, 'Conferir →'));
+  if(passo==='classe') wrap.appendChild(el('button',{class:'btn', style:'margin-top:10px;', onclick:()=> ir('poder')}, 'Continuar →'));
 }
 
 // ---- Descer de Nível (desfazer um level up) ----
