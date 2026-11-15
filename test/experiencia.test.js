@@ -58,7 +58,7 @@ const HORA = 60 * 60 * 1000;
     h.ok('a que custa mais que a mana fica apagada', cartas[1].classList.contains('sem-mana') && !cartas[0].classList.contains('sem-mana'));
     h.ok('a linha fechada tem nome e custo, sem o texto', cartas[0].textContent.includes('Bênção') && cartas[0].textContent.includes('1 PM') && !cartas[0].textContent.includes('Abençoa seus aliados'));
     h.igual('sem a lista antiga duplicada embaixo', w.document.querySelectorAll('.spell-card').length, 0);
-    h.ok('nada de rolagem lateral (o arrastar de lado é das Perícias)', !w.document.querySelector('.grimorio-cartas'));
+    h.ok('nada de rolagem lateral', !w.document.querySelector('.grimorio-cartas'));
     cartas[0].click();
     h.renderizar(w, 'personagem');
     const aberta = w.document.querySelector('.grimorio-carta.aberta');

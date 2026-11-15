@@ -36,7 +36,7 @@ const h = require('./harness');
     h.renderizar(w, 'personagem');
     [...w.document.querySelectorAll('.opc-heroi button')].find((b) => b.textContent === 'Neutro e Bondoso').click();
     h.igual('escolher o alinhamento grava', f.alinhamento, 'Neutro e Bondoso');
-    h.ok('a barra de telas fica fora da trilha de arrastar', !!w.document.querySelector('#root > .barra-baixo'));
+    h.ok('a barra de telas fica direto no #root', !!w.document.querySelector('#root > .barra-baixo'));
     h.ok('o topo de uma linha mostra nome, vida e mana', !!w.document.querySelector('.topo-compacto') && w.document.querySelector('.topo-compacto').textContent.includes('Lucéa'));
   }
 
@@ -44,7 +44,7 @@ const h = require('./harness');
   {
     const f = h.usarFicha(w, lucea());
     w.state._periciaSituacao = 'Todas'; w.state._periciaBusca = ''; w.state._periciaAberta = null;
-    h.renderizar(w, 'personagem');
+    h.renderizar(w, 'pericias');
     const grupos = [...w.document.querySelectorAll('.grupo-pericia')].map((g) => g.firstChild.textContent.split(' ')[0]);
     h.igual('"Todas" separa por atributo, na ordem da ficha', grupos.join(','), 'Força,Destreza,Inteligência,Sabedoria,Carisma');
     const destreza = [...w.document.querySelectorAll('.painel-pericias .linha-pericia')].map((l) => l.querySelector('.nome-pericia').firstChild.textContent);

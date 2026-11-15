@@ -215,7 +215,7 @@ function iniciarAtualizacaoAutomaticaJogador(){
   _intervalAtualizacaoJogador = setInterval(async ()=>{
     if(state.screen !== 'ficha' || usandoStorageDoClaude()){ return; }
     const digitando = document.activeElement && ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName);
-    if(digitando || state._arrastandoPersonagemPericias || state._girandoAnel) return; // não redesenha no meio de um gesto
+    if(digitando || state._girandoAnel) return; // não redesenha no meio de um gesto
     const mudou = await mesclarPresentesDoServidor();
     if(mudou){ salvarNoLocalStorage(state.perfis); render(); }
   }, 12000);
@@ -442,8 +442,8 @@ function render(){
     else if(state.screen==='wizard') root.appendChild(renderWizardScreen());
     else if(state.screen==='ficha') root.appendChild(renderFichaScreen());
     else if(state.screen==='mestre') root.appendChild(renderMestreScreen());
-    // Faixa fixa do herói (fica fora da trilha de arrastar, que tem transform e prenderia o fixed).
-    // Barra de telas embaixo (fora da trilha de arrastar, que tem transform e prenderia o fixed).
+    // Faixa fixa do herói (direto no #root: um pai com transform prenderia o fixed).
+    // Barra de telas embaixo (direto no #root: um pai com transform prenderia o fixed).
     if(state.screen==='ficha' && fichaAtual() && !(precisaCodigoJogador() && !obterCodigoJogador())){
       root.appendChild(renderBarraBaixo(fichaAtual()));
     }

@@ -21,6 +21,7 @@ const h = require('./harness');
     h.ok('Magias na barra abre as magias conhecidas', w.state.tab === 'personagem' && w.state.personagemTab === 'magias' && q('.barra-baixo button.on')[0].textContent.includes('Magias'));
     q('.barra-baixo button').find((b) => b.textContent.includes('Perícias')).click();
     h.igual('Perícias a um toque', w.state.tab, 'pericias');
+    h.ok('sem arrastar de lado: só a tela escolhida, sem faixa dupla', !q('[style*="width:200%"]').length && !!w.document.querySelector('.barra-baixo'));
     q('.barra-baixo button').find((b) => b.textContent.includes('Mais')).click();
     h.ok('Mais abre os ladrilhos: Notas, Catálogo, Aprender magias, Evolução, Resumo e Trocar herói', ['Notas', 'Catálogo', 'Aprender magias', 'Evolução', 'Resumo', 'Trocar herói'].every((t) => q('.ladrilho-menu').some((b) => b.textContent.includes(t))));
     h.igual('preferências em quatro chaves', q('.chave-menu').length, 4);

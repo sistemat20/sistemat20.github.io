@@ -88,8 +88,7 @@ function renderPresenteVoo(){
 }
 
 // ---------------------------------------------------------------- 3. Grimório
-// Grade VERTICAL de cartas (nunca rolagem de lado: a ficha inteira já usa o arrastar lateral
-// pra ir até Perícias). Fechada, a carta mostra o que a magia faz em poucas linhas; um toque
+// Grade VERTICAL de cartas (nunca rolagem de lado, que briga com a rolagem da tela no celular). Fechada, a carta mostra o que a magia faz em poucas linhas; um toque
 // abre a carta inteira com descrição, detalhes, aprimoramentos, Lançar e Esquecer. Substitui a
 // lista antiga de Minhas Magias (era a mesma informação duas vezes).
 function siglaEscola(escola){ return String(escola||'?').slice(0,2); }

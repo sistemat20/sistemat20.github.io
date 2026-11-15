@@ -9,64 +9,6 @@ const MENU_SECOES = [
   ['guia','Evolução','📈'],
 ];
 
-// Personagem e Perícias viraram um card só que desliza — em vez de precisar ir no menu, é só
-// arrastar pro lado. A animação do arraste em si acontece TODA fora do ciclo de render() (só
-// manipula style.transform direto no elemento) — importante porque esse app reconstrói a tela
-// inteira a cada atualização (inclusive o sincronismo automático a cada 12s), e se o arraste
-// passasse por lá, uma atualização caindo no meio do gesto trocaria o elemento por baixo do dedo
-// da pessoa. Só quando o gesto termina (solta o dedo) é que a troca de aba vira de verdade
-// (state.tab muda e um render() só acontece então).
-function renderPersonagemComSwipeParaPericias(){
-  const wrap = el('div',{style:'overflow:hidden;position:relative;'});
-  const naPericias = state.tab==='pericias';
-
-  const pontos = el('div',{style:'display:flex;justify-content:center;gap:6px;padding:8px 0 2px;'},
-    el('div',{style:'width:7px;height:7px;border-radius:50%;transition:all 200ms;background:'+(!naPericias?'var(--gold)':'var(--line)')+';'+(!naPericias?'width:20px;border-radius:4px;':'')}),
-    el('div',{style:'width:7px;height:7px;border-radius:50%;transition:all 200ms;background:'+(naPericias?'var(--gold)':'var(--line)')+';'+(naPericias?'width:20px;border-radius:4px;':'')})
-  );
-
-  const track = el('div',{style:'display:flex;width:200%;transition:transform 220ms ease;transform:translateX('+(naPericias?'-50%':'0')+');'});
-  track.appendChild(el('div',{style:'width:50%;flex-shrink:0;'}, renderPersonagemScreen()));
-  track.appendChild(el('div',{style:'width:50%;flex-shrink:0;'}, renderPericias()));
-  wrap.appendChild(track);
-
-  let inicioX = null, deslocamentoAtual = 0;
-  const larguraContainer = ()=> wrap.offsetWidth || 380;
-  wrap.addEventListener('touchstart', (e)=>{
-    if(e.touches.length!==1) return;
-    inicioX = e.touches[0].clientX;
-    deslocamentoAtual = 0;
-    state._arrastandoPersonagemPericias = true;
-    track.style.transition = 'none';
-  }, {passive:true});
-  wrap.addEventListener('touchmove', (e)=>{
-    if(inicioX===null) return;
-    deslocamentoAtual = e.touches[0].clientX - inicioX;
-    const basePercent = naPericias ? -50 : 0;
-    const deltaPercent = (deslocamentoAtual / larguraContainer()) * 50;
-    const novoPercent = Math.max(-50, Math.min(0, basePercent + deltaPercent));
-    track.style.transform = 'translateX('+novoPercent+'%)';
-  }, {passive:true});
-  const finalizarGesto = ()=>{
-    if(inicioX===null) return;
-    track.style.transition = 'transform 220ms ease';
-    const limiar = larguraContainer() * 0.18;
-    let novaAba = state.tab;
-    if(deslocamentoAtual < -limiar && !naPericias) novaAba = 'pericias';
-    else if(deslocamentoAtual > limiar && naPericias) novaAba = 'personagem';
-    track.style.transform = 'translateX('+(novaAba==='pericias'?'-50%':'0')+')';
-    inicioX = null; deslocamentoAtual = 0;
-    state._arrastandoPersonagemPericias = false;
-    if(novaAba !== state.tab){
-      setTimeout(()=>{ state.tab = novaAba; render(); }, 220);
-    }
-  };
-  wrap.addEventListener('touchend', finalizarGesto, {passive:true});
-  wrap.addEventListener('touchcancel', finalizarGesto, {passive:true});
-
-  return wrap;
-}
-
 // Menu "Mais" no kit (15/11/2026, prancha "Menu Mais", ideia A): ladrilhos para as telas,
 // "Esta ficha" em linhas curtas, preferências como quatro chaves numa linha e as ações perigosas
 // (Desfazer e Descer de nível) numa linha "Cuidado" fechada, longe das comuns.
@@ -255,7 +197,9 @@ function renderFichaScreen(){
   if(semMenuAberto){ const alerta = renderAlertaCondicoes(f); if(alerta) wrap.appendChild(alerta); }
 
   const main = el('main',{});
-  if(state.tab === 'personagem' || state.tab === 'pericias') main.appendChild(renderPersonagemComSwipeParaPericias());
+  // Sem arrastar de lado (15/11/2026): no iPhone o gesto mexia a tela ao rolar. Perícias fica na barra de baixo.
+  if(state.tab === 'personagem') main.appendChild(renderPersonagemScreen());
+  else if(state.tab === 'pericias') main.appendChild(renderPericias());
   if(state.tab === 'itens') main.appendChild(renderItensCompleto());
   if(state.tab === 'magias') main.appendChild(renderMagias());
   if(state.tab === 'guia') main.appendChild(renderGuia());
