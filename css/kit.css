@@ -48,3 +48,16 @@
 .k-seg button.feito:not(.on){ color:var(--status-saudavel); }
 .k-seg button:disabled{ opacity:.4; cursor:not-allowed; }
 .k-rot{ font:700 .58rem 'Cinzel',serif; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); margin:10px 2px 4px; }
+
+/* ---- Janelas no kit (15/11/2026) ---- */
+.janela-kit{ padding:14px 16px 18px; }
+.janela-kit .wizard-title{ margin:0 0 6px; padding:0; }
+.janela-kit .teclas{ margin-bottom:0; }
+.presente-avatar{ transition:transform .2s, opacity .2s; }
+.presente-avatar.on{ transform:scale(1.08); }
+.presente-avatar.on .nome{ color:var(--gold); }
+.presente-avatar.on img, .presente-avatar.on > span:first-child{ box-shadow:0 0 0 2px var(--gold), 0 0 14px rgba(216,189,116,.45); border-radius:50%; }
+.presente-avatares:has(.on) .presente-avatar:not(.on){ opacity:.55; }
+.custo-golpe{ position:sticky; top:0; z-index:2; margin:8px 14px; padding:8px; text-align:center; border:1px solid var(--gold-deep); border-radius:12px; background:rgba(20,14,10,.96); font-size:.78rem; color:var(--ink-soft); }
+.custo-golpe b{ font:800 1.1rem 'Cinzel',serif; color:var(--gold); margin-left:4px; }
+.option-card .custo-efeito{ font:700 .66rem 'Inter',sans-serif; color:var(--pm-accent); }

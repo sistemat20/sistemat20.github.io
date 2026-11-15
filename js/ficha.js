@@ -1171,23 +1171,17 @@ function renderPopupDivindade(f, fluxo){
     const ehClerigo = (f.classesNiveis||[]).some(c=>c.classe==='Clérigo');
     const ehDevotoAuto = (f.classesNiveis||[]).some(c=>classesDevotasAuto.includes(c.classe));
     sheet.appendChild(el('div',{class:'wizard-title', style:'padding:6px 14px 0;'},'Escolha uma divindade'));
+    // Kit (15/11/2026): um deus por linha (energia e arma embaixo do nome); tocar abre a gaveta
+    // com os devotos e o botão de escolher. Antes, era preciso tocar duas vezes no mesmo nome.
+    const listaDeuses = el('div',{style:'padding:0 14px;'});
     DEUSES.forEach(d=>{
       const aberto = state._divindadeExpandida === d.nome;
-      const item = el('button',{class:'menu-item'+(aberto?' active':''), onclick:()=>{
-        if(aberto){ state._divindadeFluxo={passo:'confirmar', deus:d.nome}; state._divindadeExpandida=null; }
-        else { state._divindadeExpandida = d.nome; }
-        render();
-      }},
-        el('span',{class:'ico'},'⚜'), el('span',{}, d.nome)
-      );
-      sheet.appendChild(item);
-      if(aberto){
-        sheet.appendChild(el('div',{class:'tip', style:'margin:0 14px 8px;'},
-          el('div',{}, el('b',{},'Energia: '), d.energia, ' · ', el('b',{},'Arma preferida: '), d.arma),
-          el('div',{}, el('b',{},'Devotos típicos: '), d.devotos)
-        ));
-      }
+      listaDeuses.appendChild(kLinha({ic:'⚜', nome:d.nome, detalhe:'energia '+d.energia+' · '+d.arma, sel:aberto, onclick:()=>{ state._divindadeExpandida = aberto ? null : d.nome; render(); }}));
+      if(aberto) listaDeuses.appendChild(kGaveta(
+        el('div',{}, el('b',{},'Devotos: '), d.devotos),
+        el('button',{class:'btn', onclick:()=>{ state._divindadeFluxo = {passo:'confirmar', deus:d.nome}; state._divindadeExpandida = null; render(); }}, 'Escolher '+d.nome)));
     });
+    sheet.appendChild(listaDeuses);
     if(ehClerigo){
       const abertoP = state._divindadeExpandida === 'Panteão';
       const itemP = el('button',{class:'menu-item'+(abertoP?' active':''), onclick:()=>{
@@ -1404,13 +1398,22 @@ function renderPopupAdicionarParceiro(f){
   const overlay = el('div',{class:'menu-overlay', onclick:(e)=>{ if(e.target===e.currentTarget){ state._adicionarParceiroPopup=null; render(); } }});
   const sheet = el('div',{class:'menu-sheet'});
   sheet.appendChild(el('div',{class:'wizard-title', style:'padding:6px 14px 0;'}, '🐾 Adicionar Parceiro'));
+  // Kit (15/11/2026): passos no alto (Tipo de ajuda · Qual · Detalhes) e escolhas em linhas.
+  const passoParceiro = !fluxo.categoria ? 'cat' : !fluxo.tipoEscolhido ? 'tipo' : 'det';
+  sheet.appendChild(el('div',{style:'padding:6px 14px 0;'}, kSeg([
+    {id:'cat', rot:'Tipo de ajuda', feito: !!fluxo.categoria},
+    {id:'tipo', rot:'Qual', feito: !!fluxo.tipoEscolhido, desativado: !fluxo.categoria},
+    {id:'det', rot:'Detalhes', desativado: !fluxo.tipoEscolhido}], passoParceiro, (id)=>{
+      if(id==='cat'){ fluxo.categoria = null; fluxo.tipoEscolhido = null; fluxo.busca = ''; }
+      if(id==='tipo'){ fluxo.tipoEscolhido = null; }
+      render(); })));
 
   if(!fluxo.categoria){
     sheet.appendChild(el('div',{class:'tip', style:'margin:6px 14px;'}, 'É um bicho/NPC genérico (escolhe um TIPO de ajuda), uma montaria específica do livro básico, ou uma criatura específica de Ameaças de Arton (bestiário)?'));
-    sheet.appendChild(el('div',{style:'padding:0 14px;display:flex;flex-direction:column;gap:8px;'},
-      el('button',{class:'btn ghost', onclick:()=>{ fluxo.categoria='generico'; render(); }}, 'Tipo genérico (Guardião, Combatente, Adepto...)'),
-      el('button',{class:'btn ghost', onclick:()=>{ fluxo.categoria='montaria'; render(); }}, 'Montaria específica (Cavalo, Grifo, Lobo...)'),
-      el('button',{class:'btn ghost', onclick:()=>{ fluxo.categoria='ameacas'; render(); }}, 'Criatura de Ameaças de Arton (Urso das Neves...)')
+    sheet.appendChild(el('div',{style:'padding:0 14px;'},
+      kLinha({ic:'⚔️', nome:'Tipo genérico', detalhe:'Guardião, Combatente, Adepto, Médico…', onclick:()=>{ fluxo.categoria='generico'; render(); }}),
+      kLinha({ic:'🐎', nome:'Montaria', detalhe:'Cavalo, Grifo, Lobo…', onclick:()=>{ fluxo.categoria='montaria'; render(); }}),
+      kLinha({ic:'🐻', nome:'Criatura de Ameaças de Arton', detalhe:'Urso das neves e outras', onclick:()=>{ fluxo.categoria='ameacas'; render(); }})
     ));
   } else if(!fluxo.tipoEscolhido){
     const lista = fluxo.categoria==='generico' ? PARCEIRO_TIPOS : fluxo.categoria==='montaria' ? MONTARIA_TIPOS_ESPECIFICOS : PARCEIROS_AMEACAS_ARTON;
@@ -1425,13 +1428,11 @@ function renderPopupAdicionarParceiro(f){
       ));
     });
     sheet.appendChild(grid);
-    sheet.appendChild(el('button',{class:'btn ghost', style:'margin:10px 14px 0;', onclick:()=>{ fluxo.categoria=null; fluxo.busca=''; render(); }}, '← Voltar'));
   } else {
     const lista = fluxo.categoria==='generico' ? PARCEIRO_TIPOS : fluxo.categoria==='montaria' ? MONTARIA_TIPOS_ESPECIFICOS : PARCEIROS_AMEACAS_ARTON;
     const infoTipo = lista.find(t=>t.nome===fluxo.tipoEscolhido);
     sheet.appendChild(el('div',{class:'tip', style:'margin:6px 14px;'},
-      el('b',{}, fluxo.tipoEscolhido), ' — ', infoTipo.niveis[fluxo.poder],
-      el('div',{style:'margin-top:4px;'}, el('button',{class:'btn ghost', style:'width:auto;padding:3px 10px;font-size:0.7rem;', onclick:()=>{ fluxo.tipoEscolhido=null; render(); }}, '← Trocar tipo'))
+      el('b',{}, fluxo.tipoEscolhido), ' — ', infoTipo.niveis[fluxo.poder]
     ));
     sheet.appendChild(el('div',{style:'padding:0 14px;display:flex;flex-direction:column;gap:8px;'},
       el('div',{},
@@ -1444,11 +1445,7 @@ function renderPopupAdicionarParceiro(f){
       ),
       el('div',{},
         el('label',{},'Nível de poder'),
-        el('div',{class:'row', style:'gap:6px;'},
-          ...['iniciante','veterano','mestre'].map(nivel=>
-            el('button',{class:'btn ghost'+(fluxo.poder===nivel?' selected':''), style:'flex:1;'+(fluxo.poder===nivel?'border-color:var(--gold);color:var(--gold);':''), onclick:()=>{ fluxo.poder=nivel; render(); }}, nivel)
-          )
-        )
+        kSeg([{id:'iniciante', rot:'Iniciante'}, {id:'veterano', rot:'Veterano'}, {id:'mestre', rot:'Mestre'}], fluxo.poder, (nivel)=>{ fluxo.poder = nivel; render(); })
       )
     ));
     if(fluxo.tipoEscolhido==='Ajudante'){
@@ -1865,48 +1862,64 @@ function abrirEnviarItem(idx){
     render();
   });
 }
+// Kit (15/11/2026): escolher para quem (avatar seleciona, não envia), quantas unidades (teclas)
+// e confirmar num botão que diz o que vai acontecer. Antes, tocar no avatar já enviava tudo.
 function renderPopupEnviarItem(f){
   const fluxo = state._enviarItemFluxo;
-  const overlay = el('div',{class:'menu-overlay', onclick:(e)=>{ if(e.target===e.currentTarget && !fluxo.enviando){ state._enviarItemFluxo=null; render(); } }});
-  const sheet = el('div',{class:'menu-sheet'});
+  const fechar = ()=>{ if(!fluxo.enviando){ state._enviarItemFluxo = null; render(); } };
+  const overlay = el('div',{class:'menu-overlay', onclick:(e)=>{ if(e.target===e.currentTarget) fechar(); }});
+  const sheet = el('div',{class:'menu-sheet janela-kit'});
   const row = f.equip[fluxo.idx];
   if(!row){
-    sheet.appendChild(el('div',{class:'tip', style:'margin:14px;'}, 'Esse item não existe mais na sua mochila.'));
-    sheet.appendChild(el('button',{class:'menu-close', onclick:()=>{ state._enviarItemFluxo=null; render(); }}, 'Fechar'));
+    sheet.appendChild(el('div',{class:'empty'}, 'Esse item não existe mais na sua mochila.'));
+    sheet.appendChild(el('button',{class:'btn ghost', onclick:fechar}, 'Fechar'));
     overlay.appendChild(sheet);
     return overlay;
   }
-  sheet.appendChild(el('div',{class:'wizard-title', style:'padding:6px 14px 0;'}, 'Enviar "'+separarPresente(row.item).base+'"'));
-  sheet.appendChild(el('div',{class:'tip', style:'margin:6px 14px;'}, 'Escolha pra quem enviar — o item some da sua mochila e vai direto pra mochila da pessoa escolhida.'));
-  if(fluxo.enviando){
-    sheet.appendChild(el('div',{class:'empty'}, 'Enviando...'));
-  } else if(fluxo.carregando){
-    sheet.appendChild(el('div',{class:'empty'}, 'Carregando lista de personagens...'));
-  } else if(!fluxo.lista || fluxo.lista.length===0){
-    sheet.appendChild(el('div',{class:'empty'}, 'Nenhum outro personagem encontrado.'));
-  } else {
-    sheet.appendChild(renderAvataresDestino(fluxo.lista, async (p)=>{
-        fluxo.enviando = true; render();
-        const itemEnviado = Object.assign({}, row, {item: row.item+' (recebido de '+(f.nome||'alguém')+')'});
-        const resultado = await enviarItemParaOutroPersonagem(p.id, itemEnviado);
-        if(resultado.ok){
-          animarPresente(separarPresente(row.item).base, p);
-          removerItemMochila(f, fluxo.idx);
-          // Grava as fichas do próprio jogador pelo salvamento normal (com a proteção de
-          // presentes); a do destino o servidor já alterou no envio. Dentro do Claude não há
-          // servidor, então grava só a ficha do remetente direto.
-          if(usandoSupabase()) await salvarPerfis();
-          else await mestreAtualizarPersonagem(f);
-          flashMsg('📤 "'+separarPresente(row.item).base+'" enviado pra '+(resultado.nomeDestino||p.nome)+'!');
-          state._enviarItemFluxo = null;
-        } else {
-          flashMsg('⚠ Não consegui enviar agora — tenta de novo em instantes.');
-          fluxo.enviando = false;
-        }
-        render();
-    }));
+  const nome = separarPresente(row.item).base;
+  const total = /^\d+$/.test(String(row.qtd).trim()) ? parseInt(row.qtd) : 1;
+  if(fluxo.qtd==null) fluxo.qtd = total===1 ? 1 : null;
+  sheet.appendChild(el('div',{class:'wizard-title'}, 'Enviar item'));
+  sheet.appendChild(kLinha({ic:'📦', nome, detalhe: total>1 ? 'você tem '+total : 'você tem 1', valor: total>1 ? '×'+total : '', sel:true}));
+  if(fluxo.enviando) sheet.appendChild(el('div',{class:'empty'}, 'Enviando...'));
+  else if(fluxo.carregando) sheet.appendChild(el('div',{class:'empty'}, 'Carregando os aliados...'));
+  else if(!fluxo.lista || !fluxo.lista.length) sheet.appendChild(el('div',{class:'empty'}, 'Nenhum outro personagem encontrado.'));
+  else {
+    sheet.appendChild(el('div',{class:'k-rot'}, 'Para quem'));
+    sheet.appendChild(renderAvataresSelecionaveis(fluxo.lista, fluxo.destinoId, (p)=>{ fluxo.destinoId = p.id; render(); }));
+    if(total>1){
+      sheet.appendChild(el('div',{class:'k-rot'}, 'Quantas'));
+      const teclas = Array.from({length: Math.min(total, 12)}, (_,k)=> k+1);
+      sheet.appendChild(el('div',{class:'teclas'}, teclas.map(n=> el('button',{class: fluxo.qtd===n ? 'on' : '', onclick:()=>{ fluxo.qtd = n; render(); }}, String(n))),
+        total>12 ? el('button',{class: fluxo.qtd===total ? 'on' : '', onclick:()=>{ fluxo.qtd = total; render(); }}, 'todas') : null));
+    }
   }
-  sheet.appendChild(el('button',{class:'menu-close', onclick:()=>{ if(!fluxo.enviando){ state._enviarItemFluxo=null; render(); } }}, 'Cancelar'));
+  const destino = (fluxo.lista||[]).find(p=> p.id===fluxo.destinoId);
+  const pronto = destino && fluxo.qtd && !fluxo.enviando;
+  sheet.appendChild(el('div',{class:'duo', style:'margin-top:12px;'},
+    el('button',{class:'btn ghost', onclick:fechar}, 'Cancelar'),
+    el('button',{class:'btn', disabled: !pronto, onclick: async ()=>{
+      const n = fluxo.qtd;
+      fluxo.enviando = true; render();
+      const itemEnviado = Object.assign({}, row, {qtd: String(n), item: row.item+' (recebido de '+(f.nome||'alguém')+')'});
+      delete itemEnviado.vestido;
+      const resultado = await enviarItemParaOutroPersonagem(destino.id, itemEnviado);
+      if(resultado.ok){
+        animarPresente(nome, destino);
+        if(n < total) row.qtd = String(total - n);
+        else removerItemMochila(f, fluxo.idx);
+        // Grava as fichas do próprio jogador pelo salvamento normal (com a proteção de
+        // presentes); a do destino o servidor já alterou no envio.
+        if(usandoSupabase()) await salvarPerfis();
+        else await mestreAtualizarPersonagem(f);
+        flashMsg('📤 '+(n>1 ? n+' × ' : '')+nome+' enviado para '+(resultado.nomeDestino||destino.nome)+'!');
+        state._enviarItemFluxo = null;
+      } else {
+        flashMsg('⚠ Não consegui enviar agora. Tente de novo em instantes.');
+        fluxo.enviando = false;
+      }
+      render();
+    }}, pronto ? 'Enviar '+(fluxo.qtd>1 ? fluxo.qtd+' ' : '')+'para '+destino.nome : (destino ? 'Escolha quantas' : 'Escolha para quem'))));
   overlay.appendChild(sheet);
   return overlay;
 }
@@ -2171,52 +2184,48 @@ function abrirEnviarDinheiro(campoInicial){
     render();
   });
 }
+// Kit (15/11/2026): moeda num seletor (T$ já escolhido), valor, para quem (avatar seleciona) e
+// um botão que diz o que vai acontecer.
 function renderPopupEnviarDinheiro(f){
   const fluxo = state._enviarDinheiroFluxo;
-  const overlay = el('div',{class:'menu-overlay', onclick:(e)=>{ if(e.target===e.currentTarget && !fluxo.enviando){ state._enviarDinheiroFluxo=null; render(); } }});
-  const sheet = el('div',{class:'menu-sheet'});
-  sheet.appendChild(el('div',{class:'wizard-title', style:'padding:6px 14px 0;'}, 'Enviar dinheiro'));
-  const rotuloMoeda = {tc:'TC (cobre)', ts:'T$ (padrão)', to:'TO (ouro)'};
+  const fechar = ()=>{ if(!fluxo.enviando){ state._enviarDinheiroFluxo = null; render(); } };
+  const overlay = el('div',{class:'menu-overlay', onclick:(e)=>{ if(e.target===e.currentTarget) fechar(); }});
+  const sheet = el('div',{class:'menu-sheet janela-kit'});
+  const rotulo = {tc:'TC', ts:'T$', to:'TO'};
   const disponivel = parseInt(f[fluxo.campo])||0;
-  const conteudo = el('div',{style:'padding:0 14px;'},
-    el('label',{},'Moeda'),
-    el('select',{onchange:(e)=>{ fluxo.campo=e.target.value; render(); }},
-      ...['tc','ts','to'].map(c=> el('option',{value:c, selected: fluxo.campo===c?'selected':undefined}, rotuloMoeda[c]))
-    ),
-    el('div',{class:'meta', style:'margin-top:4px;'}, 'Você tem: '+disponivel+' '+rotuloMoeda[fluxo.campo]),
-    el('label',{style:'margin-top:8px;'},'Quantidade'),
-    el('input',{type:'number', value:fluxo.valor, oninput:(e)=>{fluxo.valor=e.target.value;}})
-  );
-  sheet.appendChild(conteudo);
-  sheet.appendChild(el('div',{class:'tip', style:'margin:10px 14px;'}, 'Escolha pra quem enviar — a quantidade sai da sua ficha e vai direto pra ficha da pessoa escolhida.'));
-  if(fluxo.enviando){
-    sheet.appendChild(el('div',{class:'empty'}, 'Enviando...'));
-  } else if(fluxo.carregando){
-    sheet.appendChild(el('div',{class:'empty'}, 'Carregando lista de personagens...'));
-  } else if(!fluxo.lista || fluxo.lista.length===0){
-    sheet.appendChild(el('div',{class:'empty'}, 'Nenhum outro personagem encontrado.'));
-  } else {
-    sheet.appendChild(renderAvataresDestino(fluxo.lista, async (p)=>{
-        const valor = parseInt(fluxo.valor);
-        if(!valor || valor<=0){ flashMsg('Digita uma quantidade válida primeiro.'); return; }
-        if(valor > disponivel){ flashMsg('Você não tem '+valor+' '+rotuloMoeda[fluxo.campo]+' pra enviar.'); return; }
-        fluxo.enviando = true; render();
-        const resultado = await enviarDinheiroParaOutroPersonagem(p.id, fluxo.campo, valor);
-        if(resultado.ok){
-          f[fluxo.campo] = (parseInt(f[fluxo.campo])||0) - valor;
-          registrarLog(f, 'Enviou '+valor+' '+rotuloMoeda[fluxo.campo]+' pra '+(resultado.nomeDestino||p.nome));
-          await salvarPerfis();
-          flashMsg('💰 '+valor+' '+rotuloMoeda[fluxo.campo]+' enviado(s) pra '+(resultado.nomeDestino||p.nome)+'!');
-          animarPresente(valor+' '+rotuloMoeda[fluxo.campo].split(' ')[0], p);
-          state._enviarDinheiroFluxo = null;
-        } else {
-          flashMsg('⚠ Não consegui enviar agora — tenta de novo em instantes.');
-          fluxo.enviando = false;
-        }
-        render();
-    }));
+  sheet.appendChild(el('div',{class:'wizard-title'}, 'Enviar dinheiro'));
+  sheet.appendChild(kSeg([{id:'ts', rot:'T$'}, {id:'to', rot:'TO'}, {id:'tc', rot:'TC'}], fluxo.campo, (c)=>{ fluxo.campo = c; render(); }));
+  sheet.appendChild(el('div',{class:'linha-equip'},
+    el('input',{id:'enviar-dinheiro-valor', type:'number', inputmode:'numeric', min:'1', placeholder:'quanto', value:fluxo.valor, style:'margin:0;flex:1;', oninput:(e)=>{ fluxo.valor = e.target.value; render(); }}),
+    el('span',{class:'meta-ej', style:'white-space:nowrap;'}, 'você tem '+disponivel+' '+rotulo[fluxo.campo])));
+  if(fluxo.enviando) sheet.appendChild(el('div',{class:'empty'}, 'Enviando...'));
+  else if(fluxo.carregando) sheet.appendChild(el('div',{class:'empty'}, 'Carregando os aliados...'));
+  else if(!fluxo.lista || !fluxo.lista.length) sheet.appendChild(el('div',{class:'empty'}, 'Nenhum outro personagem encontrado.'));
+  else {
+    sheet.appendChild(el('div',{class:'k-rot'}, 'Para quem'));
+    sheet.appendChild(renderAvataresSelecionaveis(fluxo.lista, fluxo.destinoId, (p)=>{ fluxo.destinoId = p.id; render(); }));
   }
-  sheet.appendChild(el('button',{class:'menu-close', onclick:()=>{ if(!fluxo.enviando){ state._enviarDinheiroFluxo=null; render(); } }}, 'Cancelar'));
+  const valor = parseInt(fluxo.valor)||0;
+  const destino = (fluxo.lista||[]).find(p=> p.id===fluxo.destinoId);
+  const problema = !valor || valor<=0 ? 'Digite quanto' : valor>disponivel ? 'Você tem só '+disponivel+' '+rotulo[fluxo.campo] : !destino ? 'Escolha para quem' : null;
+  sheet.appendChild(el('div',{class:'duo', style:'margin-top:12px;'},
+    el('button',{class:'btn ghost', onclick:fechar}, 'Cancelar'),
+    el('button',{class:'btn', disabled: !!problema || fluxo.enviando, onclick: async ()=>{
+      fluxo.enviando = true; render();
+      const resultado = await enviarDinheiroParaOutroPersonagem(destino.id, fluxo.campo, valor);
+      if(resultado.ok){
+        f[fluxo.campo] = (parseInt(f[fluxo.campo])||0) - valor;
+        registrarLog(f, 'Enviou '+valor+' '+rotulo[fluxo.campo]+' pra '+(resultado.nomeDestino||destino.nome));
+        await salvarPerfis();
+        flashMsg('💰 '+valor+' '+rotulo[fluxo.campo]+' enviado(s) para '+(resultado.nomeDestino||destino.nome)+'!');
+        animarPresente(valor+' '+rotulo[fluxo.campo], destino);
+        state._enviarDinheiroFluxo = null;
+      } else {
+        flashMsg('⚠ Não consegui enviar agora. Tente de novo em instantes.');
+        fluxo.enviando = false;
+      }
+      render();
+    }}, problema || 'Enviar '+valor+' '+rotulo[fluxo.campo]+' para '+destino.nome)));
   overlay.appendChild(sheet);
   return overlay;
 }
@@ -2590,7 +2599,7 @@ function renderPopupGolpePessoal(f){
   sheet.appendChild(camposBasicos);
 
   const custoTotal = calcularCustoGolpePessoal(fluxo.escolhas);
-  sheet.appendChild(el('div',{class:'tip', style:'margin:8px 14px;text-align:center;font-size:1rem;'}, el('b',{},'Custo total: '), el('span',{style:'color:var(--gold);font-family:Cinzel,serif;font-weight:800;'}, custoTotal+' PM')));
+  sheet.appendChild(el('div',{class:'custo-golpe'}, 'Custo total ', el('b',{}, custoTotal+' PM'))); // fica fixo no alto da lista
 
   const listaEfeitos = el('div',{style:'padding:0 14px;display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto;'});
   EFEITOS_GOLPE_PESSOAL.forEach(ef=>{
@@ -2603,13 +2612,13 @@ function renderPopupGolpePessoal(f){
     }},
       el('div',{class:'row', style:'align-items:center;'},
         el('div',{style:'flex:1;'},
-          el('div',{class:'opt-nome'}, (marcado?'✓ ':'○ ')+ef.nome+' ('+(ef.custo>=0?'+':'')+ef.custo+' PM'+(ef.custoVariavel?' + custo da magia':'')+')'),
+          el('div',{class:'opt-nome'}, ef.nome, el('span',{class:'custo-efeito'}, ' '+(ef.custo>=0?'+':'')+ef.custo+' PM'+(ef.custoVariavel?' + magia':''))),
           el('div',{class:'opt-sub'}, ef.desc)
         ),
-        (ef.repetivel || ef.maxVezes) && marcado ? el('div',{class:'row', style:'gap:4px;flex-shrink:0;', onclick:(e)=>e.stopPropagation()},
-          el('button',{class:'btn ghost', style:'width:auto;padding:2px 8px;', onclick:()=>{ fluxo.escolhas[ef.nome]=Math.max(1, qtdAtual-1); render(); }}, '−'),
-          el('span',{style:'min-width:16px;text-align:center;'}, qtdAtual),
-          el('button',{class:'btn ghost', style:'width:auto;padding:2px 8px;', onclick:()=>{ fluxo.escolhas[ef.nome]=Math.min(limiteMax, qtdAtual+1); render(); }}, '+')
+        (ef.repetivel || ef.maxVezes) && marcado ? el('span',{class:'qtd-step', onclick:(e)=>e.stopPropagation()},
+          el('button',{'aria-label':'menos uma vez', onclick:()=>{ fluxo.escolhas[ef.nome]=Math.max(1, qtdAtual-1); render(); }}, '−'),
+          el('b',{class:'num'}, '×'+qtdAtual),
+          el('button',{'aria-label':'mais uma vez', onclick:()=>{ fluxo.escolhas[ef.nome]=Math.min(limiteMax, qtdAtual+1); render(); }}, '+')
         ) : null
       )
     );

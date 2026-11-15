@@ -64,6 +64,15 @@ function renderAvataresDestino(lista, aoEscolher){
   });
   return grade;
 }
+// Igual, mas tocar só seleciona (o envio é confirmado num botão).
+function renderAvataresSelecionaveis(lista, selecionadoId, aoEscolher){
+  const grade = el('div',{class:'presente-avatares'});
+  lista.forEach(p=>{
+    grade.appendChild(el('button',{class:'presente-avatar'+(p.id===selecionadoId ? ' on' : ''), 'aria-pressed': p.id===selecionadoId ? 'true' : 'false', 'aria-label':p.nome, onclick:()=> aoEscolher(p)},
+      rostoPersonagem(p), el('span',{class:'nome'}, p.nome), p.jogador ? el('span',{class:'jogador'}, p.jogador) : null));
+  });
+  return grade;
+}
 function animarPresente(rotuloItem, destino){
   const marca = Date.now();
   state._presenteVoo = {item:rotuloItem, nome:destino.nome, foto:destino.foto||'', marca};

@@ -41,5 +41,33 @@ const h = require('./harness');
     w.state.levelUp = { aberto: false };
   }
 
+  h.secao('Janelas no kit');
+  {
+    const f = h.usarFicha(w, h.fichaBase({ ts: 30, equip: [] }));
+    w.state.tab = 'personagem'; w.state.personagemTab = 'ficha';
+    w.state._enviarDinheiroFluxo = { campo: 'ts', valor: '', destinoId: null, lista: [{ id: 'p2', nome: 'Ravena' }], carregando: false, enviando: false };
+    h.renderizar(w, 'personagem');
+    h.ok('dinheiro: moeda num seletor com T$ escolhido', q('.janela-kit .k-seg button.on')[0].textContent === 'T$');
+    const botao = () => q('.janela-kit button.btn:not(.ghost)')[0];
+    h.ok('sem valor, o botão pede o valor', botao().disabled && botao().textContent === 'Digite quanto');
+    w.state._enviarDinheiroFluxo.valor = '50'; h.renderizar(w, 'personagem');
+    h.ok('mais do que tem: avisa no botão', botao().textContent === 'Você tem só 30 T$');
+    w.state._enviarDinheiroFluxo.valor = '20'; h.renderizar(w, 'personagem');
+    q('.janela-kit button.presente-avatar')[0].click();
+    h.ok('com valor e destino: "Enviar 20 T$ para Ravena"', !botao().disabled && botao().textContent === 'Enviar 20 T$ para Ravena');
+    w.state._enviarDinheiroFluxo = null;
+
+    w.state._divindadeFluxo = { passo: 'escolher' }; w.state._divindadeExpandida = null; h.renderizar(w, 'personagem');
+    const deus = q('.menu-sheet .k-linha')[0];
+    h.ok('divindade: um deus por linha com energia e arma', !!deus && deus.textContent.includes('energia'));
+    deus.click();
+    h.ok('tocar abre a gaveta com "Escolher"', q('.menu-sheet .k-gaveta button').some((b) => b.textContent.startsWith('Escolher ')));
+    w.state._divindadeFluxo = null;
+
+    w.state._adicionarParceiroPopup = { categoria: null, tipoEscolhido: null, nome: '', origem: '', poder: 'iniciante', periciasEscolhidas: [] }; h.renderizar(w, 'personagem');
+    h.ok('parceiro: passos no alto e três linhas de tipo', q('.menu-sheet .k-seg button').length === 3 && q('.menu-sheet .k-linha').length === 3);
+    w.state._adicionarParceiroPopup = null;
+  }
+
   h.resumo();
 })();

@@ -124,14 +124,33 @@ const okDados = (dados) => ({ status: 200, json: { ok: true, dados } });
     h.renderizar(w);
     const botao = [...w.document.querySelectorAll('button.presente-avatar')].find((b) => b.textContent.includes('Ravena'));
     h.ok('o popup de envio mostra o destino', !!botao);
-    if (botao) {
-      botao.click();
-      await new Promise((r) => setTimeout(r, 50));
-    }
+    if (botao) botao.click();
+    h.ok('tocar no avatar só escolhe, não envia', !srv.ultima('enviarItem'));
+    const confirmar = [...w.document.querySelectorAll('.janela-kit button')].find((b) => b.textContent === 'Enviar para Ravena');
+    h.ok('o botão diz o que vai acontecer', !!confirmar);
+    if (confirmar) { confirmar.click(); await new Promise((r) => setTimeout(r, 50)); }
     h.ok('mandou o item pelo enviarItem', !!srv.ultima('enviarItem'));
     h.ok('o item saiu da mochila de quem enviou', f.equip.length === 0);
     h.igual('gravou pelo salvamento normal do jogador', salvou, 1);
     h.ok('não chamou nenhuma ação de Mestre', !srv.ultima('mestreAtualizarPersonagem') && !srv.ultima('todosPersonagens'));
+  }
+
+  h.secao('Enviar só parte das unidades');
+  {
+    const { window: w } = h.carregarApp({ backend: 'supabase', sessao: { token: 'tok', jogador: { id: 'j1', nome: 'Max', papel: 'jogador', ehMestre: false } } });
+    const srv = servidorFalso(w);
+    srv.respostas.enviarItem = okDados({ nomeDestino: 'Ravena' });
+    w.salvarPerfis = async () => {};
+    const f = h.usarFicha(w, h.fichaBase({ nome: 'Aeon', equip: [{ item: 'Ácido', qtd: '3', tipo: 'geral', carga: '0.5' }] }));
+    w.state._enviarItemFluxo = { idx: 0, lista: [{ id: 'p2', nome: 'Ravena' }], carregando: false, enviando: false };
+    h.renderizar(w);
+    [...w.document.querySelectorAll('button.presente-avatar')][0].click();
+    [...w.document.querySelectorAll('.janela-kit .teclas button')].find((b) => b.textContent === '2').click();
+    [...w.document.querySelectorAll('.janela-kit button')].find((b) => b.textContent === 'Enviar 2 para Ravena').click();
+    await new Promise((r) => setTimeout(r, 50));
+    const enviado = srv.ultima('enviarItem');
+    h.ok('mandou só 2 ácidos', enviado && enviado.corpo.item && enviado.corpo.item.qtd === '2');
+    h.igual('ficou 1 na mochila', f.equip[0] && f.equip[0].qtd, '1');
   }
 
   // ------------------------------------------------------------ sessão vencida
