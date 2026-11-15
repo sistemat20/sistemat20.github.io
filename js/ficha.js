@@ -67,75 +67,74 @@ function renderPersonagemComSwipeParaPericias(){
   return wrap;
 }
 
+// Menu "Mais" no kit (15/11/2026, prancha "Menu Mais", ideia A): ladrilhos para as telas,
+// "Esta ficha" em linhas curtas, preferências como quatro chaves numa linha e as ações perigosas
+// (Desfazer e Descer de nível) numa linha "Cuidado" fechada, longe das comuns.
 function renderMenuOverlay(){
-  const overlay = el('div',{class:'menu-overlay', onclick:(e)=>{ if(e.target===e.currentTarget){ state._menuAberto=false; render(); } }});
-  const sheet = el('div',{class:'menu-sheet'});
+  const f = fichaAtual();
+  const fecharMenu = ()=>{ state._menuAberto = false; render(); };
+  const overlay = el('div',{class:'menu-overlay', onclick:(e)=>{ if(e.target===e.currentTarget) fecharMenu(); }});
+  const sheet = el('div',{class:'menu-sheet menu-mais'});
+  sheet.appendChild(el('div',{class:'alca-menu', 'aria-hidden':'true'}));
 
-  sheet.appendChild(el('div',{class:'lista-secao-titulo'}, 'Mais telas'));
-  itensNavegarMais().forEach(([ico,label,ir])=>{
-    sheet.appendChild(el('button',{class:'menu-item', onclick:()=>{ ir(); state._menuAberto=false; render(); try{ window.scrollTo(0,0); }catch(e){} }},
-      el('span',{class:'ico'}, ico), el('span',{}, label)
-    ));
-  });
+  // ---- Telas: seis ladrilhos ----
+  const ir = (fn)=>()=>{ fn(); state._menuAberto = false; render(); try{ window.scrollTo(0,0); }catch(e){} };
+  const telas = itensNavegarMais().filter(([,rot])=> rot!=='Trocar de herói');
+  const trocar = itensNavegarMais().find(([,rot])=> rot==='Trocar de herói');
+  const ladrilhos = telas.map(([ico, rot, fn])=> [ico, rot.replace('Catálogo de itens','Catálogo'), ir(fn)]);
+  ladrilhos.push(['🎞️', 'Resumo', ()=>{ state._menuAberto = false; abrirResumoSessao(f); }]);
+  if(trocar) ladrilhos.push([trocar[0], 'Trocar herói', ir(trocar[2])]);
+  sheet.appendChild(el('div',{class:'k-rot'}, 'Telas'));
+  sheet.appendChild(el('div',{class:'ladrilhos-menu'}, ladrilhos.map(([ico, rot, fn])=>
+    el('button',{class:'ladrilho-menu', onclick:fn}, el('span',{class:'ico', 'aria-hidden':'true'}, ico), el('span',{}, rot)))));
+
+  // ---- Esta ficha ----
+  const pendencias = detectarPendencias(f);
+  const linha = (ico, rot, valor, onclick, classe)=> el('button',{class:'linha-menu'+(classe?' '+classe:''), onclick},
+    el('span',{class:'ico', 'aria-hidden':'true'}, ico), el('span',{}, rot), el('span',{class:'vl'}, valor||'▸'));
+  sheet.appendChild(el('div',{class:'k-rot'}, 'Esta ficha'));
+  sheet.appendChild(linha('📋', 'Pendências', pendencias.length ? el('b',{class:'conta-pend'}, String(pendencias.length)) : '✓', ()=>{ state._menuAberto = false; state._pendenciasAberto = true; render(); }));
+  sheet.appendChild(linha('📜', 'Log de alterações', null, ()=>{ state._menuAberto = false; state._logAberto = true; render(); }));
+  sheet.appendChild(linha('💾', 'Cópia de segurança', null, ()=>{ state._menuAberto = false; baixarBackupFicha(f); }));
   const opcaoInstalar = typeof renderOpcaoInstalar==='function' ? renderOpcaoInstalar() : null;
   if(opcaoInstalar) sheet.appendChild(opcaoInstalar);
 
-  sheet.appendChild(el('div',{class:'lista-secao-titulo'}, 'Esta ficha'));
-  const pendencias = detectarPendencias(fichaAtual());
-  sheet.appendChild(el('button',{class:'menu-item', style: pendencias.length>0 ? 'color:var(--red-bright);' : '', onclick:()=>{ state._menuAberto=false; state._pendenciasAberto=true; render(); }},
-    pendencias.length>0 ? el('span',{class:'selo-cera', style:'position:static;width:20px;height:20px;font-size:0.62rem;flex-shrink:0;'}, '!') : el('span',{class:'ico'}, '📋'),
-    el('span',{}, 'Pendências'+(pendencias.length>0?' ('+pendencias.length+')':''))
-  ));
-  sheet.appendChild(el('button',{class:'menu-item', onclick:()=>{ state._menuAberto=false; state._logAberto=true; render(); }},
-    el('span',{class:'ico'}, '📜'), el('span',{}, 'Log de Alterações')
-  ));
-  sheet.appendChild(el('button',{class:'menu-item', onclick:()=>{ state._menuAberto=false; abrirResumoSessao(fichaAtual()); }},
-    el('span',{class:'ico'}, '🎞️'), el('span',{}, 'Resumo da Última Sessão')
-  ));
-  const temParaDesfazer = !!(state._paraDesfazer && state._paraDesfazer[fichaAtual().id]);
-  sheet.appendChild(el('button',{class:'menu-item', style: temParaDesfazer ? '' : 'opacity:0.45;', onclick:()=>{
-    if(!temParaDesfazer){ flashMsg('Não tem nada recente pra desfazer.'); return; }
-    desfazerUltimaAlteracao(fichaAtual());
-  }},
-    el('span',{class:'ico'}, '↩️'), el('span',{}, 'Desfazer Última Alteração')
-  ));
-  // Descer de Nível — ação rara e destrutiva, então fica no menu (não como botão sempre visível
-  // ao lado do Level Up). Desabilitado com explicação quando não dá pra usar.
-  const checkDescer = podeDescerNivel(fichaAtual());
-  sheet.appendChild(el('button',{class:'menu-item', style: checkDescer.pode ? '' : 'opacity:0.45;', onclick:()=>{
-    const f = fichaAtual();
-    const check = podeDescerNivel(f);
-    if(!check.pode){ flashMsg(check.motivo); return; }
-    const u = check.ultimo;
-    const oQueVolta = [
-      '– '+(u.pvGanho||0)+' PV e –'+(u.pmGanho||0)+' PM',
-      u.poder ? 'remove o poder "'+u.poder.nome+'"' : null,
-    ].filter(Boolean).join(', ');
-    if(!confirm('Desfazer o nível '+u.nivel+' de '+u.classe+'?\n\nIsso vai: '+oQueVolta+'.\n\nSó dá pra desfazer um nível por vez, do mais recente pro mais antigo.')) return;
-    state._menuAberto = false;
-    descerNivel(f);
-  }},
-    el('span',{class:'ico'}, '⬇️'), el('span',{}, 'Descer de Nível'+(checkDescer.pode ? ' ('+checkDescer.ultimo.classe+' '+checkDescer.ultimo.nivel+')' : ''))
-  ));
-  sheet.appendChild(el('button',{class:'menu-item', onclick:()=>{ state._menuAberto=false; baixarBackupFicha(fichaAtual()); }},
-    el('span',{class:'ico'}, '💾'), el('span',{}, 'Baixar Cópia de Segurança')
-  ));
+  // ---- Preferências: quatro chaves ----
+  const tema = document.documentElement.dataset.tema==='mesa';
+  const chave = (ico, rot, ligada, alternar, dica)=> el('button',{class:'chave-menu'+(ligada?' on':''), role:'switch', 'aria-checked': ligada ? 'true' : 'false', title:dica, onclick:alternar},
+    el('span',{class:'ico', 'aria-hidden':'true'}, ico), el('span',{}, rot), el('i',{class:'trilho', 'aria-hidden':'true'}));
+  sheet.appendChild(el('div',{class:'k-rot'}, 'Preferências'));
+  sheet.appendChild(el('div',{class:'chaves-menu'},
+    chave('🔔', 'Avisos', notificacaoSomAtiva(), ()=>{ alternarNotificacaoSom(); render(); }, 'Som e vibração quando alguém manda algo para você'),
+    chave('🎵', 'Sons', sonsAtivos(), ()=>{ alternarSons(); render(); }, 'Sons do app: forja, poções, magias'),
+    chave('🌫️', 'Atmosfera', atmosferaAtiva(), ()=>{ alternarAtmosfera(); render(); }, 'Efeitos de fundo conforme a vida do herói'),
+    chave('🌓', 'Modo mesa', tema, ()=>{ alternarTemaMesa(); }, 'Alto contraste para mesa com muita luz')));
 
-  sheet.appendChild(el('div',{class:'lista-secao-titulo'}, 'Preferências'));
-  sheet.appendChild(el('button',{class:'menu-item', onclick:()=>{ alternarNotificacaoSom(); render(); }},
-    el('span',{class:'ico'}, notificacaoSomAtiva()?'🔔':'🔕'), el('span',{}, notificacaoSomAtiva()?'Aviso Sonoro/Vibração: Ligado':'Aviso Sonoro/Vibração: Desligado')
-  ));
-  sheet.appendChild(el('button',{class:'menu-item', onclick:()=>{ alternarAtmosfera(); render(); }},
-    el('span',{class:'ico'}, '🌫️'), el('span',{}, atmosferaAtiva()?'Efeitos de Atmosfera: Ligados':'Efeitos de Atmosfera: Desligados')
-  ));
-  sheet.appendChild(el('button',{class:'menu-item', onclick:()=>{ alternarSons(); render(); }},
-    el('span',{class:'ico'}, '🔔'), el('span',{}, sonsAtivos()?'Sons: Ligados':'Sons: Desligados')
-  ));
-  sheet.appendChild(el('button',{class:'menu-item', onclick:alternarTemaMesa},
-    el('span',{class:'ico'}, document.documentElement.dataset.tema==='mesa'?'☀️':'🌓'), el('span',{}, document.documentElement.dataset.tema==='mesa'?'Modo Padrão':'Modo Mesa (alto contraste)')
-  ));
+  // ---- Cuidado: fechado por padrão ----
+  const cuidadoAberto = !!state._menuCuidado;
+  sheet.appendChild(el('button',{class:'cuidado-menu', 'aria-expanded': cuidadoAberto ? 'true' : 'false', onclick:()=>{ state._menuCuidado = !cuidadoAberto; render(); }},
+    el('span',{}, '⚠ Cuidado'), el('span',{}, cuidadoAberto ? '▾' : '▸')));
+  if(cuidadoAberto){
+    const temParaDesfazer = !!(state._paraDesfazer && state._paraDesfazer[f.id]);
+    sheet.appendChild(linha('↩️', 'Desfazer última alteração', null, ()=>{
+      if(!temParaDesfazer){ flashMsg('Não tem nada recente pra desfazer.'); return; }
+      desfazerUltimaAlteracao(fichaAtual());
+    }, 'cuidado'+(temParaDesfazer?'':' apagado')));
+    // Descer de Nível: ação rara e destrutiva, com confirmação do que volta.
+    const checkDescer = podeDescerNivel(f);
+    sheet.appendChild(linha('⬇️', 'Descer de nível'+(checkDescer.pode ? ' ('+checkDescer.ultimo.classe+' '+checkDescer.ultimo.nivel+')' : ''), null, ()=>{
+      const ff = fichaAtual();
+      const check = podeDescerNivel(ff);
+      if(!check.pode){ flashMsg(check.motivo); return; }
+      const u = check.ultimo;
+      const oQueVolta = ['– '+(u.pvGanho||0)+' PV e –'+(u.pmGanho||0)+' PM', u.poder ? 'remove o poder "'+u.poder.nome+'"' : null].filter(Boolean).join(', ');
+      if(!confirm('Desfazer o nível '+u.nivel+' de '+u.classe+'?\n\nIsso vai: '+oQueVolta+'.\n\nSó dá pra desfazer um nível por vez, do mais recente pro mais antigo.')) return;
+      state._menuAberto = false;
+      descerNivel(ff);
+    }, 'cuidado'+(checkDescer.pode?'':' apagado')));
+  }
 
-  sheet.appendChild(el('button',{class:'menu-close', onclick:()=>{ state._menuAberto=false; render(); }}, 'Fechar'));
+  sheet.appendChild(el('button',{class:'menu-close', onclick:fecharMenu}, 'Fechar'));
   overlay.appendChild(sheet);
   return overlay;
 }

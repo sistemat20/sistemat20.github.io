@@ -86,3 +86,28 @@
 .pendencia-cab small{ display:block; font-size:.7rem; color:var(--ink-soft); margin-top:2px; }
 input[type="search"].busca-notas, input[type="search"]#cond-busca{ background:rgba(0,0,0,.28); color:var(--ink); border:1px solid var(--line); border-radius:10px; padding:8px 11px; -webkit-appearance:none; appearance:none; }
 input[type="search"].busca-notas::placeholder, input[type="search"]#cond-busca::placeholder{ color:var(--ink-soft); }
+
+/* ---- Menu "Mais" (15/11/2026, ideia A) ---- */
+.menu-mais{ padding:10px 14px 16px; }
+.alca-menu{ width:40px; height:4px; border-radius:2px; background:var(--gold-deep); margin:0 auto 6px; }
+.menu-mais .k-rot:first-of-type{ margin-top:4px; }
+.ladrilhos-menu{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+.ladrilho-menu{ display:grid; justify-items:center; gap:4px; padding:11px 4px; border:1px solid rgba(166,129,47,.3); border-radius:14px; background:var(--card-2); color:var(--ink); font:600 .66rem 'Inter',sans-serif; cursor:pointer; transition:border-color .2s, transform .15s; }
+.ladrilho-menu .ico{ font-size:1.3rem; }
+.ladrilho-menu:active{ transform:scale(.96); border-color:var(--gold); }
+.linha-menu{ display:grid; grid-template-columns:24px 1fr auto; gap:9px; align-items:center; width:100%; text-align:left; padding:9px 6px; border:0; border-bottom:1px solid rgba(166,129,47,.12); background:none; color:var(--ink); font:500 .8rem 'Inter',sans-serif; cursor:pointer; }
+.linha-menu .vl{ font-size:.7rem; color:var(--ink-soft); }
+.linha-menu .conta-pend{ display:inline-grid; place-items:center; min-width:18px; height:18px; padding:0 5px; border-radius:999px; background:#a8322a; color:#fff; font:800 .62rem 'Inter',sans-serif; }
+.linha-menu.cuidado{ color:#f0b0a6; }
+.linha-menu.apagado{ opacity:.45; }
+.chaves-menu{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+.chave-menu{ display:grid; justify-items:center; gap:4px; padding:9px 2px; border-radius:12px; border:1px solid var(--line); background:transparent; color:var(--ink-soft); font:600 .6rem 'Inter',sans-serif; cursor:pointer; transition:border-color .2s, color .2s; }
+.chave-menu .ico{ font-size:1.1rem; filter:grayscale(1); opacity:.55; transition:filter .2s, opacity .2s; }
+.chave-menu .trilho{ width:30px; height:16px; border-radius:999px; background:#3a2d24; position:relative; transition:background .2s; }
+.chave-menu .trilho::after{ content:''; position:absolute; top:2px; left:2px; width:12px; height:12px; border-radius:50%; background:#cbb98f; transition:transform .2s, background .2s; }
+.chave-menu.on{ color:var(--ink); border-color:var(--gold-deep); }
+.chave-menu.on .ico{ filter:none; opacity:1; }
+.chave-menu.on .trilho{ background:var(--status-saudavel); }
+.chave-menu.on .trilho::after{ transform:translateX(14px); background:#fff; }
+.cuidado-menu{ display:flex; justify-content:space-between; width:100%; margin-top:12px; padding:10px 6px; border:0; border-top:1px dashed rgba(201,74,58,.45); background:none; color:#f0b0a6; font:600 .76rem 'Inter',sans-serif; cursor:pointer; }
+@media (prefers-reduced-motion: reduce){ .chave-menu .trilho::after, .ladrilho-menu{ transition:none; } }

@@ -22,8 +22,12 @@ const h = require('./harness');
     q('.barra-baixo button').find((b) => b.textContent.includes('Perícias')).click();
     h.igual('Perícias a um toque', w.state.tab, 'pericias');
     q('.barra-baixo button').find((b) => b.textContent.includes('Mais')).click();
-    h.ok('Mais abre Notas, Catálogo, Aprender magias, Evolução e Trocar de herói', ['Notas', 'Catálogo de itens', 'Aprender magias', 'Evolução', 'Trocar de herói'].every((t) => q('.menu-item').some((b) => b.textContent.includes(t))));
-    q('.menu-item').find((b) => b.textContent.includes('Evolução')).click();
+    h.ok('Mais abre os ladrilhos: Notas, Catálogo, Aprender magias, Evolução, Resumo e Trocar herói', ['Notas', 'Catálogo', 'Aprender magias', 'Evolução', 'Resumo', 'Trocar herói'].every((t) => q('.ladrilho-menu').some((b) => b.textContent.includes(t))));
+    h.igual('preferências em quatro chaves', q('.chave-menu').length, 4);
+    h.ok('Cuidado começa fechado', !q('.linha-menu.cuidado').length);
+    q('.cuidado-menu')[0].click();
+    h.ok('abrir Cuidado mostra Desfazer e Descer de nível', q('.linha-menu.cuidado').length === 2);
+    q('.ladrilho-menu').find((b) => b.textContent.includes('Evolução')).click();
     h.igual('Evolução pelo Mais', w.state.tab, 'guia');
   }
 
