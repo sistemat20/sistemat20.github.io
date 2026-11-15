@@ -1,207 +1,194 @@
-// Catálogo de itens (aba Itens): buscar, equipar ou guardar.
-// Separado do js/ficha.js em 15/11/2026 (item 6 da revisão geral), sem mudar o código.
+// Catálogo de itens (prancha "Catálogo e Magias", 15/11/2026, ideias A + B + C):
+// · A Prateleiras: seis ícones numa linha no lugar das seis abas; cada linha já mostra o número
+//   que importa; o + guarda num toque; "Oficina" (item personalizado e Item Superior) no fim.
+// · B Busca em tudo: a busca procura em todas as prateleiras e separa por prateleira; sem busca e
+//   sem prateleira escolhida, aparece "Combina com você" (os itens que mudam algo nesta ficha).
+// · C Antes e depois: ao abrir um item, o que muda na ficha (Defesa, penalidade, arma na mão).
+
+const PRATELEIRAS_CATALOGO = [
+  ['armas','⚔️','Armas'], ['armaduras','🛡️','Defesas'], ['esotericos','🔮','Esotér.'],
+  ['pocoes','🧪','Poções'], ['magicos','✨','Mágicos'], ['gerais','🎒','Gerais'],
+];
+const NOME_PRATELEIRA = {armas:'Armas', armaduras:'Defesas', esotericos:'Esotéricos', pocoes:'Poções', magicos:'Itens mágicos', gerais:'Itens gerais'};
+
+function semAcento(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
+function maosTxt(n){ return (n||1)+' mão'+((n||1)>1?'s':''); }
+
+// Uma entrada por item: {chave, prat, ic, nome, det, aviso, cat, corpo(f), guardar, equipar:{rot, destino, fn}}
+function entradasPrateleira(prat, f){
+  if(prat==='armas') return ARMAS.map(w=>{
+    const semProf = !proficienteComArma(f, w);
+    return {chave:'arma-'+w.n, prat, ic:'⚔️', nome:w.n, cat:w.cat, aviso:semProf,
+      det: w.dano+' · '+w.critico+' · '+maosTxt(w.maos)+(semProf?' · sem proficiência':''),
+      corpo:()=> corpoArmaCatalogo(f, w, semProf),
+      guardar:()=> addArma(w,false), equipar:{rot:'Equipar', destino:'mochila', fn:()=> addArma(w,true)},
+      superior:()=> iniciarItemSuperior('arma', w)};
+  });
+  if(prat==='armaduras'){
+    const prof = proficienciasPersonagem(f);
+    return [...ARMADURAS, ...ESCUDOS].map(a=>{
+      const escudo = a.cat==='Escudo';
+      const semProf = escudo ? !prof.escudos : (a.cat==='Pesada' && !prof.armadurasPesadas);
+      return {chave:'def-'+a.n, prat, ic: escudo?'🛡️':'🥋', nome:a.n, cat:a.cat, aviso:semProf,
+        det: '+'+a.def+' Defesa · pen '+(a.pen||0)+' · '+a.cat+(semProf?' · sem proficiência':''),
+        corpo:()=> corpoDefesaCatalogo(f, a, escudo, semProf),
+        guardar:()=> escudo ? addEscudo(a,false) : addArmadura(a,false),
+        equipar:{rot: escudo?'Equipar escudo':'Vestir', destino:'mochila', fn:()=> escudo ? addEscudo(a,true) : addArmadura(a,true)},
+        superior:()=> iniciarItemSuperior(escudo?'escudo':(a.cat==='Pesada'?'armaduraPesada':'armaduraLeve'), a)};
+    });
+  }
+  if(prat==='esotericos') return ITENS_ESOTERICOS.map(it=>({chave:'eso-'+it.n, prat, ic:'🔮', nome:it.n,
+    det: maosTxt(it.maos)+' · '+it.esp+' esp',
+    corpo:()=>[el('div',{class:'desc'}, it.desc), el('div',{class:'meta-ej'}, 'Esotéricos são empunhados: ocupam mão enquanto você conjura.')],
+    guardar:()=> addEsoterico(it,false), equipar:{rot:'Empunhar', destino:'mochila', fn:()=> addEsoterico(it,true)},
+    superior:()=> iniciarItemSuperior('esoterico', it)}));
+  if(prat==='pocoes') return POCOES_MAGICAS.slice().sort((a,b)=> a.circulo-b.circulo || a.nome.localeCompare(b.nome)).map(p=>({chave:'poc-'+p.nome, prat, ic:'🧪', nome:p.nome,
+    det: p.circulo+'º círculo · '+p.magia,
+    corpo:()=>[el('div',{class:'desc'}, 'Contém a magia '+p.magia+': o efeito é o mesmo de lançar a magia.')],
+    guardar:()=> addItemMagicoGenerico(p.nome, p.esp)}));
+  if(prat==='magicos'){
+    const lista = [];
+    const generico = (a)=> ()=> addItemMagicoGenerico(a.nome, a.nome==='Mochila de carga' ? 0 : 1);
+    ENCANTOS_ARMA.forEach(e=> lista.push({chave:'enc-a-'+e.nome, prat, ic:'⚔️', nome:e.nome, cat:'Encantos', det:'Encanto de arma'+(e.dobraContagem?' · conta como 2':''),
+      corpo:()=>[el('div',{class:'desc'}, e.efeito), el('div',{class:'meta-ej'}, 'Encanto se coloca numa arma pela Oficina, em Item Superior.')]}));
+    ENCANTOS_ARMADURA.forEach(e=> lista.push({chave:'enc-d-'+e.nome, prat, ic:'🛡️', nome:e.nome, cat:'Encantos', det:'Encanto de armadura'+(e.dobraContagem?' · conta como 2':''),
+      corpo:()=>[el('div',{class:'desc'}, e.efeito), el('div',{class:'meta-ej'}, 'Encanto se coloca numa armadura pela Oficina, em Item Superior.')]}));
+    ARMAS_ESPECIFICAS.forEach(a=> lista.push({chave:'esp-a-'+a.nome, prat, ic:'🗡️', nome:a.nome, cat:'Específicos', det:a.base, corpo:()=>[el('div',{class:'desc'}, a.desc)], guardar:generico(a)}));
+    ARMADURAS_ESPECIFICAS.forEach(a=> lista.push({chave:'esp-d-'+a.nome, prat, ic:'🥋', nome:a.nome, cat:'Específicos', det:a.base, corpo:()=>[el('div',{class:'desc'}, a.desc)], guardar:generico(a)}));
+    [['Menores', ACESSORIOS_MENORES], ['Médios', ACESSORIOS_MEDIOS], ['Maiores', ACESSORIOS_MAIORES]].forEach(([nivel, xs])=>
+      xs.forEach(a=> lista.push({chave:'ace-'+a.nome, prat, ic:'💍', nome:a.nome, cat:'Acessórios', det:'Acessório '+nivel.toLowerCase(), corpo:()=>[el('div',{class:'desc'}, a.desc)], guardar:generico(a)})));
+    return lista;
+  }
+  if(prat==='gerais') return itensVisiveisJogador().slice().sort((a,b)=> a.cat.localeCompare(b.cat) || a.n.localeCompare(b.n)).map(it=>{
+    const info = infoServePraMim(f, it);
+    const forjavel = it.cat==='Vestuário' || it.cat==='Ferramenta';
+    return {chave:'ger-'+it.n, prat, ic:'🎒', nome:it.n+(it.vestivel?' 👕':'')+(it.empunhavel?' 🎻':''), busca:it.n, cat:it.cat, info,
+      det: it.cat+' · '+fmtEsp(parseFloat(String(it.esp).replace(',','.'))||0)+' esp',
+      corpo:()=>[el('div',{class:'desc'}, it.desc), renderDifCatalogo(f, it, info),
+        it.empunhavel ? el('div',{class:'meta-ej'}, maosTxt(it.maos)+': precisa ser empunhado para dar o benefício') : null],
+      guardar:()=> it.empunhavel ? addEsoterico(it,false) : addItemGeral(it,false),
+      equipar: it.vestivel ? {rot:'Vestir', destino:'vestindo', fn:()=> addItemGeral(it,true)} : it.empunhavel ? {rot:'Empunhar', destino:'mochila', fn:()=> addEsoterico(it,true)} : null,
+      superior: forjavel ? ()=> iniciarItemSuperior(it.cat==='Ferramenta'?'ferramenta':'vestuario', it) : null};
+  });
+  return [];
+}
+
+// ---- C: antes e depois na ficha ----
+function linhasCompara(linhas){
+  return el('div',{class:'compara-cat'}, linhas.map(([rot, antes, depois, sentido])=>
+    el('div',{class: sentido>0 ? 'melhor' : sentido<0 ? 'pior' : ''}, el('span',{}, rot), el('b',{}, String(antes)), el('i',{}, '→'), el('b',{}, String(depois)))));
+}
+function corpoDefesaCatalogo(f, a, escudo, semProf){
+  const peca = {nome:a.n, def:a.def, pen:a.pen, cat:a.cat, esp:a.esp, equipado:true};
+  const g = Object.assign({}, f, escudo ? {escudo:peca} : {armadura:peca});
+  const atual = escudo ? f.escudo : f.armadura;
+  const defA = defesaTotal(f), defD = defesaTotal(g);
+  const penA = penalidadeTotal(f), penD = penalidadeTotal(g);
+  const linhas = [['Defesa', defA, defD, Math.sign(defD-defA)], ['Penalidade em Des/For', penA, penD, Math.sign(penD-penA)]];
+  return [
+    el('div',{class:'meta-ej'}, atual && atual.equipado!==false ? 'No lugar de: '+atual.nome : (escudo ? 'Você está sem escudo.' : 'Você está sem armadura.')),
+    linhasCompara(linhas),
+    semProf ? el('div',{class:'aviso-prof-cat'}, '⚠ Sem proficiência: a penalidade ('+a.pen+') passa a valer em toda perícia de Força e Destreza.') : null,
+  ];
+}
+function corpoArmaCatalogo(f, w, semProf){
+  const naMao = (f.armas||[])[0];
+  const filhos = [];
+  if(naMao){
+    filhos.push(el('div',{class:'meta-ej'}, 'Comparando com a arma na sua mão: '+naMao.nome));
+    filhos.push(linhasCompara([['Dano', naMao.dano, w.dano, 0], ['Crítico', naMao.critico, w.critico, 0], ['Mãos', naMao.maos||1, w.maos||1, Math.sign((naMao.maos||1)-(w.maos||1))]]));
+  } else {
+    filhos.push(el('div',{class:'numeros-cat'},
+      el('div',{}, w.dano, el('small',{}, 'dano')), el('div',{}, w.critico, el('small',{}, 'crítico')),
+      el('div',{}, String(w.maos||1), el('small',{}, 'mãos')), el('div',{}, String(w.esp), el('small',{}, 'espaço'))));
+  }
+  filhos.push(el('div',{class:'meta-ej'}, w.tipo+' · alcance '+w.alcance+' · '+w.cat));
+  if(semProf) filhos.push(el('div',{class:'aviso-prof-cat'}, '⚠ Sem proficiência: −5 no teste de ataque com esta arma.'));
+  return filhos;
+}
+
+// ---- Linha do catálogo: toque abre a gaveta; o + guarda ----
+function linhaCatalogo(f, e){
+  if(!state._acordeaoAberto) state._acordeaoAberto = {};
+  const aberto = state._acordeaoAberto.catalogo === e.chave;
+  const marca = e.info ? el('span',{class:'marca-serve'}, '✦ '+e.info.marca) : null;
+  const linha = el('div',{class:'cat-linha'+(aberto?' sel':'')+(e.aviso?' aviso':'')},
+    el('button',{class:'cat-abre', 'aria-expanded': aberto ? 'true' : 'false', onclick:()=>{ state._acordeaoAberto.catalogo = aberto ? null : e.chave; render(); }},
+      el('span',{class:'ic', 'aria-hidden':'true'}, e.ic),
+      el('span',{class:'nm'}, e.nome+(e.aviso?' ⚠':''), marca, el('small',{}, e.det))),
+    e.guardar ? botaoQueVoa('+', 'cat-mais', e.busca||e.nome, 'mochila', e.guardar) : el('span',{class:'cat-mais vazio'}, aberto?'▾':'▸'));
+  if(e.guardar){ const b = linha.lastChild; b.setAttribute('aria-label', 'Guardar '+(e.busca||e.nome)+' na mochila'); b.title = 'Guardar na mochila'; }
+  if(!aberto) return [linha];
+  const botoes = el('div',{class:'cat-botoes'},
+    e.equipar ? botaoQueVoa(e.equipar.rot, 'btn', e.busca||e.nome, e.equipar.destino, e.equipar.fn) : null,
+    e.guardar ? botaoQueVoa('Guardar', e.equipar ? 'btn ghost' : 'btn', e.busca||e.nome, 'mochila', e.guardar) : null);
+  return [linha, kGaveta(...e.corpo(), botoes.children.length ? botoes : null,
+    e.superior ? el('button',{class:'link-superior', onclick:e.superior}, '🛠️ Fazer Item Superior com este') : null)];
+}
 
 function renderItensCompleto(){
   if(state._itemSuperiorBuilder) return renderCriadorItemSuperior();
   const f = fichaAtual();
-  const wrap = el('div',{});
-
   const itf = state.itensFiltro;
-  wrap.appendChild(el('div',{class:'tip'},
-    el('b',{},'Como usar'),
-    'O mestre disse que você achou algo? Busque o nome aqui. Para cada item, escolha se ele já entra em uso ("Equipar") ou se vai só para a mochila. Armadura e escudo equipados atualizam sua Defesa automaticamente.'
-  ));
+  if(!itf.tipo || !NOME_PRATELEIRA[itf.tipo]) itf.tipo = 'inicio';
+  const wrap = el('div',{class:'catalogo-novo'});
   wrap.appendChild(renderAlvosCatalogo(f));
+  wrap.appendChild(el('input',{id:'busca-itens', type:'search', class:'busca-cat', placeholder:'🔎 O que você achou? Busca em tudo...', value:itf.busca, oninput:(e)=>{ itf.busca=e.target.value; renderDebounced(); }}));
+  wrap.appendChild(el('div',{class:'prateleiras-cat'}, PRATELEIRAS_CATALOGO.map(([id, ic, rot])=>
+    el('button',{class:'prat-cat'+(itf.tipo===id && !itf.busca?' on':''), 'aria-pressed': itf.tipo===id ? 'true' : 'false',
+      onclick:()=>{ itf.busca=''; itf.tipo = itf.tipo===id ? 'inicio' : id; itf.categoria='todas'; state._acordeaoAberto && (state._acordeaoAberto.catalogo=null); render(); }},
+      el('span',{class:'ic', 'aria-hidden':'true'}, ic), rot))));
 
-  const tabsRow = el('div',{class:'tab-grid'});
-  [['armas','Armas'],['armaduras','Defesas'],['esotericos','Esotéricos'],['pocoes','Poções Mágicas'],['magicos','Itens Mágicos'],['gerais','Itens Gerais']].forEach(([id,label])=>{
-    tabsRow.appendChild(el('button',{class: itf.tipo===id?'on':'', onclick:()=>{itf.tipo=id; itf.categoria='todas'; render();}}, label));
-  });
-  wrap.appendChild(tabsRow);
-
-  wrap.appendChild(el('input',{id:'busca-itens', type:'text', placeholder:'buscar item pelo nome...', value:itf.busca, oninput:(e)=>{itf.busca=e.target.value; renderDebounced();}}));
-
-  // Item Personalizado — visível aqui, ACIMA das sub-abas, pra aparecer não importa em qual
-  // aba você está (Armas, Defesas, etc.) — antes só ficava escondido dentro de "Itens Gerais",
-  // e quem queria criar uma arma/armadura personalizada não pensava em procurar lá.
-  wrap.appendChild(el('button',{class:'btn ghost', style:'margin-bottom:10px;', onclick:()=>abrirOficina()}, '⚗️ Criar item personalizado'));
-
-  const results = el('div',{});
-
-  if(itf.tipo==='armas'){
-    const cats = ['todas','Simples','Marcial','Exótica','Arma de Fogo'];
-    const sel = el('select',{onchange:(e)=>{itf.categoria=e.target.value; render();}});
-    cats.forEach(c=> sel.appendChild(el('option',{value:c, selected: itf.categoria===c}, c==='todas'?'Todas as categorias':c)));
-    wrap.appendChild(sel);
-
-    let list = ARMAS.filter(w => (itf.categoria==='todas'||w.cat===itf.categoria) && (!itf.busca || w.n.toLowerCase().includes(itf.busca.toLowerCase())));
-    if(list.length===0) results.appendChild(el('div',{class:'empty'},'Nenhuma arma encontrada.'));
-    list.forEach(w=>{
-      const semProf = !proficienteComArma(f, w);
-      results.appendChild(renderItemAcordeao('itens-armas', w.n, w.n+(semProf?' ⚠':''), w.cat, [
-        el('div',{class:'desc'}, 'Dano '+w.dano+' · Crítico '+w.critico+' · '+w.tipo+' · Alcance: '+w.alcance+' · '+w.cat+' · '+w.esp+' esp. · '+(w.maos>=2?'2 mãos':'1 mão')),
-        semProf ? el('div',{class:'meta', style:'color:var(--red-bright);margin-top:4px;'}, '⚠ Sem proficiência — sofre –5 no teste de ataque') : null,
-        el('div',{class:'row', style:'margin-top:8px;'},
-          botaoQueVoa('Equipar', 'btn', w.n, 'mochila', ()=>addArma(w,true)),
-          botaoQueVoa('Guardar na mochila', 'btn ghost', w.n, 'mochila', ()=>addArma(w,false))
-        ),
-        el('button',{class:'btn ghost', style:'margin-top:6px;width:100%;', onclick:()=>iniciarItemSuperior('arma', w)}, '🛠️ Criar Item Superior')
-      ]));
+  const res = el('div',{class:'cat-lista'});
+  const busca = semAcento(itf.busca.trim());
+  if(busca){
+    // B: busca em todas as prateleiras, separada por prateleira.
+    let total = 0;
+    PRATELEIRAS_CATALOGO.forEach(([id])=>{
+      const achou = entradasPrateleira(id, f).filter(e=> semAcento(e.busca||e.nome).includes(busca));
+      if(!achou.length) return;
+      total += achou.length;
+      res.appendChild(el('div',{class:'grupo-cat'}, el('span',{}, NOME_PRATELEIRA[id]), el('span',{}, String(achou.length))));
+      achou.slice(0, 12).forEach(e=> linhaCatalogo(f, e).forEach(x=> res.appendChild(x)));
+      if(achou.length>12) res.appendChild(el('button',{class:'ver-mais-cat', onclick:()=>{ itf.tipo=id; render(); }}, 'Ver as '+achou.length+' em '+NOME_PRATELEIRA[id]+' ▸'));
+    });
+    if(!total) res.appendChild(el('div',{class:'empty'}, 'Nada com "'+itf.busca.trim()+'". Confira o nome com o Mestre ou crie na Oficina.'));
+  } else if(itf.tipo==='inicio'){
+    // B: sem busca, o que combina com esta ficha.
+    const combina = entradasPrateleira('gerais', f).filter(e=> e.info).slice(0, 8);
+    res.appendChild(el('div',{class:'k-rot'}, '✦ Combina com você'));
+    if(combina.length) combina.forEach(e=> linhaCatalogo(f, e).forEach(x=> res.appendChild(x)));
+    else res.appendChild(el('div',{class:'meta-ej'}, 'Nenhum item geral muda esta ficha agora. Escolha uma prateleira acima.'));
+    res.appendChild(el('div',{class:'meta-ej', style:'margin-top:8px;'}, 'O Mestre disse que você achou algo? Digite três letras do nome na busca.'));
+  } else {
+    let lista = entradasPrateleira(itf.tipo, f);
+    const cats = [...new Set(lista.map(e=> e.cat).filter(Boolean))];
+    if(cats.length>1){
+      res.appendChild(el('div',{class:'chips-cat'}, ['todas', ...cats].map(c=>
+        el('button',{class:'chip-cat'+(itf.categoria===c?' on':''), onclick:()=>{ itf.categoria=c; render(); }}, c==='todas'?'Todas':c))));
+    }
+    if(itf.tipo==='gerais'){
+      res.appendChild(el('button',{class:'filtro-serve'+(itf.serve?' on':''), 'aria-pressed':itf.serve?'true':'false', onclick:()=>{ itf.serve=!itf.serve; render(); }}, '✦ Serve pra mim'));
+    }
+    if(itf.categoria!=='todas') lista = lista.filter(e=> e.cat===itf.categoria);
+    if(itf.tipo==='gerais' && itf.serve){
+      const n = lista.length;
+      lista = lista.filter(e=> e.info);
+      res.appendChild(el('div',{class:'meta', style:'text-transform:none;text-align:center;margin-bottom:6px;'}, lista.length+' de '+n+' itens mudam alguma coisa nesta ficha'));
+    }
+    if(!lista.length) res.appendChild(el('div',{class:'empty'}, 'Nenhum item aqui.'));
+    let ultima = null;
+    lista.forEach(e=>{
+      if(itf.categoria==='todas' && cats.length>1 && e.cat!==ultima){ ultima = e.cat; res.appendChild(el('div',{class:'grupo-cat'}, el('span',{}, e.cat))); }
+      linhaCatalogo(f, e).forEach(x=> res.appendChild(x));
     });
   }
+  wrap.appendChild(res);
 
-  if(itf.tipo==='armaduras'){
-    let list = [...ARMADURAS, ...ESCUDOS].filter(a => !itf.busca || a.n.toLowerCase().includes(itf.busca.toLowerCase()));
-    if(list.length===0) results.appendChild(el('div',{class:'empty'},'Nenhuma armadura/escudo encontrada.'));
-    const prof = proficienciasPersonagem(f);
-    list.forEach(a=>{
-      const isEscudo = a.cat==='Escudo';
-      const semProf = isEscudo ? !prof.escudos : (a.cat==='Pesada' && !prof.armadurasPesadas);
-      results.appendChild(renderItemAcordeao('itens-armaduras', a.n, a.n+(semProf?' ⚠':''), a.cat, [
-        el('div',{class:'desc'}, 'Defesa +'+a.def+' · Penalidade '+a.pen+' · '+a.esp+' espaços · '+a.cat),
-        semProf ? el('div',{class:'meta', style:'color:var(--red-bright);margin-top:4px;'}, '⚠ Sem proficiência — a penalidade ('+a.pen+') passa a valer em toda perícia de Força/Destreza') : null,
-        el('div',{class:'row', style:'margin-top:8px;'},
-          botaoQueVoa(isEscudo?'Equipar como escudo':'Equipar como armadura', 'btn', a.n, 'mochila', ()=> isEscudo?addEscudo(a,true):addArmadura(a,true)),
-          botaoQueVoa('Guardar na mochila', 'btn ghost', a.n, 'mochila', ()=> isEscudo?addEscudo(a,false):addArmadura(a,false))
-        ),
-        el('button',{class:'btn ghost', style:'margin-top:6px;width:100%;', onclick:()=>iniciarItemSuperior(isEscudo?'escudo':(a.cat==='Pesada'?'armaduraPesada':'armaduraLeve'), a)}, '🛠️ Criar Item Superior')
-      ]));
-    });
-  }
-
-  if(itf.tipo==='esotericos'){
-    let list = ITENS_ESOTERICOS.filter(i => !itf.busca || i.n.toLowerCase().includes(itf.busca.toLowerCase()));
-    if(list.length===0) results.appendChild(el('div',{class:'empty'},'Nenhum esotérico encontrado.'));
-    results.appendChild(el('div',{class:'tip', style:'font-size:0.8rem;'}, 'Itens esotéricos são empunhados (ocupam mão) para dar bônus mágicos enquanto você conjura — competem por espaço com armas e escudos.'));
-    list.forEach(it=>{
-      results.appendChild(renderItemAcordeao('itens-esotericos', it.n, it.n, it.maos+' mão'+(it.maos>1?'s':''), [
-        el('div',{class:'desc'}, it.desc),
-        el('div',{class:'meta'}, it.maos+' mão'+(it.maos>1?'s':'')+' · '+it.esp+' esp.'),
-        el('div',{class:'row', style:'margin-top:8px;'},
-          botaoQueVoa('Equipar', 'btn', it.n, 'mochila', ()=>addEsoterico(it,true)),
-          botaoQueVoa('Guardar na mochila', 'btn ghost', it.n, 'mochila', ()=>addEsoterico(it,false))
-        ),
-        el('button',{class:'btn ghost', style:'margin-top:6px;width:100%;', onclick:()=>iniciarItemSuperior('esoterico', it)}, '🛠️ Criar Item Superior')
-      ]));
-    });
-  }
-
-  if(itf.tipo==='gerais'){
-    const itensDisponiveis = itensVisiveisJogador();
-    const categorias = ['todas', ...new Set(itensDisponiveis.map(i=>i.cat))];
-    const sel = el('select',{onchange:(e)=>{itf.categoria=e.target.value; render();}});
-    categorias.forEach(c=> sel.appendChild(el('option',{value:c, selected: itf.categoria===c}, c==='todas'?'Todas as categorias':c)));
-    wrap.appendChild(sel);
-
-    wrap.appendChild(el('button',{class:'filtro-serve'+(itf.serve?' on':''), 'aria-pressed':itf.serve?'true':'false', onclick:()=>{ itf.serve=!itf.serve; render(); }}, '✦ Serve pra mim'));
-    const infos = new Map();
-    itensDisponiveis.forEach(i=> infos.set(i.n, infoServePraMim(f, i)));
-    let list = itensDisponiveis.filter(i => (itf.categoria==='todas'||i.cat===itf.categoria) && (!itf.busca || i.n.toLowerCase().includes(itf.busca.toLowerCase())) && (!itf.serve || infos.get(i.n)));
-    if(itf.serve) results.appendChild(el('div',{class:'meta', style:'text-transform:none;text-align:center;margin-bottom:6px;'}, list.length+' de '+itensDisponiveis.length+' itens mudam alguma coisa nesta ficha'));
-    if(list.length===0) results.appendChild(el('div',{class:'empty'},'Nenhum item encontrado.'));
-    list = list.slice().sort((a,b)=> a.cat.localeCompare(b.cat) || a.n.localeCompare(b.n));
-    let ultimaCategoria = null;
-    list.forEach(it=>{
-      if(itf.categoria==='todas' && it.cat!==ultimaCategoria){
-        ultimaCategoria = it.cat;
-        results.appendChild(el('div',{class:'lista-secao-titulo'}, it.cat));
-      }
-      const info = infos.get(it.n);
-      const titulo = el('span',{}, it.n+(it.vestivel?' 👕':'')+(it.empunhavel?' 🎻':''), info ? el('span',{class:'marca-serve'}, '✦ '+info.marca) : null);
-      const forjavel = it.cat==='Vestuário' || it.cat==='Ferramenta';
-      results.appendChild(renderItemAcordeao('itens-gerais', it.n, titulo, it.cat+' · '+fmtEsp(parseFloat(String(it.esp).replace(',','.'))||0)+' esp', [
-        el('div',{class:'desc'}, it.desc),
-        renderDifCatalogo(f, it, info),
-        it.empunhavel ? el('div',{class:'meta'}, it.maos+' mão'+(it.maos>1?'s':'')+' — precisa ser empunhado pra dar o benefício') : null,
-        el('div',{class:'row', style:'margin-top:8px;'},
-          it.vestivel ? botaoQueVoa('Vestir', 'btn', it.n, 'vestindo', ()=>addItemGeral(it,true)) : null,
-          it.empunhavel ? botaoQueVoa('Equipar', 'btn', it.n, 'mochila', ()=>addEsoterico(it,true)) : null,
-          botaoQueVoa((it.vestivel||it.empunhavel)?'Só guardar':'+ Guardar na mochila', (it.vestivel||it.empunhavel)?'btn ghost':'btn', it.n, 'mochila', ()=> it.empunhavel ? addEsoterico(it,false) : addItemGeral(it,false))
-        ),
-        forjavel ? el('button',{class:'btn ghost', style:'margin-top:6px;width:100%;', onclick:()=>iniciarItemSuperior(it.cat==='Ferramenta'?'ferramenta':'vestuario', it)}, '🛠️ Criar Item Superior') : null
-      ]));
-    });
-  }
-
-  if(itf.tipo==='pocoes'){
-    wrap.appendChild(el('div',{class:'tip', style:'font-size:0.8rem;'}, 'Poções (Tabela 8-12) contêm a magia real indicada — o efeito é o mesmo de lançar aquela magia.'));
-    let list = POCOES_MAGICAS.filter(p => !itf.busca || p.nome.toLowerCase().includes(itf.busca.toLowerCase()));
-    if(list.length===0) results.appendChild(el('div',{class:'empty'},'Nenhuma poção encontrada.'));
-    list.slice().sort((a,b)=>a.preco-b.preco).forEach(p=>{
-      results.appendChild(renderItemAcordeao('itens-pocoes', p.nome, p.nome, p.circulo+'º círculo', [
-        el('div',{class:'desc'}, 'Contém a magia: '+p.magia),
-        botaoQueVoa('+ Guardar na mochila', 'btn', p.nome, 'mochila', ()=>addItemMagicoGenerico(p.nome, p.esp))
-      ]));
-    });
-  }
-
-  if(itf.tipo==='magicos'){
-    const cats = ['todas','Encantos de Arma','Armas Específicas','Encantos de Armadura','Armaduras/Escudos Específicos','Acessórios Menores','Acessórios Médios','Acessórios Maiores'];
-    const sel2 = el('select',{onchange:(e)=>{itf.categoria=e.target.value; render();}});
-    cats.forEach(c=> sel2.appendChild(el('option',{value:c, selected: itf.categoria===c}, c)));
-    wrap.appendChild(sel2);
-    wrap.appendChild(el('div',{class:'tip', style:'font-size:0.8rem;'}, 'Encantos de arma/armadura são modificadores — combine com o item base usando "🛠️ Criar Item Superior" nas abas de Armas/Armaduras. Os demais já são itens prontos: guarde direto na mochila.'));
-
-    const cat = itf.categoria==='todas' ? null : itf.categoria;
-    const busca = itf.busca ? itf.busca.toLowerCase() : '';
-
-    if(!cat || cat==='Encantos de Arma'){
-      ENCANTOS_ARMA.filter(e=>!busca || e.nome.toLowerCase().includes(busca)).forEach(e=>{
-        results.appendChild(renderItemAcordeao('itens-magicos', 'encanto-arma-'+e.nome, e.nome, 'Encanto de Arma'+(e.dobraContagem?' (conta como 2)':''), [
-          el('div',{class:'desc'}, e.efeito)
-        ]));
-      });
-    }
-    if(!cat || cat==='Armas Específicas'){
-      ARMAS_ESPECIFICAS.filter(a=>!busca || a.nome.toLowerCase().includes(busca)).forEach(a=>{
-        results.appendChild(renderItemAcordeao('itens-magicos', 'arma-esp-'+a.nome, a.nome, a.base, [
-          el('div',{class:'desc'}, a.desc),
-          botaoQueVoa('+ Guardar na mochila', 'btn', a.nome, 'mochila', ()=>addItemMagicoGenerico(a.nome, a.nome==='Mochila de carga' ? 0 : 1))
-        ]));
-      });
-    }
-    if(!cat || cat==='Encantos de Armadura'){
-      ENCANTOS_ARMADURA.filter(e=>!busca || e.nome.toLowerCase().includes(busca)).forEach(e=>{
-        results.appendChild(renderItemAcordeao('itens-magicos', 'encanto-armadura-'+e.nome, e.nome, 'Encanto de Armadura'+(e.dobraContagem?' (conta como 2)':''), [
-          el('div',{class:'desc'}, e.efeito)
-        ]));
-      });
-    }
-    if(!cat || cat==='Armaduras/Escudos Específicos'){
-      ARMADURAS_ESPECIFICAS.filter(a=>!busca || a.nome.toLowerCase().includes(busca)).forEach(a=>{
-        results.appendChild(renderItemAcordeao('itens-magicos', 'armadura-esp-'+a.nome, a.nome, a.base, [
-          el('div',{class:'desc'}, a.desc),
-          botaoQueVoa('+ Guardar na mochila', 'btn', a.nome, 'mochila', ()=>addItemMagicoGenerico(a.nome, a.nome==='Mochila de carga' ? 0 : 1))
-        ]));
-      });
-    }
-    if(!cat || cat==='Acessórios Menores'){
-      ACESSORIOS_MENORES.filter(a=>!busca || a.nome.toLowerCase().includes(busca)).forEach(a=>{
-        results.appendChild(renderItemAcordeao('itens-magicos', 'acessorio-menor-'+a.nome, a.nome, '', [
-          el('div',{class:'desc'}, a.desc),
-          botaoQueVoa('+ Guardar na mochila', 'btn', a.nome, 'mochila', ()=>addItemMagicoGenerico(a.nome, a.nome==='Mochila de carga' ? 0 : 1))
-        ]));
-      });
-    }
-    if(!cat || cat==='Acessórios Médios'){
-      ACESSORIOS_MEDIOS.filter(a=>!busca || a.nome.toLowerCase().includes(busca)).forEach(a=>{
-        results.appendChild(renderItemAcordeao('itens-magicos', 'acessorio-medio-'+a.nome, a.nome, '', [
-          el('div',{class:'desc'}, a.desc),
-          botaoQueVoa('+ Guardar na mochila', 'btn', a.nome, 'mochila', ()=>addItemMagicoGenerico(a.nome, a.nome==='Mochila de carga' ? 0 : 1))
-        ]));
-      });
-    }
-    if(!cat || cat==='Acessórios Maiores'){
-      ACESSORIOS_MAIORES.filter(a=>!busca || a.nome.toLowerCase().includes(busca)).forEach(a=>{
-        results.appendChild(renderItemAcordeao('itens-magicos', 'acessorio-maior-'+a.nome, a.nome, '', [
-          el('div',{class:'desc'}, a.desc),
-          botaoQueVoa('+ Guardar na mochila', 'btn', a.nome, 'mochila', ()=>addItemMagicoGenerico(a.nome, a.nome==='Mochila de carga' ? 0 : 1))
-        ]));
-      });
-    }
-    if(results.children.length===0) results.appendChild(el('div',{class:'empty'},'Nenhum item encontrado.'));
-  }
-
-  wrap.appendChild(results);
+  // A: Oficina no fim, sem repetir em todo item.
+  wrap.appendChild(el('div',{class:'k-rot'}, 'Oficina'));
+  wrap.appendChild(el('div',{class:'oficina-cat'},
+    el('button',{onclick:()=> abrirOficina()}, '⚗️ Item personalizado'),
+    el('button',{onclick:()=>{ flashMsg('Abra uma arma, defesa, esotérico, vestuário ou ferramenta e toque em "Fazer Item Superior".'); }}, '🛠️ Item Superior')));
   return wrap;
 }

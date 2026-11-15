@@ -84,7 +84,7 @@ window.state = {
   tab:'personagem',
   magiaFiltro:{ trad:'arcana', circulo:'1', busca:'', escola:'todas' },
   guia:{ classe:'Guerreiro', nivel:1 },
-  itensFiltro:{ tipo:'armas', busca:'', categoria:'todas' },
+  itensFiltro:{ tipo:'inicio', busca:'', categoria:'todas' },
   addMsg:'',
   wizard: null
 };

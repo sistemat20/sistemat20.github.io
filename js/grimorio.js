@@ -96,103 +96,137 @@ function renderPainelMemorizacaoMago(f){
   return wrap;
 }
 
+// Aprender magias (prancha "Catálogo e Magias", 15/11/2026, ideias A + B + C):
+// · A Vagas: no topo, quantas magias ainda dá para aprender (conta do livro em magiasQuePodeConhecer);
+//   círculos em segmentos; as que você já conhece ficam recolhidas no fim.
+// · B Pelo que a magia faz: pílulas por intenção (Dano, Proteção, Mente...), tiradas dos temas de
+//   efeito (temaDaMagia); cada linha leva o símbolo colorido do efeito ao lançar.
+// · C Carta de prévia: tocar abre execução, alcance, duração e o custo em PM já para o herói.
+const INTENCOES_MAGIA = [
+  ['dano','🔥 Dano',['fogo','frio','raio','acido','setas','trevas','vampiro']],
+  ['cura','💚 Cura',['cura']],
+  ['protecao','🛡️ Proteção',['escudo']],
+  ['mente','💗 Mente',['encanto','sono']],
+  ['ilusao','🎭 Ilusão',['ilusao']],
+  ['saber','👁️ Saber',['olho']],
+  ['invocar','🌀 Invocar',['invocacao','necro']],
+  ['transformar','⚗️ Transformar',['alquimia']],
+  ['luz','☀️ Luz e bênção',['luz']],
+];
+function intencaoDaMagia(s){ const t = temaDaMagia(s); const i = INTENCOES_MAGIA.find(x=> x[2].includes(t)); return i ? i[0] : 'dano'; }
+function sigiloMagiaPequeno(s){
+  const t = temaDaMagia(s), cfg = TEMAS_FEITICO[t] || TEMAS_FEITICO.setas;
+  const e = el('span',{class:'sigilo-mini', style:'color:'+cfg.cor+';border-color:'+cfg.cor+';', 'aria-hidden':'true'});
+  e.innerHTML = '<svg viewBox="0 0 200 200">'+sigiloSVG(cfg.sigilo, cfg.cor)+'</svg>';
+  return e;
+}
+
+function gavetaMagiaAprender(f, s, cc, conhece, aprender){
+  const custo = cc ? custoPMAjustado(f, s) : custoPM(s.c);
+  const tema = temaDaMagia(s);
+  const parecida = (f.magias||[]).find(m=> m.n!==s.n && temaDaMagia(m)===tema);
+  const aprimAberto = state._aprimAprender === s.n;
+  const extra = [s.alvo ? 'Alvo: '+s.alvo : null, s.resistencia ? 'Resistência: '+s.resistencia : null].filter(Boolean).join(' · ');
+  return kGaveta(
+    el('div',{class:'carta-magia'},
+      el('div',{}, s.execucao||'—', el('small',{}, 'execução')), el('div',{}, s.alcance||'—', el('small',{}, 'alcance')),
+      el('div',{}, s.duracao||'—', el('small',{}, 'duração')), el('div',{class:'pm'}, custo+' PM', el('small',{}, cc ? 'para você' : 'custo'))),
+    el('div',{class:'tip desc-magia'}, s.d),
+    extra ? el('div',{class:'meta-ej'}, extra) : null,
+    parecida ? el('div',{class:'parecida-magia'}, '✦ Parecida com '+parecida.n+', que você conhece.') : null,
+    s.aprim && s.aprim.length ? el('button',{class:'aprim-linha', 'aria-expanded': aprimAberto ? 'true' : 'false', onclick:()=>{ state._aprimAprender = aprimAberto ? null : s.n; render(); }},
+      el('span',{}, s.aprim.length+' aprimoramento'+(s.aprim.length>1?'s':'')), el('span',{}, aprimAberto ? '▾' : '▸')) : null,
+    aprimAberto ? el('div',{class:'aprim-lista'}, s.aprim.map(a=> el('div',{class:'power-item'}, el('b',{}, a.custo+' '), a.efeito))) : null,
+    conhece ? el('div',{class:'meta-ej'}, '✓ Você já conhece esta magia.') : el('button',{class:'btn', onclick:aprender}, '✨ Aprender'));
+}
+
+function linhaMagiaAprender(f, s, cc, conhece, mf){
+  if(!state._acordeaoAberto) state._acordeaoAberto = {};
+  const aberto = state._acordeaoAberto.aprender === s.n;
+  const aprender = ()=>{ addMagiaFicha(s, mf.trad); state._acordeaoAberto.aprender = null; try{ tocarFeitico(s); }catch(e){} render(); };
+  const linha = el('div',{class:'cat-linha magia'+(aberto?' sel':'')+(conhece?' conhecida':'')},
+    el('button',{class:'cat-abre', 'aria-expanded': aberto ? 'true' : 'false', onclick:()=>{ state._acordeaoAberto.aprender = aberto ? null : s.n; render(); }},
+      sigiloMagiaPequeno(s),
+      el('span',{class:'nm'}, s.n, s.trad==='Universal' ? el('span',{class:'pill universal', style:'margin-left:6px;'}, '🔮 Universal') : null,
+        el('small',{}, s.c+'º círculo · '+s.e))),
+    conhece ? el('span',{class:'cat-mais ok', 'aria-label':'Você conhece'}, '✓')
+      : el('button',{class:'cat-mais', 'aria-label':'Aprender '+s.n, title:'Aprender', onclick:aprender}, '+'));
+  return aberto ? [linha, gavetaMagiaAprender(f, s, cc, conhece, aprender)] : [linha];
+}
+
 function renderMagias(){
-  const wrap = el('div',{});
+  const wrap = el('div',{class:'aprender-magias'});
   const mf = state.magiaFiltro;
   const f = fichaAtual();
-
   const cc = classeConjuradora(f);
   const circuloMax = circuloMaximoDisponivel(f);
+  if(cc && !mf._tradAjustada){ mf.trad = CLASSES[cc.classe].tradicao; mf._tradAjustada = true; mf.modo = 'possiveis'; }
+  const modo = cc ? (mf.modo || 'possiveis') : 'completo';
+  if(cc && modo==='possiveis') mf.trad = CLASSES[cc.classe].tradicao;
+  const conhecidas = new Set((f.magias||[]).map(m=> m.n));
+  const escolasFixas = cc && ['Bardo','Druida'].includes(cc.classe) && f.escolasMagia && f.escolasMagia.length ? f.escolasMagia : null;
 
-  if(!cc){
-    wrap.appendChild(renderSecaoNotasColapsavel('magias-sem-classe', '📖', 'Sem Classe Conjuradora', null, ()=>[
-      el('div',{class:'tip'}, 'Nenhuma das classes de '+f.nome+' lança magias pela progressão normal (Arcanista, Bardo, Clérigo, Druida). Se ganhou magias por um poder específico (ex: Orar do Paladino), consulte a descrição desse poder. Mesmo assim, você pode navegar pelo catálogo completo abaixo por curiosidade ou pra referência do mestre.')
-    ], false));
-  } else if(!mf._tradAjustada){
-    // na primeira vez que abre a aba, ajusta automaticamente pra tradição real da classe do personagem
-    mf.trad = CLASSES[cc.classe].tradicao;
-    mf._tradAjustada = true;
-    mf.modo = 'possiveis';
-  }
-
-  wrap.appendChild(renderSecaoNotasColapsavel('magias-como-funciona', 'ℹ️', 'Como Funciona', null, ()=>[
-    el('div',{class:'tip'}, 'Cada magia pertence a uma tradição (arcana ou divina — 🔮 marca as Universais, que qualquer conjurador pode aprender), um círculo e uma escola. Toque no nome de uma magia pra ver a descrição completa.')
-  ], false));
-
-  const modoAtual = mf.modo || 'possiveis';
-
-  // No modo "só as que posso lançar", a tradição não é escolha livre — é a da classe do
-  // personagem. Trava aqui (não só na primeira abertura da aba) pra não deixar, por exemplo,
-  // um Clérigo ver/adicionar magias Arcanas só porque tocou no botão errado antes de trocar de modo.
-  if(cc && modoAtual==='possiveis'){
-    mf.trad = CLASSES[cc.classe].tradicao;
-  }
-
-  if(modoAtual==='completo' || !cc){
-    wrap.appendChild(el('div',{class:'badge-tradition'},
-      el('button',{class: mf.trad==='arcana'?'on':'', onclick:()=>{mf.trad='arcana'; render();}},'Arcanas'),
-      el('button',{class: mf.trad==='divina'?'on':'', onclick:()=>{mf.trad='divina'; render();}},'Divinas'),
-    ));
+  // ---- A: vagas ----
+  if(cc){
+    const q = magiasQuePodeConhecer(f);
+    const vagas = q.total - conhecidas.size;
+    const titulo = vagas>0 ? 'Você pode aprender '+vagas+' magia'+(vagas>1?'s':'') : vagas===0 ? 'Tudo escolhido' : 'Você conhece '+conhecidas.size+' de '+q.total;
+    wrap.appendChild(el('div',{class:'vagas-magia'+(vagas<=0?' fim':'')},
+      el('span',{class:'n'}, vagas<=0 ? '✓' : String(vagas)),
+      el('span',{class:'tx'}, el('b',{}, titulo), q.conta+(vagas<0 ? ' Magias de item ou de poder também entram nessa conta.' : ''))));
+    if(escolasFixas) wrap.appendChild(el('div',{class:'meta-ej'}, 'Suas escolas: '+escolasFixas.join(', ')+'.'));
   } else {
-    wrap.appendChild(el('div',{class:'meta', style:'margin-top:8px;'}, 'Tradição: '+(mf.trad==='arcana'?'Arcana':'Divina')+' (definida pela sua classe — pra ver a outra tradição, use "Catálogo completo").'));
+    wrap.appendChild(el('div',{class:'tip'}, 'Nenhuma classe de '+f.nome+' lança magias pela progressão normal (Arcanista, Bardo, Clérigo, Druida). Se ganhou magias por um poder, veja a descrição dele.'));
   }
+
+  // ---- círculos em segmentos ----
+  const maxCirc = modo==='possiveis' ? circuloMax : 5;
+  if(mf.circulo!=='todos' && (parseInt(mf.circulo)>maxCirc || !parseInt(mf.circulo))) mf.circulo = 'todos';
+  const partes = [];
+  for(let c=1; c<=maxCirc; c++) partes.push({id:String(c), rot:c+'º'});
+  partes.push({id:'todos', rot:'Todos'});
+  wrap.appendChild(kSeg(partes, mf.circulo, (id)=>{ mf.circulo = id; render(); }));
+  if(modo==='completo'){
+    wrap.appendChild(kSeg([{id:'arcana', rot:'Arcanas'}, {id:'divina', rot:'Divinas'}], mf.trad, (id)=>{ mf.trad = id; render(); }));
+  }
+  wrap.appendChild(el('input',{id:'busca-magias', type:'search', class:'busca-cat', placeholder:'🔎 buscar magia pelo nome...', value:mf.busca, oninput:(e)=>{ mf.busca=e.target.value; renderDebounced(); }}));
+
+  // ---- lista base ----
+  let base = magiasPorTradicao(mf.trad);
+  if(modo==='possiveis') base = base.filter(s=> s.c<=circuloMax);
+  if(modo==='possiveis' && escolasFixas) base = base.filter(s=> escolasFixas.includes(s.e));
+  if(mf.circulo!=='todos') base = base.filter(s=> s.c===parseInt(mf.circulo));
+  if(mf.busca) base = base.filter(s=> semAcento(s.n).includes(semAcento(mf.busca)));
+
+  // ---- B: pílulas por intenção (só as que têm magia) ----
+  const porIntencao = {};
+  base.forEach(s=>{ const i = intencaoDaMagia(s); porIntencao[i] = (porIntencao[i]||0) + 1; });
+  if(mf.intencao && !porIntencao[mf.intencao]) mf.intencao = null;
+  wrap.appendChild(el('div',{class:'chips-cat'}, INTENCOES_MAGIA.filter(([id])=> porIntencao[id]).map(([id, rot])=>
+    el('button',{class:'chip-cat'+(mf.intencao===id?' on':''), 'aria-pressed': mf.intencao===id ? 'true' : 'false', onclick:()=>{ mf.intencao = mf.intencao===id ? null : id; render(); }}, rot+' '+porIntencao[id]))));
+  if(mf.intencao) base = base.filter(s=> intencaoDaMagia(s)===mf.intencao);
+  base = base.slice().sort((a,b)=> a.c-b.c || a.n.localeCompare(b.n));
+
+  const novas = base.filter(s=> !conhecidas.has(s.n));
+  const jaSei = base.filter(s=> conhecidas.has(s.n));
+  const res = el('div',{class:'cat-lista'});
+  if(!novas.length) res.appendChild(el('div',{class:'empty'}, base.length ? 'Você já conhece todas as magias deste filtro.' : 'Nenhuma magia com esses filtros.'));
+  let ultimo = null;
+  novas.forEach(s=>{
+    if(mf.circulo==='todos' && s.c!==ultimo){ ultimo = s.c; res.appendChild(el('div',{class:'grupo-cat'}, el('span',{}, s.c+'º círculo'))); }
+    linhaMagiaAprender(f, s, cc, false, mf).forEach(x=> res.appendChild(x));
+  });
+  if(jaSei.length){
+    const ver = !!mf._verConhecidas;
+    res.appendChild(el('button',{class:'conhecidas-linha', 'aria-expanded': ver ? 'true' : 'false', onclick:()=>{ mf._verConhecidas = !ver; render(); }},
+      el('span',{}, jaSei.length+' que você já conhece'), el('span',{}, ver ? '▾' : '▸')));
+    if(ver) jaSei.forEach(s=> linhaMagiaAprender(f, s, cc, true, mf).forEach(x=> res.appendChild(x)));
+  }
+  wrap.appendChild(res);
 
   if(cc){
-    wrap.appendChild(el('div',{class:'badge-tradition', style:'margin-top:8px;'},
-      el('button',{class: modoAtual==='possiveis'?'on':'', onclick:()=>{mf.modo='possiveis'; mf.circulo='todos'; render();}}, 'Só as que posso lançar'),
-      el('button',{class: modoAtual==='completo'?'on':'', onclick:()=>{mf.modo='completo'; mf.circulo='todos'; render();}}, 'Catálogo completo'),
-    ));
-    if(modoAtual==='possiveis'){
-      wrap.appendChild(el('div',{class:'meta', style:'font-size:0.72rem;margin-top:4px;'}, 'Até '+circuloMax+'º círculo — nível '+cc.nivel+' de '+cc.classe+'.'));
-      if(['Bardo','Druida'].includes(cc.classe) && f.escolasMagia && f.escolasMagia.length>0){
-        wrap.appendChild(el('div',{class:'meta', style:'font-size:0.72rem;'}, 'Suas 3 escolas: '+f.escolasMagia.join(', ')+'.'));
-      }
-    }
+    wrap.appendChild(el('button',{class:'link-superior', style:'margin-top:12px;', onclick:()=>{ mf.modo = modo==='possiveis' ? 'completo' : 'possiveis'; mf.circulo = 'todos'; render(); }},
+      modo==='possiveis' ? '📚 Ver todas as magias (outros círculos e tradições)' : '↩ Voltar para as que você pode lançar'));
   }
-
-  const filters = el('div',{class:'filters'});
-  const circSel = el('select',{onchange:(e)=>{mf.circulo=e.target.value; render();}});
-  const somenteConjuravel = cc && modoAtual==='possiveis';
-  ['todos','1','2','3','4','5'].forEach(c=>{
-    if(somenteConjuravel && c!=='todos' && parseInt(c)>circuloMax) return; // nem mostra opção de círculo que ainda não existe
-    circSel.appendChild(el('option',{value:c, selected: mf.circulo===c}, c==='todos'?'Todos os círculos':c+'º círculo'));
-  });
-  filters.appendChild(circSel);
-  const escSel = el('select',{onchange:(e)=>{mf.escola=e.target.value; render();}});
-  escSel.appendChild(el('option',{value:'todas'},'Todas as escolas'));
-  Object.keys(ESCOLAS).forEach(e=> escSel.appendChild(el('option',{value:e, selected: mf.escola===e}, e)));
-  filters.appendChild(escSel);
-  wrap.appendChild(filters);
-
-  wrap.appendChild(el('input',{id:'busca-magias', type:'text', placeholder:'buscar magia pelo nome...', value:mf.busca, oninput:(e)=>{mf.busca=e.target.value; renderDebounced();}}));
-
-  if(mf.escola !== 'todas'){
-    wrap.appendChild(el('div',{class:'tip'}, el('b',{}, mf.escola), ESCOLAS[mf.escola]));
-  }
-
-  let list = magiasPorTradicao(mf.trad);
-  if(somenteConjuravel) list = list.filter(s=>s.c<=circuloMax);
-  if(somenteConjuravel && cc && ['Bardo','Druida'].includes(cc.classe) && f.escolasMagia && f.escolasMagia.length>0){
-    list = list.filter(s=> f.escolasMagia.includes(s.e));
-  }
-  if(mf.circulo!=='todos') list = list.filter(s=>s.c===parseInt(mf.circulo));
-  if(mf.escola!=='todas') list = list.filter(s=>s.e===mf.escola);
-  if(mf.busca) list = list.filter(s=>s.n.toLowerCase().includes(mf.busca.toLowerCase()));
-  list = list.slice().sort((a,b)=> a.c-b.c || a.n.localeCompare(b.n));
-
-  const results = el('div',{});
-  if(list.length===0){
-    results.appendChild(el('div',{class:'empty'},'Nenhuma magia encontrada com esses filtros.'));
-  } else {
-    let ultimoCirculo = null;
-    list.forEach(s=>{
-      if(mf.circulo==='todos' && s.c!==ultimoCirculo){
-        ultimoCirculo = s.c;
-        results.appendChild(el('div',{class:'lista-secao-titulo'}, s.c+'º Círculo'));
-      }
-      results.appendChild(renderCardMagia(s, 'lista', ()=>addMagiaFicha(s, mf.trad)));
-    });
-  }
-  wrap.appendChild(results);
   return wrap;
 }

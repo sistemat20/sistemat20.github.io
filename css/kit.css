@@ -119,3 +119,59 @@ input[type="search"].busca-notas::placeholder, input[type="search"]#cond-busca::
 #root{ padding-left:env(safe-area-inset-left,0px); padding-right:env(safe-area-inset-right,0px); box-sizing:border-box; }
 .menu-overlay{ padding-top:calc(18px + env(safe-area-inset-top,0px)); padding-bottom:calc(18px + env(safe-area-inset-bottom,0px)); }
 .menu-sheet{ max-height:calc(100dvh - 40px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px)); }
+
+/* ---- Catálogo e Aprender magias (15/11/2026, prancha "Catálogo e Magias") ---- */
+.busca-cat{ width:100%; box-sizing:border-box; margin:6px 0 8px; padding:10px 12px; border-radius:12px; border:1px solid var(--line); background:rgba(0,0,0,.28); color:var(--ink); font:500 .82rem 'Inter',sans-serif; }
+.prateleiras-cat{ display:grid; grid-template-columns:repeat(6,1fr); gap:4px; margin-bottom:6px; }
+.prat-cat{ display:grid; justify-items:center; gap:2px; padding:7px 0 5px; border:1px solid rgba(166,129,47,.3); border-radius:12px; background:var(--card-2); color:var(--ink-soft); font:600 .56rem 'Inter',sans-serif; cursor:pointer; transition:border-color .2s, background .2s, color .2s; min-width:0; }
+.prat-cat .ic{ font-size:1.1rem; }
+.prat-cat.on{ border-color:var(--gold); color:var(--ink); background:rgba(216,189,116,.12); }
+.chips-cat{ display:flex; flex-wrap:wrap; gap:5px; margin:4px 0 8px; }
+.chip-cat{ font:600 .66rem 'Inter',sans-serif; padding:5px 10px; border-radius:999px; border:1px solid rgba(166,129,47,.45); background:var(--card-2); color:var(--ink-soft); cursor:pointer; }
+.chip-cat.on{ background:var(--red); border-color:var(--red); color:#fff; }
+.grupo-cat{ display:flex; justify-content:space-between; font:700 .58rem 'Cinzel',serif; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-soft); margin:12px 2px 2px; }
+.cat-linha{ display:grid; grid-template-columns:1fr auto; gap:6px; align-items:center; border-bottom:1px solid rgba(166,129,47,.14); }
+.cat-linha.sel{ border-bottom-color:transparent; }
+.cat-abre{ display:grid; grid-template-columns:30px 1fr; gap:9px; align-items:center; width:100%; text-align:left; padding:8px 2px; background:none; border:0; color:var(--ink); font:inherit; cursor:pointer; min-width:0; }
+.cat-abre .ic{ width:30px; height:30px; border-radius:9px; display:grid; place-items:center; background:rgba(216,189,116,.08); font-size:.95rem; }
+.cat-abre .nm{ font:700 .8rem 'Cinzel',serif; min-width:0; }
+.cat-abre .nm small{ display:block; font:500 .64rem 'Inter',sans-serif; color:var(--ink-soft); margin-top:1px; }
+.cat-linha.aviso .nm small{ color:#f0b0a6; }
+.cat-linha.sel .cat-abre .nm{ color:var(--gold); }
+.cat-mais{ width:32px; height:32px; border-radius:50%; border:1px solid var(--gold-deep); background:none; color:var(--gold); font:700 1rem 'Inter',sans-serif; display:grid; place-items:center; cursor:pointer; padding:0; }
+.cat-mais:active{ background:var(--gold); color:#1a120c; }
+.cat-mais.vazio{ border-color:transparent; font-size:.7rem; color:var(--ink-soft); cursor:default; }
+.cat-mais.ok{ background:var(--status-saudavel); border-color:var(--status-saudavel); color:#fff; font-size:.75rem; cursor:default; }
+.cat-linha.conhecida{ opacity:.7; }
+.cat-botoes{ display:flex; gap:6px; }
+.cat-botoes .btn{ flex:1; margin:0; }
+.link-superior{ background:none; border:0; padding:2px 0; color:var(--gold); font:600 .7rem 'Inter',sans-serif; text-align:left; cursor:pointer; text-decoration:underline; text-underline-offset:3px; }
+.ver-mais-cat{ width:100%; margin-top:4px; padding:7px; border:1px dashed var(--gold-deep); border-radius:10px; background:none; color:var(--gold); font:600 .68rem 'Inter',sans-serif; cursor:pointer; }
+.oficina-cat{ display:flex; gap:6px; }
+.oficina-cat button{ flex:1; padding:9px 4px; border:1px dashed var(--gold-deep); border-radius:12px; background:none; color:var(--gold); font:600 .68rem 'Inter',sans-serif; cursor:pointer; }
+.compara-cat{ display:grid; gap:4px; }
+.compara-cat > div{ display:grid; grid-template-columns:1fr auto 16px auto; gap:6px; align-items:center; padding:5px 8px; border-radius:9px; background:rgba(0,0,0,.25); font-size:.7rem; }
+.compara-cat b{ font:800 .82rem 'Cinzel',serif; color:var(--ink); }
+.compara-cat i{ font-style:normal; color:var(--ink-soft); text-align:center; }
+.compara-cat .melhor b:last-child{ color:#8fd18f; }
+.compara-cat .pior b:last-child{ color:#f0a0a0; }
+.numeros-cat, .carta-magia{ display:grid; grid-template-columns:repeat(4,1fr); gap:4px; }
+.numeros-cat > div, .carta-magia > div{ border:1px solid var(--line); border-radius:9px; padding:5px 2px; text-align:center; font:700 .72rem 'Inter',sans-serif; color:var(--ink); overflow-wrap:anywhere; }
+.numeros-cat small, .carta-magia small{ display:block; font:600 .5rem 'Inter',sans-serif; color:var(--ink-soft); letter-spacing:.05em; text-transform:uppercase; }
+.carta-magia .pm{ color:var(--pm-accent); }
+.aviso-prof-cat{ font-size:.7rem; color:#f0b0a6; border:1px solid rgba(201,74,58,.5); border-radius:9px; padding:6px 8px; }
+.vagas-magia{ display:flex; gap:12px; align-items:center; padding:10px 12px; margin-bottom:8px; border:1px solid var(--gold-deep); border-radius:14px; background:linear-gradient(180deg, rgba(216,189,116,.1), transparent); }
+.vagas-magia .n{ font:800 1.6rem 'Cinzel',serif; color:var(--gold); min-width:28px; text-align:center; line-height:1; }
+.vagas-magia .tx{ font-size:.68rem; color:var(--ink-soft); line-height:1.35; }
+.vagas-magia .tx b{ display:block; font:700 .8rem 'Cinzel',serif; color:var(--ink); }
+.vagas-magia.fim{ border-color:var(--status-saudavel); }
+.vagas-magia.fim .n{ color:#8fd18f; }
+.sigilo-mini{ width:30px; height:30px; border-radius:50%; border:1.5px solid; display:grid; place-items:center; box-shadow:0 0 10px -3px currentColor; background:rgba(0,0,0,.25); }
+.sigilo-mini svg{ width:24px; height:24px; }
+.cat-abre .sigilo-mini{ grid-row:span 1; }
+.desc-magia{ margin:0; font-size:.74rem; }
+.parecida-magia{ font-size:.68rem; color:var(--gold); }
+.aprim-linha, .conhecidas-linha{ display:flex; justify-content:space-between; width:100%; padding:7px 2px; border:0; border-top:1px solid var(--line); background:none; color:var(--ink-soft); font:600 .68rem 'Inter',sans-serif; cursor:pointer; }
+.conhecidas-linha{ border-top-style:dashed; margin-top:10px; }
+.aprim-lista{ display:grid; gap:4px; font-size:.7rem; }
+.catalogo-novo .meta-ej, .aprender-magias .meta-ej{ font-size:.7rem; line-height:1.4; }

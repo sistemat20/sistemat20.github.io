@@ -248,3 +248,30 @@ function circuloMaximoDisponivel(f){
   if(!cc) return 0;
   return Math.min(5, Math.ceil(cc.nivel/4));
 }
+
+// Quantas magias o herói pode conhecer (Livro Básico, capítulo de classes; conferido em 15/11/2026):
+// · Arcanista (Bruxo) e Clérigo: 3 no 1º nível e +1 a cada nível.
+// · Feiticeiro: 3 no 1º nível e +1 só nos níveis ímpares (3º, 5º, 7º...).
+// · Mago: 4 no 1º nível, +1 a cada nível e +1 a cada círculo novo (5º, 9º, 13º, 17º).
+// · Bardo e Druida: 2 no 1º nível e +1 nos níveis pares.
+// · Conhecimento Mágico, Aumentar Repertório e Segredos da Natureza: +2 cada vez que o poder é escolhido.
+// Devolve {total, conta} ou null para quem não é conjurador.
+function magiasQuePodeConhecer(f){
+  const cc = classeConjuradora(f);
+  if(!cc) return null;
+  const n = Math.max(1, parseInt(cc.nivel)||1);
+  let total, conta;
+  if(cc.classe==='Arcanista' && f.arcanistaCaminho==='Feiticeiro'){
+    total = 3 + Math.floor((n-1)/2); conta = 'Feiticeiro '+n+': 3 no 1º nível + 1 nos níveis ímpares';
+  } else if(cc.classe==='Arcanista' && f.arcanistaCaminho==='Mago'){
+    const circulos = Math.min(5, Math.ceil(n/4)) - 1;
+    total = 4 + (n-1) + circulos; conta = 'Mago '+n+': 4 no 1º nível + 1 por nível'+(circulos ? ' + '+circulos+' por círculo novo' : '');
+  } else if(cc.classe==='Bardo' || cc.classe==='Druida'){
+    total = 2 + Math.floor(n/2); conta = cc.classe+' '+n+': 2 no 1º nível + 1 nos níveis pares';
+  } else {
+    total = 3 + (n-1); conta = cc.classe+' '+n+': 3 no 1º nível + 1 por nível';
+  }
+  const extras = (f.poderesClasse||[]).filter(p=> ['Conhecimento Mágico','Aumentar Repertório','Segredos da Natureza'].includes(p.nome)).length * 2;
+  if(extras){ total += extras; conta += ' + '+extras+' de poder'; }
+  return {total, conta: conta+' = '+total+'.'};
+}

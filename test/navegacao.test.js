@@ -5,6 +5,7 @@ const h = require('./harness');
 (async () => {
   const { window: w } = h.carregarApp();
   const q = (s) => [...w.document.querySelectorAll(s)];
+  const q2 = q;
   const texto = () => w.document.body.textContent;
   const lucea = () => h.fichaBase({ id: 'luc', nome: 'Lucéa', raca: 'Lefou', con: 2, int: 5, pmatual: 20, arcanistaCaminho: 'Bruxo',
     classesNiveis: [{ classe: 'Arcanista', nivel: 5 }], poderesClasse: [{ classe: 'Arcanista', nome: 'Familiar', nivel: 2 }],
@@ -78,6 +79,60 @@ const h = require('./harness');
     const fl = h.fichaBase({ con: 2, classesNiveis: [{ classe: 'Arcanista', nivel: 5 }] });
     const conf = w.renderConfiraLevelUp(fl, lv).textContent;
     h.ok('Level Up mostra a conta do PV e o poder escolhido', conf.includes('+4 PV (2 da classe + Con +2)') && conf.includes('Arcano de Batalha'));
+  }
+
+  h.secao('Aprender magias: vagas, intenção e carta');
+  {
+    const q = (cn, extra) => w.magiasQuePodeConhecer(h.fichaBase(Object.assign({ classesNiveis: cn }, extra || {}))).total;
+    h.igual('Bruxo 5: 3 + 4 = 7', q([{ classe: 'Arcanista', nivel: 5 }], { arcanistaCaminho: 'Bruxo' }), 7);
+    h.igual('Feiticeiro 5: 3 + níveis ímpares (3º e 5º) = 5', q([{ classe: 'Arcanista', nivel: 5 }], { arcanistaCaminho: 'Feiticeiro' }), 5);
+    h.igual('Mago 5: 4 + 4 + 1 círculo novo = 9', q([{ classe: 'Arcanista', nivel: 5 }], { arcanistaCaminho: 'Mago' }), 9);
+    h.igual('Bardo 4: 2 + níveis pares (2º e 4º) = 4', q([{ classe: 'Bardo', nivel: 4 }]), 4);
+    h.igual('Clérigo 3 com Conhecimento Mágico: 3 + 2 + 2 = 7', q([{ classe: 'Clérigo', nivel: 3 }], { poderesClasse: [{ classe: 'Clérigo', nome: 'Conhecimento Mágico', nivel: 2 }] }), 7);
+    h.ok('quem não conjura não tem conta', w.magiasQuePodeConhecer(h.fichaBase({ classesNiveis: [{ classe: 'Guerreiro', nivel: 3 }] })) === null);
+
+    const f = h.usarFicha(w, lucea());
+    Object.assign(w.state.magiaFiltro, { circulo: 'todos', busca: '', intencao: null, _verConhecidas: false });
+    h.renderizar(w, 'magias');
+    const vagas = w.document.querySelector('.vagas-magia');
+    h.ok('topo diz quantas faltam (7 − 2 conhecidas = 5)', vagas && vagas.textContent.includes('Você pode aprender 5 magias'));
+    h.ok('círculos em segmentos: 1º, 2º e Todos', q2('.aprender-magias .k-seg button').map((b) => b.textContent).join(',') === '1º,2º,Todos');
+    h.ok('as conhecidas ficam recolhidas', !q2('.cat-linha.conhecida').length && texto().includes('2 que você já conhece'));
+    const dano = q2('.chip-cat').find((b) => b.textContent.includes('Dano'));
+    dano.click();
+    h.ok('filtro Dano: só magias de dano', q2('.cat-linha .nm').length > 0 && q2('.cat-linha .nm').every((n) => w.intencaoDaMagia(w.magiasPorTradicao('arcana').find((s) => n.textContent.startsWith(s.n))) === 'dano'));
+    w.state.magiaFiltro.intencao = null; h.renderizar(w, 'magias');
+    const bola = q2('.cat-abre').find((b) => b.textContent.startsWith('Bola de Fogo'));
+    bola.click();
+    const carta = w.document.querySelector('.carta-magia');
+    h.ok('tocar abre a carta com execução, alcance, duração e PM', carta && carta.textContent.includes('PM') && carta.textContent.includes('execução'));
+    h.ok('avisa a parecida que já conhece', texto().includes('Parecida com Explosão de Chamas'));
+    q2('.k-gaveta .btn').find((b) => b.textContent.includes('Aprender')).click();
+    h.ok('Aprender põe na ficha e a vaga desce', f.magias.some((m) => m.n === 'Bola de Fogo') && w.document.querySelector('.vagas-magia').textContent.includes('aprender 4'));
+  }
+
+  h.secao('Catálogo: prateleiras, busca em tudo e antes e depois');
+  {
+    const f = h.usarFicha(w, h.fichaBase({ id: 'aeon', nome: 'Aeon', classesNiveis: [{ classe: 'Guerreiro', nivel: 5 }], armadura: { nome: 'Cota de malha', def: 6, pen: -2, cat: 'Pesada', esp: 5, equipado: true }, armas: [], equip: [] }));
+    w.state.itensFiltro = { tipo: 'inicio', busca: '', categoria: 'todas' };
+    h.renderizar(w, 'itens');
+    h.igual('seis prateleiras numa linha', q2('.prat-cat').length, 6);
+    h.ok('sem busca: Combina com você e a Oficina no fim', texto().includes('Combina com você') && texto().includes('Oficina'));
+    w.state.itensFiltro.busca = 'esp'; h.renderizar(w, 'itens');
+    const grupos = q2('.grupo-cat').map((g) => g.firstChild.textContent);
+    h.ok('a busca acha em mais de uma prateleira', grupos.length >= 2 && grupos.includes('Armas'));
+    w.state.itensFiltro.busca = ''; h.renderizar(w, 'itens');
+    q2('.prat-cat').find((b) => b.textContent.includes('Defesas')).click();
+    const lor = q2('.cat-abre').find((b) => b.querySelector('.nm').textContent.startsWith('Loriga segmentada'));
+    h.ok('a linha já mostra Defesa e penalidade', lor.textContent.includes('+7 Defesa') && lor.textContent.includes('pen -3'));
+    lor.click();
+    const comp = w.document.querySelector('.compara-cat');
+    const defA = w.defesaTotal(f);
+    h.ok('antes e depois: Defesa sobe 1 trocando a Cota pela Loriga', comp && comp.textContent.includes('Defesa' + defA + '→' + (defA + 1)) && !!comp.querySelector('.melhor'));
+    h.ok('diz o que sai', texto().includes('No lugar de: Cota de malha'));
+    const antes = f.equip.length;
+    q2('.cat-linha').find((l) => l.textContent.includes('Couro batido')).querySelector('.cat-mais').click();
+    h.igual('o + guarda na mochila num toque', f.equip.length, antes + 1);
   }
 
   h.resumo();
