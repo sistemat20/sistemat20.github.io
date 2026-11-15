@@ -122,7 +122,8 @@ function renderGrimorioCartas(f, aoEsquecer){
       // Fechada: a carta de tarô (círculo, selo da escola, nome, escola, custo). O texto da
       // magia só aparece ao abrir.
       grade.appendChild(el('button',{class:'linha-magia'+(custo>pm?' sem-mana':''), 'aria-expanded':'false', 'aria-label':s.n+', '+custo+' PM. Toque para ver e lançar', onclick:alternar},
-        el('span',{class:'selo-escola', 'aria-hidden':'true'}, siglaEscola(s.e)),
+        // O mesmo símbolo colorido do efeito que aparece em Aprender magias (sigiloMagiaPequeno).
+        sigiloMagiaPequeno(s),
         el('span',{class:'nome'}, s.n, el('small',{}, [s.execucao, s.alcance].filter(Boolean).join(' · ')), selos.some(Boolean) ? el('span',{class:'selos'}, ...selos) : null),
         el('span',{class:'custo'}, custo+' PM')
       ));

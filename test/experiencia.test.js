@@ -57,6 +57,7 @@ const HORA = 60 * 60 * 1000;
     h.ok('agrupadas por círculo', [...w.document.querySelectorAll('.circulo-magias')].map((x) => x.textContent).join('|').startsWith('1º círculo'));
     h.ok('a que custa mais que a mana fica apagada', cartas[1].classList.contains('sem-mana') && !cartas[0].classList.contains('sem-mana'));
     h.ok('a linha fechada tem nome e custo, sem o texto', cartas[0].textContent.includes('Bênção') && cartas[0].textContent.includes('1 PM') && !cartas[0].textContent.includes('Abençoa seus aliados'));
+    h.ok('cada linha leva o símbolo colorido do efeito, como em Aprender magias', cartas.every((c) => c.querySelector('.sigilo-mini svg')) && !w.document.querySelector('.linha-magia .selo-escola'));
     h.igual('sem a lista antiga duplicada embaixo', w.document.querySelectorAll('.spell-card').length, 0);
     h.ok('nada de rolagem lateral', !w.document.querySelector('.grimorio-cartas'));
     cartas[0].click();
@@ -148,6 +149,10 @@ const HORA = 60 * 60 * 1000;
     f.poderGeral = { nome: 'Antenas', sub: null };
     h.igual('um poder da Tormenta de fora da Deformidade tira 1 de Carisma', w.penalidadeCarismaTormenta(f), 1);
     h.igual('e Olhos Vermelhos escala com os outros dois (+2)', per('Intimidação'), 2 + (-1) + 2 + 2);
+    // Pergunta da Stela (15/11/2026): onde ler o Olhos Vermelhos? Agora na lista de Poderes.
+    const ov = w.coletarPoderes(f).find((p) => p.chaveBase === 'Olhos Vermelhos');
+    h.ok('o poder da Deformidade aparece na lista de Poderes', !!ov);
+    h.ok('com a descrição do livro e a origem Lefou', ov && ov.desc.includes('Visão no escuro') && ov.fonte.includes('Deformidade'));
   }
 
   h.secao('Carga: poções em meio espaço e Inventário Organizado em 1/4');

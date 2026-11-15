@@ -32,6 +32,11 @@ function coletarPoderes(f){
     }
   }
   if(f.poderRaca && f.poderRaca.nome) geral(f.poderRaca, 'Raça: '+f.raca, 'Perícia/poder concedido pela raça.');
+  // Deformidade (Lefou): os poderes da Tormenta escolhidos já entravam nas contas, mas não
+  // apareciam em lugar nenhum para o jogador ler (pergunta da Stela, 15/11/2026).
+  (f.deformidadeEscolhas||[]).forEach(esc=>{
+    if(esc && esc.tipo==='tormenta' && esc.valor) geral({nome: esc.valor}, 'Raça: Lefou (Deformidade)');
+  });
   if(f.origemPoder && f.origemPoder.nome) lista.push({nome: f.origemPoder.nome, chaveBase: f.origemPoder.nome, fonte: 'Origem: '+f.origem+' (único)', desc: f.origemPoder.desc||''});
   if(f.poderConcedido && f.poderConcedido.nome){
     const info = PODERES_CONCEDIDOS.find(p=>p.nome===f.poderConcedido.nome);
