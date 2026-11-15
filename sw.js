@@ -4,7 +4,7 @@
 //   não vier em alguns segundos ou não houver sinal, usa a cópia guardada.
 // · Fontes do Google: usa a cópia guardada e atualiza por trás.
 // · Supabase e qualquer envio (POST) passam direto: nada de dados de ficha no cache.
-const CACHE = 'painel-t20-v1';
+const CACHE = 'painel-t20-v2'; // v2: arquivos separados (item 6)
 const ESPERA_REDE_MS = 3500;
 
 self.addEventListener('install', (evento)=>{

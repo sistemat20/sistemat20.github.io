@@ -1,0 +1,2377 @@
+[
+ {
+  "id": "heroi-a",
+  "tc": 0,
+  "to": 0,
+  "ts": 1484,
+  "car": 4,
+  "con": 2,
+  "des": 1,
+  "for": 0,
+  "int": 2,
+  "sab": 4,
+  "nome": "Herói A",
+  "raca": "Humano",
+  "armas": [
+   {
+    "cat": "Simples",
+    "esp": 2,
+    "dano": "1d6/1d6",
+    "maos": 2,
+    "nome": "Bordão (Cravejado de gemas, Prata)",
+    "tipo": "Impacto",
+    "teste": "",
+    "alcance": "—",
+    "critico": "x2",
+    "pericia": "Luta",
+    "refBase": "Bordão",
+    "superior": true,
+    "distancia": false,
+    "melhoriasTxt": "Cravejado de gemas: +2 em Enganação · Material especial (Prata): +2 de dano em espíritos e mortos-vivos; conta como mágica pra acertar essas criaturas.",
+    "bonusDanoExtra": 0,
+    "bonusTesteExtra": 0
+   }
+  ],
+  "cinto": [
+   "Essência de mana",
+   "Poção de Purificação"
+  ],
+  "equip": [
+   {
+    "qtd": "1",
+    "item": "Bandoleira de poções",
+    "tipo": "geral",
+    "carga": "1",
+    "vestido": true,
+    "marcadoVestivel": true
+   },
+   {
+    "qtd": "2",
+    "item": "Essência de mana",
+    "tipo": "geral",
+    "carga": "0.5",
+    "vestido": false
+   },
+   {
+    "qtd": "1",
+    "item": "Poção de Purificação",
+    "tipo": "geral",
+    "carga": "0.5"
+   },
+   {
+    "qtd": "1",
+    "item": "Botas reforçadas",
+    "tipo": "geral",
+    "carga": "1",
+    "vestido": true
+   },
+   {
+    "qtd": "5",
+    "item": "Ração de viagem (dia)",
+    "tipo": "geral",
+    "carga": "0.5",
+    "vestido": false
+   },
+   {
+    "qtd": "1",
+    "item": "Mochila de aventureiro",
+    "tipo": "geral",
+    "carga": "0",
+    "vestido": true
+   },
+   {
+    "qtd": "1",
+    "item": "Colar de família",
+    "tipo": "geral",
+    "carga": "0",
+    "forma": "narrativo",
+    "descCustom": "Colar valioso da família Snow"
+   }
+  ],
+  "pmmax": 25,
+  "pvmax": 42,
+  "escudo": null,
+  "locais": [
+   {
+    "nome": "Local 1",
+    "nota": ""
+   },
+   {
+    "nome": "Local 2",
+    "nota": ""
+   },
+   {
+    "nome": "Local 3",
+    "nota": ""
+   },
+   {
+    "nome": "Local 4",
+    "nota": ""
+   }
+  ],
+  "magias": [
+   {
+    "c": 1,
+    "d": "Abençoa seus aliados, que recebem +1 em testes de ataque e rolagens de dano. Bênção anula Perdição.",
+    "e": "Encantamento",
+    "n": "Bênção",
+    "alvo": "",
+    "trad": "Divina",
+    "aprim": [
+     {
+      "custo": "+1 PM",
+      "efeito": "muda o alvo para 1 cadáver e a duração para 1 semana. O cadáver não se decompõe nem pode ser transfor mado em morto-vivo."
+     },
+     {
+      "custo": "+2 PM",
+      "efeito": "aumenta os bônus em +1 (bônus máximo limitado pelo círculo máximo de magia que você pode lançar)."
+     }
+    ],
+    "alcance": "curto",
+    "duracao": "cena",
+    "execucao": "padrão",
+    "resistencia": "",
+    "tradEscolhida": "divina"
+   },
+   {
+    "c": 1,
+    "d": "Você dá uma ordem irresistível, que o alvo deve ser capaz de ouvir (mas não precisa entender). Se falhar na resis tência, ele deve obedecer ao comando em seu próprio turno da melhor maneira possível. Escolha um dos efeitos. Fuja: o alvo gasta seu turno se afastando de você (usando todas as suas ações). Largue: o alvo solta quaisquer itens que esteja segurando e não pode pegá-los novamente até o início de seu próximo turno. Como esta é uma ação livre, ele ainda pode executar outras ações (exceto pegar aquilo que largou). Pare: o alvo fica pasmo (apenas uma vez por cena). Senta: com uma ação livre, o alvo senta no chão (se estava pendurado ou voando, desce até o chão). Ele pode fazer outras ações, mas não se levantar até o início de seu próximo turno. Venha: o alvo gasta seu turno se apro ximando de você (usando todas as suas ações).",
+    "e": "Encantamento",
+    "n": "Comando",
+    "alvo": "1 humanoide",
+    "trad": "Divina",
+    "aprim": [
+     {
+      "custo": "+1 PM",
+      "efeito": "muda o alvo para 1 criatura."
+     },
+     {
+      "custo": "+2 PM",
+      "efeito": "aumenta a quantidade de alvos em +1."
+     }
+    ],
+    "alcance": "curto",
+    "duracao": "1 rodada",
+    "execucao": "padrão",
+    "resistencia": "Vontade anula",
+    "tradEscolhida": "divina"
+   },
+   {
+    "c": 1,
+    "d": "Um escudo místico se manifesta mo mentaneamente para bloquear um golpe. O alvo recebe +2 na Defesa.",
+    "e": "Abjuração",
+    "n": "Escudo da Fé",
+    "alvo": "1 criatura",
+    "trad": "Divina",
+    "aprim": [
+     {
+      "custo": "+1 PM",
+      "efeito": "muda a execução para ação padrão, o alcance para toque e a duração para cena."
+     },
+     {
+      "custo": "+1 PM",
+      "efeito": "também fornece ao alvo camuflagem leve contra ataques à distância."
+     },
+     {
+      "custo": "+2 PM",
+      "efeito": "aumenta o bônus na Defesa em +1."
+     },
+     {
+      "custo": "+2 PM",
+      "efeito": "muda a execução para ação padrão, o alcance para toque e a duração para cena. A magia cria uma conexão mística entre você e o alvo. Além do efeito normal, o alvo sofre metade do dano por ataques e efeitos; a outra metade do dano é transferida a você. Se o alvo sair de alcance curto de você, a magia é dissipada. Requer 2º círculo."
+     },
+     {
+      "custo": "+3 PM",
+      "efeito": "muda a duração para um dia. Requer 2º círculo."
+     }
+    ],
+    "alcance": "curto",
+    "duracao": "1 turno",
+    "execucao": "reação",
+    "resistencia": "",
+    "tradEscolhida": "divina"
+   },
+   {
+    "c": 1,
+    "d": "Seus olhos brilham com uma luz azul e passam a enxergar auras mágicas. Este efeito é similar ao uso de Misticismo para detectar magia, mas você detecta todas as auras mágicas em alcance médio e recebe todas as informações so bre elas sem gastar ações. Além disso, você pode gastar uma ação de movimento para descobrir se uma criatura que possa perceber em alcance médio é capaz de lançar magias e qual a aura gerada pelas magias de círculo mais alto que ela pode lançar.",
+    "e": "Adivinhação",
+    "n": "Visão Mística",
+    "alvo": "você",
+    "trad": "Universal",
+    "aprim": [
+     {
+      "custo": "+1 PM",
+      "efeito": "recebe visão no escuro."
+     },
+     {
+      "custo": "+2 PM",
+      "efeito": "muda a duração para um dia."
+     },
+     {
+      "custo": "+2 PM",
+      "efeito": "também pode enxergar objetos e criaturas invisíveis. Eles aparecem como formas translúcidas."
+     }
+    ],
+    "alcance": "pessoal",
+    "duracao": "cena",
+    "execucao": "padrão",
+    "resistencia": "",
+    "tradEscolhida": "divina"
+   },
+   {
+    "c": 1,
+    "d": "Você canaliza luz que recupera 2d8+2 pontos de vida na criatura tocada. Curar Ferimentos anula Infligir Ferimentos.",
+    "e": "Evocação",
+    "n": "Curar Ferimentos",
+    "alvo": "1 criatura",
+    "trad": "Divina",
+    "aprim": [
+     {
+      "custo": "Truque",
+      "efeito": "muda o alvo para 1 morto -vivo. Em vez do normal, causa 1d8 pontos de dano de luz (Vontade reduz à metade)."
+     },
+     {
+      "custo": "+1 PM",
+      "efeito": "aumenta a cura em +1d8+1."
+     },
+     {
+      "custo": "+2 PM",
+      "efeito": "também remove uma condi ção de cansaço do alvo."
+     },
+     {
+      "custo": "+2 PM",
+      "efeito": "muda o alcance para curto."
+     },
+     {
+      "custo": "+5 PM",
+      "efeito": "muda o alcance para curto e o alvo para criaturas escolhidas."
+     }
+    ],
+    "alcance": "toque",
+    "duracao": "instantânea",
+    "execucao": "padrão",
+    "resistencia": "",
+    "tradEscolhida": "divina"
+   },
+   {
+    "c": 1,
+    "d": "Envia um aviso telepático para uma criatura, mesmo que não possa vê-la nem tenha linha de efeito. Escolha um: Alerta: o alvo recebe +5 em seu próximo teste de Iniciativa e de Percepção até o fim da próxima cena. Mensagem: o alvo recebe uma mensa gem sua de até 25 palavras. Vocês devem ter um idioma em comum para o alvo poder entendê-lo. Localização: o alvo sabe onde você está naquele momento. Se você mudar de posição, ele não saberá.",
+    "e": "Adivinhação",
+    "n": "Aviso",
+    "alvo": "1 criatura",
+    "trad": "Universal",
+    "aprim": [
+     {
+      "custo": "+1 PM",
+      "efeito": "aumenta o alcance em um fator de 10 (90m para 900m, 900m para 9km e assim por diante)."
+     },
+     {
+      "custo": "+1 PM",
+      "efeito": "se escolher mensagem, o alvo pode enviar uma resposta de até 25 palavras para você até o fim de seu próximo turno."
+     },
+     {
+      "custo": "+2 PM",
+      "efeito": "se escolher localização, muda a duração para cena. O alvo sabe onde você está mesmo que você mude de posição."
+     },
+     {
+      "custo": "+3 PM",
+      "efeito": "aumenta o número de alvos em +1."
+     }
+    ],
+    "alcance": "longo",
+    "duracao": "instantânea",
+    "execucao": "movimento",
+    "resistencia": "",
+    "tradEscolhida": "divina"
+   },
+   {
+    "c": 2,
+    "d": "Você pode conversar com criaturas de qualquer raça e tipo: animal, construto, espírito, humanoide, monstro ou morto-vivo. Pode fazer perguntas e entende suas respostas, mesmo sem um idioma em comum ou se a criatura não for capaz de falar, mas respeitando os limites da Inteligência dela. A atitude dessas criaturas não é alterada, mas você pode usar a perícia Diplomacia para tentar mudar sua atitude.",
+    "e": "Adivinhação",
+    "n": "Voz Divina",
+    "alvo": "você",
+    "trad": "Divina",
+    "aprim": [
+     {
+      "custo": "+1 PM",
+      "efeito": "você concede um pouco de vida a um cadáver, suficiente para que ele responda a suas perguntas. O conhecimento do corpo é limitado ao que ele tinha enquanto vivo e suas respostas são curtas e enigmáticas. Um corpo só pode ser alvo desta magia uma vez. Ela também não funciona em um corpo cuja cabeça tenha sido destruída."
+     },
+     {
+      "custo": "+1 PM",
+      "efeito": "você pode falar com plantas (normais ou monstruosas) e rochas. Plantas e rochas têm percepção limitada de seus arredores e normalmente"
+     }
+    ],
+    "alcance": "pessoal",
+    "duracao": "cena",
+    "execucao": "padrão",
+    "resistencia": "",
+    "tradEscolhida": "divina"
+   }
+  ],
+  "origem": "Herdeiro",
+  "pmtemp": 0,
+  "pvtemp": 0,
+  "faccoes": [
+   {
+    "nome": "Facção 1",
+    "status": "inimigo"
+   }
+  ],
+  "jogador": "Jogador A",
+  "missoes": [],
+  "pmatual": 29,
+  "pvatual": 42,
+  "tamanho": "Médio",
+  "armadura": {
+   "cat": "Leve",
+   "def": 5,
+   "esp": 2,
+   "pen": -4,
+   "nome": "Couraça",
+   "equipado": true
+  },
+  "defOutros": 0,
+  "divindade": "Tanna-Toh",
+  "parceiros": [
+   {
+    "nome": "Parceiro 1",
+    "tipo": "Vigilante",
+    "poder": "iniciante",
+    "origem": "",
+    "ehMontaria": null,
+    "montadoAgora": false,
+    "tipoMontaria": null,
+    "fonteAmeacasArton": null
+   }
+  ],
+  "poderRaca": null,
+  "esotericos": [],
+  "poderGeral": null,
+  "alinhamento": "Médio ",
+  "origemPoder": {
+   "sub": null,
+   "desc": "Você herdou um item de preço de até T$ 1.000. Você pode escolher este poder duas vezes, para um item de até T$ 2.000.",
+   "nome": "Herança"
+  },
+  "deslocamento": 9,
+  "estabilizado": false,
+  "classesNiveis": [
+   {
+    "nivel": 5,
+    "classe": "Clérigo"
+   }
+  ],
+  "poderesClasse": [
+   {
+    "sub": null,
+    "nome": "Conhecimento Mágico",
+    "nivel": 2,
+    "classe": "Clérigo",
+    "trocaPorGeral": false
+   },
+   {
+    "sub": "Carisma",
+    "nome": "Aumento de Atributo",
+    "nivel": 3,
+    "classe": "Clérigo",
+    "trocaPorGeral": false
+   },
+   {
+    "sub": null,
+    "nome": "Canalizar Energia Positiva/Negativa",
+    "nivel": 4,
+    "classe": "Clérigo",
+    "trocaPorGeral": false
+   },
+   {
+    "sub": null,
+    "nome": "Conhecimento Mágico",
+    "nivel": 5,
+    "classe": "Clérigo",
+    "trocaPorGeral": false
+   }
+  ],
+  "poderConcedido": {
+   "sub": [
+    "Misticismo",
+    "Investigação"
+   ],
+   "deus": "Tanna-Toh",
+   "nome": "Conhecimento Enciclopédico"
+  },
+  "historicoNiveis": [
+   {
+    "ganho": "Poder de clérigo",
+    "nivel": 2,
+    "poder": {
+     "sub": null,
+     "nome": "Conhecimento Mágico",
+     "nivel": 2,
+     "classe": "Clérigo",
+     "trocaPorGeral": false
+    },
+    "classe": "Clérigo",
+    "pmGanho": 5,
+    "pvGanho": 6
+   },
+   {
+    "ganho": "Poder de clérigo",
+    "nivel": 3,
+    "poder": {
+     "sub": "Carisma",
+     "nome": "Aumento de Atributo",
+     "nivel": 3,
+     "classe": "Clérigo",
+     "trocaPorGeral": false
+    },
+    "classe": "Clérigo",
+    "pmGanho": 5,
+    "pvGanho": 6
+   },
+   {
+    "ganho": "Poder de clérigo",
+    "nivel": 4,
+    "poder": {
+     "sub": null,
+     "nome": "Canalizar Energia Positiva/Negativa",
+     "nivel": 4,
+     "classe": "Clérigo",
+     "trocaPorGeral": false
+    },
+    "classe": "Clérigo",
+    "pmGanho": 5,
+    "pvGanho": 6
+   },
+   {
+    "ganho": "Magias (2º círculo), poder de clérigo",
+    "nivel": 5,
+    "poder": {
+     "sub": null,
+     "nome": "Conhecimento Mágico",
+     "nivel": 5,
+     "classe": "Clérigo",
+     "trocaPorGeral": false
+    },
+    "classe": "Clérigo",
+    "pmGanho": 5,
+    "pvGanho": 6
+   }
+  ],
+  "poderGeralExtra": null,
+  "relacionamentos": [
+   {
+    "nome": "Herói B",
+    "nota": "",
+    "tipo": "Aliado",
+    "personagemId": "heroi-b"
+   },
+   {
+    "nome": "Herói D",
+    "nota": "",
+    "tipo": "Aliado",
+    "personagemId": "heroi-d"
+   },
+   {
+    "nome": "Herói E",
+    "nota": "",
+    "tipo": "Aliado",
+    "personagemId": "heroi-e"
+   },
+   {
+    "nome": "Herói C",
+    "nota": "",
+    "tipo": "Aliado",
+    "personagemId": "heroi-c"
+   }
+  ],
+  "periciasTreinadas": [
+   "Religião",
+   "Vontade",
+   "Cura",
+   "Diplomacia",
+   "Conhecimento",
+   "Investigação",
+   "Nobreza"
+  ],
+  "habilidadesIniciais": [
+   {
+    "desc": "Treinado em duas perícias à escolha (não precisam ser da classe). Pode trocar uma delas por um poder geral.",
+    "nome": "Versátil",
+    "fonte": "Raça: Humano"
+   },
+   {
+    "desc": "Um símbolo de sua herança, como um anel de sinete ou manto cerimonial.",
+    "nome": "Itens iniciais",
+    "fonte": "Origem: Herdeiro"
+   },
+   {
+    "desc": "Ao se tornar devoto, recebe DOIS Poderes Concedidos (em vez de só um, como devotos normais). Como alternativa, pode cultuar o Panteão como um todo: sem Poder Concedido, mas a única obrigação é não usar armas cortantes/perfurantes; arma preferida maça, e escolhe canalizar energia positiva ou negativa pra sempre.",
+    "nome": "Devoto Fiel",
+    "fonte": "Classe: Clérigo"
+   }
+  ],
+  "_liturgiaMagicaAtiva": false,
+  "origemPoderCategoria": null,
+  "_cargaCatalogoRevista": true,
+  "_descansoBonusPendente": {
+   "pm": 0,
+   "pv": 0
+  },
+  "mochilaAventureiroUpgrade": false
+ },
+ {
+  "id": "heroi-b",
+  "tc": 0,
+  "to": 0,
+  "ts": 2305,
+  "car": 0,
+  "con": 0,
+  "des": 4,
+  "for": 0,
+  "int": 5,
+  "sab": 1,
+  "nome": "Herói B",
+  "raca": "Elfo",
+  "armas": [
+   {
+    "cat": "Simples",
+    "esp": 2,
+    "dano": "1d6",
+    "maos": 2,
+    "nome": "Arco curto (Gelo eterno) (recebido de Herói A)",
+    "tipo": "Perfuração",
+    "teste": "",
+    "alcance": "Médio",
+    "critico": "x3",
+    "pericia": "Pontaria",
+    "refBase": "Arco curto",
+    "superior": true,
+    "distancia": true,
+    "melhoriasTxt": "Material especial (Gelo eterno): Causa +2 pontos de dano de frio.",
+    "bonusDanoExtra": 2,
+    "bonusTesteExtra": 0
+   }
+  ],
+  "equip": [
+   {
+    "qtd": "1",
+    "item": "Barraca",
+    "tipo": "geral",
+    "carga": "1",
+    "vestido": false
+   },
+   {
+    "qtd": "1",
+    "item": "Instrumentos de ofício (alquimia) ",
+    "tipo": "geral",
+    "carga": "1",
+    "vestido": false
+   },
+   {
+    "qtd": "1",
+    "item": "Mochila de aventureiro",
+    "tipo": "geral",
+    "carga": "0",
+    "vestido": true
+   },
+   {
+    "qtd": "1",
+    "item": "Flechas (14)",
+    "tipo": "geral",
+    "carga": "1",
+    "vestido": false
+   },
+   {
+    "qtd": "4",
+    "item": "Peçonha comum",
+    "tipo": "geral",
+    "carga": "0.5",
+    "vestido": false
+   },
+   {
+    "qtd": "1",
+    "item": "Sapatos de camurça",
+    "tipo": "geral",
+    "carga": "1",
+    "vestido": true
+   },
+   {
+    "qtd": "2",
+    "item": "Ração de viagem (dia)",
+    "tipo": "geral",
+    "carga": "0.5",
+    "vestido": false
+   },
+   {
+    "qtd": "1",
+    "item": "Bandoleira de poções",
+    "tipo": "geral",
+    "carga": "1",
+    "vestido": true,
+    "marcadoVestivel": true
+   }
+  ],
+  "pmmax": 21,
+  "pvmax": 24,
+  "escudo": null,
+  "locais": [
+   {
+    "nome": "Local 5",
+    "nota": ""
+   }
+  ],
+  "magias": [],
+  "origem": "Refugiado",
+  "pmtemp": 0,
+  "pvtemp": 0,
+  "faccoes": [],
+  "jogador": "Jogador B",
+  "missoes": [],
+  "pmatual": 28,
+  "pvatual": 24,
+  "tamanho": "1,71",
+  "armadura": {
+   "cat": "Leve",
+   "def": 3,
+   "esp": 2,
+   "pen": -1,
+   "nome": "Couro batido",
+   "refBase": "Couro batido",
+   "equipado": true,
+   "superior": false,
+   "melhoriasTxt": null,
+   "bonusDefExtra": 0,
+   "bonusPenExtra": 0
+  },
+  "defOutros": 0,
+  "divindade": "",
+  "parceiros": [
+   {
+    "nome": "Parceiro 2",
+    "tipo": "Montaria",
+    "poder": "iniciante",
+    "origem": "",
+    "ehMontaria": true,
+    "montadoAgora": false,
+    "tipoMontaria": "Urso das neves",
+    "fonteAmeacasArton": "Urso das neves"
+   },
+   {
+    "nome": "Parceiro 3",
+    "tipo": "Combatente",
+    "poder": "veterano",
+    "origem": "",
+    "ehMontaria": null,
+    "montadoAgora": false,
+    "tipoMontaria": null,
+    "fonteAmeacasArton": null
+   }
+  ],
+  "poderRaca": null,
+  "esotericos": [],
+  "poderGeral": {
+   "sub": null,
+   "nome": "Vontade de Ferro"
+  },
+  "alinhamento": "",
+  "origemPoder": {
+   "sub": null,
+   "desc": "Sua condição de descanso é uma categoria acima do padrão pela situação (normal em condições ruins, confortável em condições normais e luxuosa em condições confortáveis ou melhores). Veja as regras de recuperação na página 106.",
+   "nome": "Estoico"
+  },
+  "deslocamento": 12,
+  "estabilizado": false,
+  "classesNiveis": [
+   {
+    "nivel": 5,
+    "classe": "Ladino"
+   }
+  ],
+  "poderesClasse": [
+   {
+    "sub": null,
+    "nome": "Mente Criminosa",
+    "nivel": 2,
+    "classe": "Ladino",
+    "trocaPorGeral": false
+   },
+   {
+    "sub": null,
+    "nome": "Venefício",
+    "nivel": 3,
+    "classe": "Ladino",
+    "trocaPorGeral": true
+   },
+   {
+    "sub": null,
+    "nome": "Veneno Potente",
+    "nivel": 4,
+    "classe": "Ladino",
+    "trocaPorGeral": false
+   },
+   {
+    "sub": "Inteligência",
+    "nome": "Aumento de Atributo",
+    "nivel": 5,
+    "classe": "Ladino",
+    "trocaPorGeral": false
+   }
+  ],
+  "poderConcedido": null,
+  "condicoesAtivas": [],
+  "historicoNiveis": [
+   {
+    "ganho": "Evasão, poder de ladino",
+    "nivel": 2,
+    "poder": {
+     "sub": null,
+     "nome": "Mente Criminosa",
+     "nivel": 2,
+     "classe": "Ladino",
+     "trocaPorGeral": false
+    },
+    "classe": "Ladino",
+    "pmGanho": 4,
+    "pvGanho": 3
+   },
+   {
+    "ganho": "Ataque furtivo +2d6, poder de ladino",
+    "nivel": 3,
+    "poder": {
+     "sub": null,
+     "nome": "Venefício",
+     "nivel": 3,
+     "classe": "Ladino",
+     "trocaPorGeral": true
+    },
+    "classe": "Ladino",
+    "pmGanho": 4,
+    "pvGanho": 3
+   },
+   {
+    "ganho": "Esquiva sobrenatural, poder de ladino",
+    "nivel": 4,
+    "poder": {
+     "sub": null,
+     "nome": "Veneno Potente",
+     "nivel": 4,
+     "classe": "Ladino",
+     "trocaPorGeral": false
+    },
+    "classe": "Ladino",
+    "pmGanho": 4,
+    "pvGanho": 3
+   },
+   {
+    "ganho": "Ataque furtivo +3d6, poder de ladino",
+    "nivel": 5,
+    "poder": {
+     "sub": "Inteligência",
+     "nome": "Aumento de Atributo",
+     "nivel": 5,
+     "classe": "Ladino",
+     "trocaPorGeral": false
+    },
+    "classe": "Ladino",
+    "pmGanho": 4,
+    "pvGanho": 3
+   }
+  ],
+  "poderGeralExtra": null,
+  "relacionamentos": [
+   {
+    "nome": "Herói A",
+    "nota": "",
+    "tipo": "Aliado",
+    "personagemId": "heroi-a"
+   },
+   {
+    "nome": "Herói D",
+    "nota": "",
+    "tipo": "Aliado",
+    "personagemId": "heroi-d"
+   },
+   {
+    "nome": "Herói E",
+    "nota": "",
+    "tipo": "Aliado",
+    "personagemId": "heroi-e"
+   },
+   {
+    "nome": "Herói C",
+    "nota": "",
+    "tipo": "Aliado",
+    "personagemId": "heroi-c"
+   }
+  ],
+  "periciasTreinadas": [
+   "Ladinagem",
+   "Reflexos",
+   "Acrobacia",
+   "Conhecimento",
+   "Furtividade",
+   "Iniciativa",
+   "Intuição",
+   "Ofício (Alquimista)",
+   "Percepção",
+   "Pontaria",
+   "Vontade",
+   "Cura",
+   "Investigação",
+   "Sobrevivência",
+   "Adestramento"
+  ],
+  "habilidadesIniciais": [
+   {
+    "desc": "Deslocamento 12m.",
+    "nome": "Graça de Glórienn",
+    "fonte": "Raça: Elfo"
+   },
+   {
+    "desc": "+1 Ponto de Mana por nível.",
+    "nome": "Sangue Mágico",
+    "fonte": "Raça: Elfo"
+   },
+   {
+    "desc": "Visão na penumbra; +2 em Misticismo e Percepção.",
+    "nome": "Sentidos Élficos",
+    "fonte": "Raça: Elfo"
+   },
+   {
+    "desc": "Um item estrangeiro de até T$ 100.",
+    "nome": "Itens iniciais",
+    "fonte": "Origem: Refugiado"
+   },
+   {
+    "desc": "Uma vez por rodada, ao atingir uma criatura desprevenida (corpo a corpo ou alcance curto) ou flanqueando, causa 1d6 de dano extra. A cada 2 níveis, esse dano aumenta +1d6.",
+    "nome": "Ataque Furtivo",
+    "fonte": "Classe: Ladino"
+   },
+   {
+    "desc": "Escolhe um número de perícias treinadas igual à sua Inteligência (mínimo 1). Nelas, pode gastar 1 PM pra dobrar o bônus de treinamento (não em testes de ataque).",
+    "nome": "Especialista",
+    "fonte": "Classe: Ladino"
+   },
+   {
+    "desc": "A partir do 2º nível: um teste de Reflexos bem-sucedido pra reduzir dano à metade passa a anular o dano por completo. Exige liberdade de movimentos.",
+    "nome": "Evasão",
+    "fonte": "Classe: Ladino"
+   }
+  ],
+  "origemPoderCategoria": null,
+  "_cargaCatalogoRevista": true,
+  "_descansoBonusPendente": {
+   "pm": 0,
+   "pv": 0
+  },
+  "mochilaAventureiroUpgrade": false,
+  "periciasExtraIntPendentes": 0
+ },
+ {
+  "id": "heroi-c",
+  "tc": 0,
+  "to": 0,
+  "ts": 1392,
+  "car": "0",
+  "con": 2,
+  "des": 1,
+  "for": 1,
+  "int": "5",
+  "sab": 4,
+  "nome": "Herói C",
+  "raca": "Lefou",
+  "armas": [],
+  "equip": [
+   {
+    "qtd": "1",
+    "item": "Bandoleira de poções",
+    "tipo": "geral",
+    "carga": "1",
+    "vestido": true,
+    "efeitoCustom": null,
+    "marcadoVestivel": true
+   },
+   {
+    "qtd": "1",
+    "item": "Poção de Sono",
+    "tipo": "geral",
+    "carga": "0.25"
+   },
+   {
+    "qtd": "1",
+    "item": "Casaco longo",
+    "tipo": "geral",
+    "carga": "1",
+    "vestido": false,
+    "efeitoCustom": null
+   },
+   {
+    "qtd": "1",
+    "ref": "Chapéu arcano",
+    "item": "Chapéu arcano (Banhado a ouro)",
+    "tipo": "geral",
+    "carga": "1",
+    "vestido": true,
+    "superior": true,
+    "essencias": [
+     {
+      "tipo": "pericia",
+      "valor": 2,
+      "pericia": "Diplomacia"
+     }
+    ],
+    "melhoriasTxt": "Banhado a ouro: +2 em Diplomacia"
+   },
+   {
+    "qtd": "2",
+    "item": "Terra de cemitério",
+    "tipo": "geral",
+    "carga": "0.25",
+    "vestido": false
+   },
+   {
+    "qtd": "21",
+    "item": "Ração de viagem (dia)",
+    "tipo": "geral",
+    "carga": "0.25",
+    "vestido": false
+   },
+   {
+    "qtd": "1",
+    "item": "Barraca (recebido de Herói C) (recebido de Herói D)",
+    "tipo": "geral",
+    "carga": "1",
+    "vestido": false
+   },
+   {
+    "qtd": "1",
+    "item": "Equipamento de viagem (recebido de Herói C) (recebido de Herói D)",
+    "tipo": "geral",
+    "carga": "1",
+    "vestido": false
+   },
+   {
+    "qtd": "1",
+    "item": "Poção granada de luz",
+    "tipo": "geral",
+    "carga": "0.25",
+    "descCustom": "ao ser jogado no chão cega criaturas no raio de 9m cd:25 reflexo parcial…cega o alvo por 1d4 rodadas"
+   },
+   {
+    "qtd": "7",
+    "item": "Essência de mana",
+    "tipo": "geral",
+    "carga": "0.25",
+    "vestido": false
+   },
+   {
+    "qtd": "1",
+    "item": "Dente-de-dragão",
+    "tipo": "geral",
+    "carga": "0.25",
+    "vestido": false
+   },
+   {
+    "qtd": "2",
+    "item": "Poção de Curar Ferimentos (2d8+2 PV)",
+    "tipo": "geral",
+    "carga": "0.25"
+   },
+   {
+    "qtd": "1",
+    "item": "Traje de viajante",
+    "tipo": "geral",
+    "carga": "0",
+    "vestido": false,
+    "marcadoVestivel": false
+   },
+   {
+    "qtd": "5",
+    "item": "Pó de giz",
+    "tipo": "geral",
+    "carga": "0.25",
+    "vestido": false
+   },
+   {
+    "qtd": "2",
+    "item": "Poção de Mente Divina",
+    "tipo": "geral",
+    "carga": "0.25"
+   },
+   {
+    "qtd": "1",
+    "item": "Sapatos de camurça",
+    "tipo": "geral",
+    "carga": "1",
+    "vestido": false
+   },
+   {
+    "qtd": "2",
+    "item": "Poção de Escudo da Fé (duração cena)",
+    "tipo": "geral",
+    "carga": "0.25"
+   },
+   {
+    "qtd": "2",
+    "item": "Poção de Vitalidade Fantasma",
+    "tipo": "geral",
+    "carga": "0.25"
+   },
+   {
+    "qtd": "2",
+    "item": "Poção de Proteção Divina",
+    "tipo": "geral",
+    "carga": "0.25"
+   },
+   {
+    "qtd": "1",
+    "item": "Mochila de aventureiro",
+    "tipo": "geral",
+    "carga": "0",
+    "vestido": true
+   },
+   {
+    "qtd": "1",
+    "item": "Anel Dourado cravejado de gemas",
+    "tipo": "geral",
+    "carga": "1",
+    "forma": "vestido",
+    "vestido": true,
+    "essencias": [
+     {
+      "de": "escrita na mesa",
+      "tipo": "pericia",
+      "valor": 2,
+      "pericia": "Enganação"
+     }
+    ],
+    "descCustom": "Melhorias: cravejado de gemas: +2 em enganação",
+    "efeitoCustom": null,
+    "marcadoVestivel": true
+   }
+  ],
+  "pmmax": 30,
+  "pvmax": 26,
+  "escudo": null,
+  "locais": [
+   {
+    "nome": "Local 2",
+    "nota": ""
+   }
+  ],
+  "magias": [
+   {
+    "c": 1,
+    "d": "Essa magia lhe confere compreensão sobrenatural. Você pode tocar um texto e entender as palavras mesmo que não conheça o idioma. Se tocar numa criatura inteligente, pode se comunicar com ela mesmo que não tenham um idioma em comum. Se tocar uma criatura não inteligente, como um animal, pode perceber seus sentimentos. Você também pode gastar uma ação de movimento para ouvir os pensamentos de uma criatura tocada (você “ouve” o que o alvo está pensando), mas um alvo involuntário tem direito a um teste de Vontade para proteger seus pensamentos e evitar este efeito.",
+    "e": "Adivinhação",
+    "n": "Compreensão",
+    "alvo": "1 criatura ou texto",
+    "trad": "Universal",
+    "aprim": [
+     {
+      "custo": "+1 PM",
+      "efeito": "muda o alcance para curto."
+     },
+     {
+      "custo": "+2 PM",
+      "efeito": "muda o alcance para curto e o alvo para criaturas escolhidas. Você pode entender todas as criaturas afetadas, mas só pode ouvir os pensamen tos de uma por vez."
+     },
+     {
+      "custo": "+2 PM",
+      "efeito": "muda o alvo para 1 criatura. Em vez do normal, pode vasculhar os pensamentos do alvo para extrair informações. O alvo tem direito a um teste de Vontade para anular este efeito. O mestre decide se a criatura sabe ou não a informação que você procura. Requer 2º círculo."
+     },
+     {
+      "custo": "+5 PM",
+      "efeito": "muda o alcance para pessoal e o alvo para você. Em vez do normal, você pode falar, entender e escrever qualquer idioma. Requer 3º círculo."
+     }
+    ],
+    "alcance": "toque",
+    "duracao": "cena",
+    "execucao": "padrão",
+    "resistencia": "Vontade anula (veja descrição)",
+    "tradEscolhida": "arcana"
+   },
+   {
+    "c": 1,
+    "d": "Favorita entre arcanistas iniciantes, esta magia lança duas setas de energia que causam 1d4+1 pontos de dano de essência cada. Você pode lançar as setas em alvos diferentes ou concentrá-las num mesmo alvo. Caso você possua um bônus no dano de magias, como pelo poder Arcano de Batalha, ele é aplicado em apenas uma seta (o bônus vale para a magia, não cada alvo).",
+    "e": "Evocação",
+    "n": "Seta Infalível de Talude",
+    "alvo": "",
+    "trad": "Arcana",
+    "aprim": [
+     {
+      "custo": "+2 PM",
+      "efeito": "muda as setas para lanças de energia que surgem e caem do céu. Cada lança causa 1d8+1 pontos de dano de essência. Requer 2º círculo."
+     },
+     {
+      "custo": "+2 PM",
+      "efeito": "muda o número de setas/lanças para três."
+     },
+     {
+      "custo": "+4 PM",
+      "efeito": "muda o número de setas/lan ças para cinco. Requer 2º círculo."
+     },
+     {
+      "custo": "+9 PM",
+      "efeito": "muda o número de setas/lan ças para dez. Requer 4º círculo."
+     }
+    ],
+    "alcance": "médio",
+    "duracao": "instantânea",
+    "execucao": "padrão",
+    "resistencia": "",
+    "tradEscolhida": "arcana"
+   },
+   {
+    "c": 1,
+    "d": "A magia transforma matéria bruta para moldar um novo objeto. Você pode usar matéria-prima mundana para criar um objeto de tamanho Pequeno ou menor e preço máximo de T$ 25, como um balde ou uma espada. O objeto reverte à matéria-prima no final da cena, ou se for tocado por um objeto feito de chumbo. Esta magia não pode ser usada para criar objetos consumíveis, como alimentos ou itens alquímicos, nem objetos com mecanismos complexos, como bestas ou armas de fogo. Transmutar Objetos anula Despedaçar.",
+    "e": "Transmutação",
+    "n": "Transmutar Objetos",
+    "alvo": "matéria-prima, como madeira, rochas, ossos",
+    "trad": "Arcana",
+    "aprim": [
+     {
+      "custo": "Truque",
+      "efeito": "muda o alvo para 1 objeto mundano Mínusculo (ou material em quantidade equivalente) e a duração para instantânea. Em vez do normal, você pode alterar as propriedades físi cas do alvo, como colorir, limpar ou sujar itens pequenos (incluindo peças de roupa), aquecer, esfriar e/ou temperar (mas não produzir) ou curar 1 PV do objeto, consertando pequenas falhas como colar um frasco de cerâmica quebrado, unir os elos de uma corrente ou costurar uma roupa rasgada. Um objeto só pode ser afetado por este truque uma vez por dia."
+     },
+     {
+      "custo": "+1 PM",
+      "efeito": "muda o alcance para toque, o alvo para 1 construto e a duração para instantânea. Em vez do normal, cura 2d8 PV do alvo. Você pode gastar 2 PM adicionais para aumentar a cura em +1d8."
+     },
+     {
+      "custo": "+2 PM",
+      "efeito": "aumenta o limite de tamanho do objeto em uma categoria."
+     },
+     {
+      "custo": "+3 PM",
+      "efeito": "aumenta o preço máximo do objeto criado em um fator de x10 (+3 PM por T$ 250 de preço, +6 PM por T$ 2.500 de preço e assim por diante)."
+     },
+     {
+      "custo": "+5 PM",
+      "efeito": "muda o alvo para 1 objeto mundano e a duração para instantâ nea. Em vez do normal, você cura to dos os PV do alvo, restaurando o objeto totalmente. Este aprimoramento está sujeito aos limites de tamanho e preço do objeto conforme a magia original e não funciona se o objeto tiver sido completamente destruído (queimado até virar cinzas ou desintegrado, por exemplo). Requer 3º círculo."
+     },
+     {
+      "custo": "+9 PM",
+      "efeito": "como o aprimoramento anterior, mas passa a afetar itens mágicos."
+     }
+    ],
+    "alcance": "toque",
+    "duracao": "cena",
+    "execucao": "padrão",
+    "resistencia": "",
+    "tradEscolhida": "arcana"
+   },
+   {
+    "c": 1,
+    "d": "Um leque de chamas irrompe de suas mãos, causando 2d6 pontos de dano de fogo às criaturas na área.",
+    "e": "Evocação",
+    "n": "Explosão de Chamas",
+    "alvo": "cone de 6m",
+    "trad": "Arcana",
+    "aprim": [
+     {
+      "custo": "Truque",
+      "efeito": "muda o alcance para curto, a área para alvo de 1 objeto e a resistência para Reflexos anula. Você gera uma pequena explosão que não causa dano mas pode acender uma vela, to cha ou fogueira. Também pode fazer um objeto inflamável com RD 0 (como uma corda ou pergaminho) ficar em chamas. Uma criatura em posse de um objeto pode evitar esse efeito se passar no teste de resistência."
+     },
+     {
+      "custo": "+1 PM",
+      "efeito": "aumenta o dano em +1d6."
+     },
+     {
+      "custo": "+1 PM",
+      "efeito": "muda a resistência para Reflexos parcial. Se passar, a criatura reduz o dano à metade; se falhar, fica em chamas (veja Condições, na página 394)."
+     }
+    ],
+    "alcance": "pessoal",
+    "duracao": "instantânea",
+    "execucao": "padrão",
+    "resistencia": "Reflexos reduz à metade",
+    "tradEscolhida": "arcana"
+   },
+   {
+    "c": 1,
+    "d": "Esta magia cria uma película proteto ra invisível, mas tangível, fornecendo +5 na Defesa. Esse bônus é cumula tivo com outras magias, mas não com bônus fornecido por armaduras.",
+    "e": "Abjuração",
+    "n": "Armadura Arcana",
+    "alvo": "você",
+    "trad": "Arcana",
+    "aprim": [
+     {
+      "custo": "+1 PM",
+      "efeito": "muda a execução para reação. Em vez do normal, quando sofre um ataque, você cria um escudo mágico que fornece +5 na Defesa contra esse ataque (cumulativo com o bônus do efeito básico desta magia e de armaduras)."
+     },
+     {
+      "custo": "+2 PM",
+      "efeito": "aumenta o bônus na Defesa em +1."
+     },
+     {
+      "custo": "+2 PM",
+      "efeito": "muda a duração para um dia."
+     }
+    ],
+    "alcance": "pessoal",
+    "duracao": "cena",
+    "execucao": "padrão",
+    "resistencia": "",
+    "tradEscolhida": "arcana"
+   },
+   {
+    "c": 1,
+    "d": "Você conjura um monstro Pequeno que ataca seus inimigos. Você escolhe a aparência do monstro e o tipo de dano que ele pode causar, entre cor te, impacto e perfuração. No entanto, ele não é uma criatura real, e sim uma criatura feita de energia. Se for destruído, ou quando a magia acaba, desaparece com um brilho, sem deixar nada para trás. Você só pode ter um monstro conjurado por esta magia por vez. O monstro surge em um espaço desocupado a sua escolha dentro do alcance e age no início de cada um de seus turnos, a partir da próxima rodada. O monstro tem deslocamento 9m e pode fazer uma ação de movimento por rodada. Você pode gastar uma ação padrão para dar uma das seguintes ordens a ele. Mover: o monstro se movimenta o dobro do deslocamento nessa rodada. Atacar: o monstro causa 2d4+2 pontos de dano de corte, impacto ou perfuração a uma criatura adjacente. Lançar Magia: o monstro pode servir como ponto de origem para uma magia lançada por você com execução de uma ação padrão ou menor. Ele pode descarregar um Toque Chocante em um inimigo distante, ou mesmo “cuspir” uma Bola de Fogo! Você gasta PM normalmente para lançar a magia. Outros usos criativos para o monstro conjurado ficam a critério do mestre. Ele não age sem receber uma ordem. Para efeitos de jogo, o monstro conjurado tem For 2, Des 3 e todos os outros atributos nulos. Ele tem Defesa igual a sua, 20 PV , usa o seu valor em Reflexos e é imune a efeitos que pedem um teste de Fortitude ou Vontade.",
+    "e": "Convocação",
+    "n": "Conjurar Monstro",
+    "alvo": "1 criatura conjurada",
+    "trad": "Arcana",
+    "aprim": [
+     {
+      "custo": "+1 PM",
+      "efeito": "o monstro ganha deslocamento de escalada ou natação igual ao seu deslocamento terrestre."
+     },
+     {
+      "custo": "+1 PM",
+      "efeito": "aumenta o deslocamento do monstro em +3m."
+     },
+     {
+      "custo": "+1 PM",
+      "efeito": "muda o tipo de dano do ataque do monstro para ácido, fogo, frio ou eletricidade."
+     },
+     {
+      "custo": "+2 PM",
+      "efeito": "aumenta os PV do monstro em +10 para cada categoria de tamanho a partir de Pequeno (+10 PV para Pequeno, +20 PV para Médio etc.)."
+     },
+     {
+      "custo": "+2 PM",
+      "efeito": "aumenta o tamanho do monstro para Médio. Ele tem For 4, Des 3, 45 PV , deslocamento 12m e seu ataque causa 2d6+6 pontos de dano."
+     },
+     {
+      "custo": "+2 PM",
+      "efeito": "o monstro ganha redução 5 contra dois tipos de dano (por exemplo, corte e frio)."
+     },
+     {
+      "custo": "+4 PM",
+      "efeito": "o monstro ganha uma nova ordem: Arma de Sopro. Para dar essa ordem você gasta 1 PM, e faz o monstro causar o dobro de seu dano de ataque em um cone de 6m a partir de si (Reflexos reduz à metade)."
+     },
+     {
+      "custo": "+5 PM",
+      "efeito": "aumenta o tamanho do monstro para Grande. Ele tem For 7, Des 2, 75 PV , deslocamento 12m e seu ataque causa 4d6+10 pontos de dano com 3m de alcance. Requer 2º círculo."
+     },
+     {
+      "custo": "+9 PM",
+      "efeito": "o monstro ganha deslocamento de voo igual ao dobro do deslocamento."
+     },
+     {
+      "custo": "+9 PM",
+      "efeito": "o monstro ganha imunidade contra dois tipos de dano."
+     },
+     {
+      "custo": "+9 PM",
+      "efeito": "aumenta o tamanho do monstro para Enorme. Ele tem For 11, Des 1, 110 PV , deslocamento 15m e seu ataque causa 4d8+15 pontos de dano com 4,5m de alcance. Requer 4º círculo."
+     },
+     {
+      "custo": "+14 PM",
+      "efeito": "aumenta o tamanho do monstro para Colossal. Ele tem For 15, Des 0, 180 PV , deslocamento 15m e seu ataque causa 4d12+20 pontos de dano com 9m de alcance. Requer 5º círculo."
+     }
+    ],
+    "alcance": "curto",
+    "duracao": "sustentada",
+    "execucao": "completa",
+    "resistencia": "",
+    "tradEscolhida": "arcana"
+   },
+   {
+    "c": 2,
+    "d": "Sua mão brilha com energia sombria, causando 6d6 pontos de dano de trevas. Você recupera pontos de vida iguais à metade do dano causado (se causou algum dano).",
+    "e": "Necromancia",
+    "n": "Toque Vampírico",
+    "alvo": "1 criatura",
+    "trad": "Arcana",
+    "aprim": [
+     {
+      "custo": "+2 PM",
+      "efeito": "muda a resistência para nenhum . Como parte da execução da magia, você pode fazer um ataque corpo a corpo contra o alvo. Se acertar, causa o dano do ataque e da magia, e recupera pontos de vida iguais à metade do dano da magia."
+     },
+     {
+      "custo": "+2 PM",
+      "efeito": "aumenta o dano em +2d6."
+     },
+     {
+      "custo": "+2 PM",
+      "efeito": "muda o alcance para pessoal, o alvo para você e a duração para cena. Em vez do normal, a cada rodada você pode gastar uma ação padrão para tocar 1 criatura e causar 3d6 pontos de dano. Você recupera pontos de vida iguais à metade do dano causado. Requer 3º círculo."
+     }
+    ],
+    "alcance": "toque",
+    "duracao": "instantânea",
+    "execucao": "padrão",
+    "resistencia": "Fortitude reduz à metade",
+    "tradEscolhida": "arcana"
+   }
+  ],
+  "origem": "Eremita",
+  "pmtemp": 0,
+  "pvtemp": 0,
+  "faccoes": [],
+  "jogador": "Jogador C",
+  "missoes": [],
+  "pmatual": 26,
+  "pvatual": 26,
+  "tamanho": "Médio",
+  "armadura": null,
+  "defOutros": 0,
+  "divindade": "",
+  "poderRaca": null,
+  "esotericos": [
+   {
+    "esp": 1,
+    "maos": 1,
+    "nome": "Orbe cristalino (Energético, Canalizador, Potencializador)",
+    "efeito": [
+     {
+      "tipo": "limite_pm_arcana",
+      "valor": 2
+     }
+    ],
+    "refBase": "Orbe cristalino",
+    "equipado": true,
+    "superior": true,
+    "escolaFoco": null,
+    "efeitoExtra": [
+     {
+      "tipo": "limite_pm_arcana",
+      "valor": 2
+     }
+    ],
+    "melhoriasTxt": "Energético: +1d6 no dano de magias do mesmo tipo do catalisador usado · Canalizador: só pré-requisito (o bônus vem da melhoria avançada) · Potencializador: O esotérico tem duas gemas místicas que, combinadas, deixam você canalizar mais mana do que normalmente conseguiria. O máximo de PM que você pode gastar em magias passa a aumentar em +2 no total (substitui o +1 de Canalizador, não soma). (Deuses e Heróis)",
+    "magiaHarmonizada": null,
+    "_melhoriasMigradas": true
+   }
+  ],
+  "poderGeral": {
+   "sub": null,
+   "nome": "Lobo Solitário"
+  },
+  "alinhamento": "Neutro",
+  "origemPoder": {
+   "sub": null,
+   "desc": "Quando você e seus companheiros estão diante de um mistério, incapazes de prosseguir, você pode gastar 1 PM para meditar sozinho durante algum tempo e receber uma dica do mestre.",
+   "nome": "Busca Interior"
+  },
+  "deslocamento": 9,
+  "escolasMagia": null,
+  "estabilizado": false,
+  "classesNiveis": [
+   {
+    "nivel": 5,
+    "classe": "Arcanista"
+   }
+  ],
+  "poderesClasse": [
+   {
+    "sub": null,
+    "nome": "Familiar",
+    "nivel": 2,
+    "classe": "Arcanista",
+    "trocaPorGeral": false
+   },
+   {
+    "sub": "Inteligência",
+    "nome": "Aumento de Atributo",
+    "nivel": 3,
+    "classe": "Arcanista",
+    "trocaPorGeral": false
+   },
+   {
+    "sub": null,
+    "nome": "Inventário Organizado",
+    "nivel": 4,
+    "classe": "Arcanista",
+    "trocaPorGeral": true
+   },
+   {
+    "sub": null,
+    "nome": "Arcano de Batalha",
+    "nivel": 5,
+    "classe": "Arcanista",
+    "trocaPorGeral": false
+   }
+  ],
+  "panteaoEnergia": null,
+  "poderConcedido": null,
+  "historicoNiveis": [
+   {
+    "ganho": "Poder de arcanista",
+    "nivel": 2,
+    "poder": {
+     "sub": null,
+     "nome": "Familiar",
+     "nivel": 2,
+     "classe": "Arcanista",
+     "trocaPorGeral": false
+    },
+    "classe": "Arcanista",
+    "pmGanho": 6,
+    "pvGanho": 4
+   },
+   {
+    "ganho": "Poder de arcanista",
+    "nivel": 3,
+    "poder": {
+     "sub": null,
+     "nome": "Aumento de Atributo",
+     "nivel": 3,
+     "classe": "Arcanista",
+     "trocaPorGeral": false
+    },
+    "classe": "Arcanista",
+    "pmGanho": 6,
+    "pvGanho": 4
+   },
+   {
+    "ganho": "Poder de arcanista",
+    "nivel": 4,
+    "poder": {
+     "sub": null,
+     "nome": "Inventário Organizado",
+     "nivel": 4,
+     "classe": "Arcanista",
+     "trocaPorGeral": true
+    },
+    "classe": "Arcanista",
+    "pmGanho": 6,
+    "pvGanho": 4
+   },
+   {
+    "ganho": "Magias (2º círculo), poder de arcanista",
+    "nivel": 5,
+    "poder": {
+     "sub": null,
+     "nome": "Arcano de Batalha",
+     "nivel": 5,
+     "classe": "Arcanista",
+     "trocaPorGeral": false
+    },
+    "classe": "Arcanista",
+    "pmGanho": 6,
+    "pvGanho": 4
+   }
+  ],
+  "poderGeralExtra": null,
+  "relacionamentos": [
+   {
+    "nome": "Herói B",
+    "nota": "",
+    "tipo": "Aliado",
+    "personagemId": "heroi-b"
+   },
+   {
+    "nome": "Herói A",
+    "nota": "",
+    "tipo": "Aliado",
+    "personagemId": "heroi-a"
+   },
+   {
+    "nome": "Herói D",
+    "nota": "",
+    "tipo": "Aliado",
+    "personagemId": "heroi-d"
+   },
+   {
+    "nome": "Herói E",
+    "nota": "",
+    "tipo": "Aliado",
+    "personagemId": "heroi-e"
+   }
+  ],
+  "arcanistaCaminho": "Bruxo",
+  "arcanistaLinhagem": null,
+  "familiarEscolhido": "Falcão",
+  "magiasMemorizadas": [],
+  "periciasTreinadas": [
+   "Misticismo",
+   "Vontade",
+   "Conhecimento",
+   "Intimidação",
+   "Iniciativa",
+   "Intuição",
+   "Reflexos",
+   "Sobrevivência",
+   "Guerra"
+  ],
+  "poderesConcedidos": [],
+  "deformidadeEscolhas": [
+   {
+    "tipo": "tormenta",
+    "valor": "Olhos Vermelhos"
+   },
+   {
+    "tipo": "pericia",
+    "valor": "Misticismo"
+   }
+  ],
+  "habilidadesIniciais": [
+   {
+    "desc": "Criatura do tipo monstro; +5 em resistência contra efeitos da Tormenta.",
+    "nome": "Cria da Tormenta",
+    "fonte": "Raça: Lefou"
+   },
+   {
+    "desc": "+2 em duas perícias à escolha (pode trocar um bônus por um poder da Tormenta).",
+    "nome": "Deformidade",
+    "fonte": "Raça: Lefou"
+   },
+   {
+    "desc": "Barraca, equipamento de viagem.",
+    "nome": "Itens iniciais",
+    "fonte": "Origem: Eremita"
+   }
+  ],
+  "_liturgiaMagicaAtiva": false,
+  "origemPoderCategoria": null,
+  "_cargaCatalogoRevista": true,
+  "_descansoBonusPendente": {
+   "pm": 0,
+   "pv": 0
+  },
+  "mochilaAventureiroUpgrade": false,
+  "periciasExtraIntPendentes": 0
+ },
+ {
+  "id": "heroi-d",
+  "tc": 0,
+  "to": 0,
+  "ts": 431,
+  "car": "0",
+  "con": 1,
+  "des": 2,
+  "for": 5,
+  "int": 1,
+  "sab": 1,
+  "nome": "Herói D",
+  "raca": "Golem",
+  "armas": [
+   {
+    "cat": "Marcial",
+    "esp": 2,
+    "dano": "2d6",
+    "maos": 2,
+    "nome": "Montante (Precisa)",
+    "tipo": "Corte",
+    "teste": "",
+    "alcance": "—",
+    "critico": "19",
+    "pericia": "Luta",
+    "refBase": "Montante",
+    "superior": true,
+    "distancia": false,
+    "melhoriasTxt": "Precisa: +1 na margem de ameaça (crítico)",
+    "bonusDanoExtra": 0,
+    "bonusTesteExtra": 0
+   }
+  ],
+  "equip": [
+   {
+    "qtd": "1",
+    "item": "Chifre Minotauro",
+    "tipo": "geral",
+    "carga": "0.5",
+    "descCustom": null
+   },
+   {
+    "qtd": "1",
+    "item": "Capa pesada",
+    "tipo": "geral",
+    "carga": "1",
+    "vestido": true
+   },
+   {
+    "qtd": "10",
+    "item": "Fogo alquímico",
+    "tipo": "geral",
+    "carga": "0.5",
+    "vestido": false
+   },
+   {
+    "qtd": "2",
+    "item": "Essência de mana",
+    "tipo": "geral",
+    "carga": "0.5",
+    "vestido": false
+   },
+   {
+    "qtd": "8",
+    "item": "Ácido",
+    "tipo": "geral",
+    "carga": "0.5",
+    "vestido": false
+   },
+   {
+    "qtd": "1",
+    "item": "Poção de Velocidade",
+    "tipo": "geral",
+    "carga": "0.5"
+   },
+   {
+    "qtd": "1",
+    "item": "Traje da corte",
+    "tipo": "geral",
+    "carga": "1",
+    "vestido": true
+   },
+   {
+    "qtd": "1",
+    "ref": "Martelo de guerra",
+    "item": "Martelo de guerra (Injeção alquímica)",
+    "tipo": "arma",
+    "carga": "1",
+    "injecao": [
+     "Ácido",
+     "Ácido"
+    ],
+    "superior": true,
+    "melhoriasTxt": "Injeção alquímica: Injeta um preparado (2 doses) automaticamente ao acertar um ataque",
+    "bonusDanoExtra": 0,
+    "bonusTesteExtra": 0
+   },
+   {
+    "qtd": "1",
+    "ref": "Escudo pesado",
+    "item": "Escudo pesado (Reforçada)",
+    "tipo": "escudo",
+    "carga": "2",
+    "superior": true,
+    "melhoriasTxt": "Reforçada: +1 na Defesa e +1 na penalidade de armadura",
+    "bonusDefExtra": 1,
+    "bonusPenExtra": 1
+   }
+  ],
+  "pmmax": 15,
+  "pvmax": 45,
+  "escudo": null,
+  "locais": [
+   {
+    "nome": "Local 2",
+    "nota": ""
+   },
+   {
+    "nome": "Local 6",
+    "nota": ""
+   }
+  ],
+  "magias": [],
+  "origem": "(sem origem)",
+  "pmtemp": 0,
+  "pvtemp": 0,
+  "faccoes": [],
+  "jogador": "Jogador D",
+  "missoes": [],
+  "pmatual": 15,
+  "pvatual": 45,
+  "tamanho": "Médio",
+  "armadura": {
+   "cat": "Pesada",
+   "def": 11,
+   "esp": 5,
+   "pen": -4,
+   "nome": "Armadura completa (Reforçada)",
+   "refBase": "Armadura completa",
+   "equipado": true,
+   "superior": true,
+   "melhoriasTxt": "Reforçada: +1 na Defesa e +1 na penalidade de armadura",
+   "bonusDefExtra": 1,
+   "bonusPenExtra": 1
+  },
+  "defOutros": 0,
+  "divindade": "Khalmyr",
+  "parceiros": [],
+  "poderRaca": {
+   "sub": null,
+   "nome": "Estilo de Arma e Escudo"
+  },
+  "esotericos": [],
+  "poderGeral": null,
+  "alinhamento": "Leal e Neutro",
+  "modosAtivos": {},
+  "origemPoder": null,
+  "deslocamento": 6,
+  "estabilizado": false,
+  "classesNiveis": [
+   {
+    "nivel": 5,
+    "classe": "Guerreiro"
+   }
+  ],
+  "poderesClasse": [
+   {
+    "sub": null,
+    "nome": "Saque Rápido",
+    "nivel": 2,
+    "classe": "Guerreiro",
+    "trocaPorGeral": true
+   },
+   {
+    "sub": null,
+    "nome": "Estilo de Duas Mãos",
+    "nivel": 3,
+    "classe": "Guerreiro",
+    "trocaPorGeral": true
+   },
+   {
+    "sub": null,
+    "nome": "Ataque Poderoso",
+    "nivel": 4,
+    "classe": "Guerreiro",
+    "trocaPorGeral": true
+   },
+   {
+    "sub": null,
+    "nome": "Golpe Pessoal",
+    "nivel": 5,
+    "classe": "Guerreiro",
+    "trocaPorGeral": false,
+    "golpeConstruido": {
+     "arma": "Montante",
+     "escolhas": {
+      "Amplo": 1,
+      "Lento": 1,
+      "Letal": 2,
+      "Destruidor": 1,
+      "Sacrifício": 1
+     },
+     "nomeGolpe": "Golpe Destruidor"
+    }
+   }
+  ],
+  "panteaoEnergia": null,
+  "poderConcedido": {
+   "sub": [],
+   "deus": "Khalmyr",
+   "nome": "Coragem Total"
+  },
+  "condicoesAtivas": [],
+  "historicoNiveis": [
+   {
+    "ganho": "Poder de guerreiro",
+    "nivel": 2,
+    "poder": {
+     "sub": null,
+     "nome": "Saque Rápido",
+     "nivel": 2,
+     "classe": "Guerreiro",
+     "trocaPorGeral": true
+    },
+    "classe": "Guerreiro",
+    "pmGanho": 3,
+    "pvGanho": 6
+   },
+   {
+    "ganho": "Durão, poder de guerreiro",
+    "nivel": 3,
+    "poder": {
+     "sub": null,
+     "nome": "Estilo de Duas Mãos",
+     "nivel": 3,
+     "classe": "Guerreiro",
+     "trocaPorGeral": true
+    },
+    "classe": "Guerreiro",
+    "pmGanho": 3,
+    "pvGanho": 6
+   },
+   {
+    "ganho": "Poder de guerreiro",
+    "nivel": 4,
+    "poder": {
+     "sub": null,
+     "nome": "Ataque Poderoso",
+     "nivel": 4,
+     "classe": "Guerreiro",
+     "trocaPorGeral": true
+    },
+    "classe": "Guerreiro",
+    "pmGanho": 3,
+    "pvGanho": 6
+   },
+   {
+    "ganho": "Ataque especial +8, poder de guerreiro",
+    "nivel": 5,
+    "poder": {
+     "sub": null,
+     "nome": "Golpe Pessoal",
+     "nivel": 5,
+     "classe": "Guerreiro",
+     "trocaPorGeral": false,
+     "golpeConstruido": {
+      "arma": "Montante",
+      "escolhas": {
+       "Amplo": 1,
+       "Lento": 1,
+       "Letal": 2,
+       "Destruidor": 1,
+       "Sacrifício": 1
+      },
+      "nomeGolpe": "Golpe Destruidor"
+     }
+    },
+    "classe": "Guerreiro",
+    "pmGanho": 3,
+    "pvGanho": 6
+   }
+  ],
+  "poderGeralExtra": null,
+  "relacionamentos": [
+   {
+    "nome": "Herói A",
+    "nota": "",
+    "tipo": "Aliado",
+    "personagemId": "heroi-a"
+   },
+   {
+    "nome": "Herói E",
+    "nota": "",
+    "tipo": "Aliado",
+    "personagemId": "heroi-e"
+   },
+   {
+    "nome": "Herói C",
+    "nota": "",
+    "tipo": "Aliado",
+    "personagemId": "heroi-c"
+   },
+   {
+    "nome": "Herói B",
+    "nota": "",
+    "tipo": "Aliado",
+    "personagemId": "heroi-b"
+   },
+   {
+    "nome": "PNJ 1",
+    "nota": "",
+    "tipo": "Aliado",
+    "personagemId": null
+   }
+  ],
+  "periciasTreinadas": [
+   "Luta",
+   "Fortitude",
+   "Iniciativa",
+   "Atletismo",
+   "Percepção"
+  ],
+  "poderesConcedidos": [
+   {
+    "sub": [],
+    "deus": "Khalmyr",
+    "nome": "Coragem Total"
+   }
+  ],
+  "_municaoPorUnidade": true,
+  "habilidadesIniciais": [
+   {
+    "desc": "+2 na Defesa, –2 de penalidade de armadura; deslocamento não reduzido por carga/armadura.",
+    "nome": "Chassi",
+    "fonte": "Raça: Golem"
+   },
+   {
+    "desc": "Tipo construto: visão no escuro, imune a cansaço/veneno, não precisa comer/dormir.",
+    "nome": "Criatura Artificial",
+    "fonte": "Raça: Golem"
+   },
+   {
+    "desc": "Imune a um tipo de dano elemental; cura metade do dano mágico desse tipo.",
+    "nome": "Fonte Elemental",
+    "fonte": "Raça: Golem"
+   },
+   {
+    "desc": "Não escolhe origem, mas recebe um poder geral à escolha.",
+    "nome": "Propósito de Criação",
+    "fonte": "Raça: Golem"
+   },
+   {
+    "desc": "Gasta 1 PM num ataque pra receber +4 no teste de ataque ou na rolagem de dano (pode dividir os bônus). A cada 4 níveis, pode gastar +1 PM extra pra +4 a mais.",
+    "nome": "Ataque Especial",
+    "fonte": "Classe: Guerreiro"
+   }
+  ],
+  "_liturgiaMagicaAtiva": false,
+  "origemPoderCategoria": null,
+  "_cargaCatalogoRevista": true,
+  "_descansoBonusPendente": {
+   "pm": 0,
+   "pv": 0
+  }
+ },
+ {
+  "id": "heroi-e",
+  "tc": 0,
+  "to": 0,
+  "ts": 2927,
+  "car": 4,
+  "con": 0,
+  "des": 2,
+  "for": "-1",
+  "int": 2,
+  "sab": 0,
+  "nome": "Herói E ",
+  "raca": "Osteon",
+  "armas": [],
+  "equip": [
+   {
+    "qtd": "1",
+    "ref": "Arco longo",
+    "item": "Arco longo",
+    "tipo": "arma",
+    "carga": "2"
+   },
+   {
+    "qtd": "1",
+    "item": "Flechas (19)",
+    "tipo": "geral",
+    "carga": "1",
+    "vestido": false
+   },
+   {
+    "qtd": "1",
+    "item": "Traje de viajante",
+    "tipo": "geral",
+    "carga": "0",
+    "vestido": true,
+    "efeitoCustom": {
+     "tipo": "bonusPericia",
+     "valor": 2,
+     "pericia": "Enganação"
+    },
+    "marcadoVestivel": true
+   },
+   {
+    "qtd": "1",
+    "item": "Pergaminho de Compreensão ",
+    "tipo": "geral",
+    "carga": "0,5"
+   },
+   {
+    "qtd": "1",
+    "item": "Bálsamo Restaurador ",
+    "tipo": "geral",
+    "carga": "0,5"
+   },
+   {
+    "qtd": "1",
+    "item": "Luneta",
+    "tipo": "geral",
+    "carga": "1",
+    "vestido": false,
+    "marcadoVestivel": true
+   },
+   {
+    "qtd": "1",
+    "item": "Estojo de disfarces",
+    "tipo": "geral",
+    "carga": "1",
+    "vestido": false
+   },
+   {
+    "qtd": "1",
+    "item": "Alaúde Fantasma",
+    "tipo": "geral",
+    "carga": "1",
+    "vestido": true,
+    "descCustom": "Amaldiçoado",
+    "efeitoCustom": {
+     "tipo": "bonusPericia",
+     "valor": 2,
+     "pericia": "Diplomacia"
+    },
+    "marcadoVestivel": true
+   },
+   {
+    "qtd": "1",
+    "item": "Pergaminho de Salto Dimensional",
+    "tipo": "geral",
+    "carga": "0",
+    "descCustom": "Usa a magia Salto Dimensional uma vez"
+   },
+   {
+    "qtd": "1",
+    "item": "Fogo alquímico",
+    "tipo": "geral",
+    "carga": "0.5",
+    "vestido": false
+   },
+   {
+    "qtd": "1",
+    "item": "Fogo alquímico",
+    "tipo": "geral",
+    "carga": "0.5",
+    "vestido": false
+   },
+   {
+    "qtd": "1",
+    "item": "Água benta",
+    "tipo": "geral",
+    "carga": "0.5",
+    "vestido": false
+   },
+   {
+    "qtd": "1",
+    "item": "Símbolo Sagrado de Sszzaas",
+    "tipo": "geral",
+    "carga": "0,5",
+    "descCustom": "+1 em testes de resistência para devotos"
+   },
+   {
+    "qtd": "1",
+    "item": "Poção de Área Escorregadia (granada)",
+    "tipo": "geral",
+    "carga": "0,5",
+    "descCustom": "Contém a magia: Área Escorregadia"
+   },
+   {
+    "qtd": "1",
+    "item": "Traje da corte",
+    "tipo": "geral",
+    "carga": "1",
+    "vestido": false
+   }
+  ],
+  "pmmax": 20,
+  "pvmax": 24,
+  "escudo": null,
+  "locais": [
+   {
+    "nome": "Local 2",
+    "nota": ""
+   }
+  ],
+  "magias": [
+   {
+    "c": 1,
+    "d": "Você manifesta e dispara uma adaga imaterial contra a mente do alvo, que sofre 2d6 pontos de dano psíquico e fica atordoado por uma rodada. Se passar no teste de resistência, sofre apenas metade do dano e evita a condição. Uma criatura só pode ficar atordoada por esta magia uma vez por cena.",
+    "e": "Encantamento",
+    "n": "Adaga Mental",
+    "alvo": "1 criatura",
+    "trad": "Arcana",
+    "aprim": [
+     {
+      "custo": "+1 PM",
+      "efeito": "você lança a magia sem gesticular ou pronunciar palavras (o que per mite lançar esta magia de armadura) e a adaga se torna invisível. Se o alvo falhar no teste de resistência, não percebe que você lançou uma magia contra ele."
+     },
+     {
+      "custo": "+2 PM",
+      "efeito": "muda a duração para um dia. Além do normal, você “finca” a adaga na mente do alvo. Enquanto a magia durar, você sabe a direção e localização do alvo, desde que ele esteja no mes mo mundo."
+     },
+     {
+      "custo": "+2 PM",
+      "efeito": "aumenta o dano em +1d6."
+     }
+    ],
+    "alcance": "curto",
+    "duracao": "instantânea",
+    "execucao": "padrão",
+    "resistencia": "Vontade parcial",
+    "tradEscolhida": "arcana"
+   },
+   {
+    "c": 1,
+    "d": "Um cansaço místico recai sobre o alvo. Se falhar na resistência, ele fica inconsciente e caído ou, se estiver envolvido em combate ou outra situação perigo sa, fica exausto por 1 rodada, depois fatigado. Em ambos os casos, se passar, o alvo fica fatigado por 1d4 rodadas.",
+    "e": "Encantamento",
+    "n": "Sono",
+    "alvo": "1 humanoide",
+    "trad": "Arcana",
+    "aprim": [
+     {
+      "custo": "+2 PM",
+      "efeito": "alvos que falhem na resistên cia ficam exaustos por 1d4+1 rodadas, em vez de apenas 1."
+     },
+     {
+      "custo": "+2 PM",
+      "efeito": "muda o alvo para criatura."
+     },
+     {
+      "custo": "+5 PM",
+      "efeito": "afeta todos os alvos válidos a sua escolha dentro do alcance."
+     }
+    ],
+    "alcance": "curto",
+    "duracao": "cena",
+    "execucao": "padrão",
+    "resistencia": "Vontade parcial",
+    "tradEscolhida": "arcana"
+   },
+   {
+    "c": 1,
+    "d": "Você muda a aparência do alvo, incluindo seu equipamento. Isso inclui altura, peso, tom de pele, cor de cabelo, timbre de voz etc. O alvo rece be +10 em testes de Enganação para disfarce. O alvo não recebe novas habilidades (você pode ficar parecido com outra raça, mas não ganhará as habilidades dela), nem modifica o equipamento (uma espada longa disfarçada de bordão continua funcionando e causando dano como uma espada).",
+    "e": "Ilusão",
+    "n": "Disfarce Ilusório",
+    "alvo": "você",
+    "trad": "Arcana",
+    "aprim": [
+     {
+      "custo": "Truque",
+      "efeito": "muda o alcance para toque, o alvo para 1 criatura e a duração para 1 semana. Em vez do normal, você faz uma pequena alteração na aparência do alvo, como deixar o nariz vermelho ou fazer brotar um gerânio no alto da cabeça. A mudança é inofensiva, mas persistente — se a flor for arrancada, por exemplo, outra nascerá no local."
+     },
+     {
+      "custo": "+1 PM",
+      "efeito": "muda o alcance para curto e o alvo para 1 objeto. Você pode, por exemplo, transformar pedaços de ferro em moedas de ouro. Você recebe +10 em testes de Enganação para falsificação."
+     },
+     {
+      "custo": "+2 PM",
+      "efeito": "muda o alcance para curto e o alvo para 1 criatura. Uma criatura involuntária pode anular o efeito com um teste de Vontade."
+     },
+     {
+      "custo": "+2 PM",
+      "efeito": "a ilusão inclui odores e sensações. Isso muda o bônus em testes de Enganação para disfarce para +20."
+     },
+     {
+      "custo": "+3 PM",
+      "efeito": "muda o alcance para curto e o alvo para criaturas escolhidas. Cada criatura pode ter uma aparência dife rente. Criaturas involuntárias podem anular o efeito com um teste de Vontade. Requer 2º círculo."
+     }
+    ],
+    "alcance": "pessoal",
+    "duracao": "cena",
+    "execucao": "padrão",
+    "resistencia": "Vontade desacredita",
+    "tradEscolhida": "arcana"
+   },
+   {
+    "c": 1,
+    "d": "O alvo fica enfeitiçado (veja a página 394). Um alvo hostil ou que esteja envolvido em um combate recebe +5 em seu teste de resistência. Se você ou seus aliados tomarem qualquer ação hostil contra o alvo, a magia é dissi pada e o alvo retorna à atitude que tinha antes (ou piorada, de acordo com o mestre).",
+    "e": "Encantamento",
+    "n": "Enfeitiçar",
+    "alvo": "1 humanoide",
+    "trad": "Arcana",
+    "aprim": [
+     {
+      "custo": "+2 PM",
+      "efeito": "em vez do normal, você sugere uma ação para o alvo e ele obedece. A sugestão deve ser feita de modo que pareça aceitável, a critério do mestre. Pedir ao alvo que pule de um precipício, por exemplo, dissipa a magia. Já sugerir a um guarda que descanse um pouco, de modo que você e seus aliados passem por ele, é aceitável. Quando o alvo executa a ação, a magia termina. Você pode determinar uma condição específica para a suges tão: por exemplo, que um rico merca dor doe suas moedas para o primeiro mendigo que encontrar."
+     },
+     {
+      "custo": "+5 PM",
+      "efeito": "muda o alvo para 1 espírito ou monstro. Requer 3º círculo."
+     },
+     {
+      "custo": "+5 PM",
+      "efeito": "afeta todos os alvos dentro do alcance."
+     }
+    ],
+    "alcance": "curto",
+    "duracao": "cena",
+    "execucao": "padrão",
+    "resistencia": "Vontade anula",
+    "tradEscolhida": "arcana"
+   },
+   {
+    "c": 2,
+    "d": "Esta magia altera os sons emitidos pelo alvo. Ela não é capaz de criar sons, mas pode omiti-los (como fazer uma carroça ficar silenciosa) ou transformá-los (como fazer uma pessoa ficar com voz de passarinho). Você não pode criar sons que não conhece (não pode fazer uma criatura falar num idioma que não conheça). Uma vez que escolha a alteração, ela não pode ser mudada. Um conjurador que tenha a voz modificada drasticamente não poderá lançar magias.",
+    "e": "Ilusão",
+    "n": "Esculpir Sons",
+    "alvo": "1 criatura ou objeto",
+    "trad": "Arcana",
+    "aprim": [
+     {
+      "custo": "+2 PM",
+      "efeito": "aumenta o número de alvos em +1. Todas as criaturas e objetos devem ser afetadas da mesma forma."
+     }
+    ],
+    "alcance": "médio",
+    "duracao": "cena",
+    "execucao": "padrão",
+    "resistencia": "Vontade anula",
+    "tradEscolhida": "arcana"
+   }
+  ],
+  "origem": "Artista",
+  "pmtemp": 0,
+  "pvtemp": 0,
+  "faccoes": [],
+  "jogador": "Jogador E",
+  "missoes": [],
+  "pmatual": 22,
+  "pvatual": 24,
+  "tamanho": "Médio",
+  "armadura": {
+   "cat": "Leve",
+   "def": 2,
+   "esp": 2,
+   "pen": 0,
+   "nome": "Armadura de couro",
+   "refBase": "Armadura de couro",
+   "equipado": true,
+   "superior": false,
+   "melhoriasTxt": null,
+   "bonusDefExtra": 0,
+   "bonusPenExtra": 0
+  },
+  "defOutros": 0,
+  "divindade": "",
+  "parceiros": [
+   {
+    "nome": "Parceiro 4",
+    "tipo": "Destruidor",
+    "poder": "iniciante",
+    "origem": "",
+    "ehMontaria": null,
+    "montadoAgora": false,
+    "tipoMontaria": null,
+    "fonteAmeacasArton": null
+   }
+  ],
+  "poderRaca": {
+   "sub": null,
+   "nome": "Acrobático"
+  },
+  "esotericos": [],
+  "poderGeral": null,
+  "alinhamento": "",
+  "origemPoder": null,
+  "deslocamento": 9,
+  "escolasMagia": [
+   "Encantamento",
+   "Ilusão",
+   "Necromancia"
+  ],
+  "estabilizado": false,
+  "classesNiveis": [
+   {
+    "nivel": 5,
+    "classe": "Bardo"
+   }
+  ],
+  "poderesClasse": [
+   {
+    "sub": null,
+    "nome": "Aumentar Repertório",
+    "nivel": 2,
+    "classe": "Bardo",
+    "trocaPorGeral": false
+   },
+   {
+    "sub": null,
+    "nome": "Inspiração Marcial",
+    "nivel": 3,
+    "classe": "Bardo",
+    "trocaPorGeral": false
+   },
+   {
+    "sub": "Carisma",
+    "nome": "Aumento de Atributo",
+    "nivel": 4,
+    "classe": "Bardo",
+    "trocaPorGeral": false
+   },
+   {
+    "sub": null,
+    "nome": "Arte Mágica",
+    "nivel": 5,
+    "classe": "Bardo",
+    "trocaPorGeral": false
+   }
+  ],
+  "panteaoEnergia": null,
+  "poderConcedido": null,
+  "condicoesAtivas": [],
+  "historicoNiveis": [
+   {
+    "ganho": "Poder de bardo, eclético",
+    "nivel": 2,
+    "poder": {
+     "sub": null,
+     "nome": "Aumentar Repertório",
+     "nivel": 2,
+     "classe": "Bardo",
+     "trocaPorGeral": false
+    },
+    "classe": "Bardo",
+    "pmGanho": 4,
+    "pvGanho": 3
+   },
+   {
+    "ganho": "Poder de bardo",
+    "nivel": 3,
+    "poder": {
+     "sub": null,
+     "nome": "Inspiração Marcial",
+     "nivel": 3,
+     "classe": "Bardo",
+     "trocaPorGeral": false
+    },
+    "classe": "Bardo",
+    "pmGanho": 4,
+    "pvGanho": 3
+   },
+   {
+    "ganho": "Poder de bardo",
+    "nivel": 4,
+    "poder": {
+     "sub": "Carisma",
+     "nome": "Aumento de Atributo",
+     "nivel": 4,
+     "classe": "Bardo",
+     "trocaPorGeral": false
+    },
+    "classe": "Bardo",
+    "pmGanho": 4,
+    "pvGanho": 3
+   },
+   {
+    "ganho": "Inspiração +2, poder de bardo",
+    "nivel": 5,
+    "poder": {
+     "sub": null,
+     "nome": "Arte Mágica",
+     "nivel": 5,
+     "classe": "Bardo",
+     "trocaPorGeral": false
+    },
+    "classe": "Bardo",
+    "pmGanho": 4,
+    "pvGanho": 3
+   }
+  ],
+  "maldicoesAtivas": [],
+  "poderGeralExtra": null,
+  "relacionamentos": [],
+  "arcanistaCaminho": null,
+  "arcanistaLinhagem": null,
+  "magiasMemorizadas": [],
+  "periciasTreinadas": [
+   "Atuação",
+   "Reflexos",
+   "Iniciativa",
+   "Percepção",
+   "Investigação",
+   "Conhecimento",
+   "Diplomacia",
+   "Intuição",
+   "Sobrevivência",
+   "Acrobacia",
+   "Enganação"
+  ],
+  "habilidadesIniciais": [
+   {
+    "desc": "Redução de corte, frio e perfuração 5.",
+    "nome": "Armadura Óssea",
+    "fonte": "Raça: Osteon"
+   },
+   {
+    "desc": "Treinado em uma perícia ou recebe um poder geral à escolha.",
+    "nome": "Memória Póstuma",
+    "fonte": "Raça: Osteon"
+   },
+   {
+    "desc": "Estojo de disfarces ou um instrumento musical a sua escolha.",
+    "nome": "Itens iniciais",
+    "fonte": "Origem: Artista"
+   },
+   {
+    "desc": "Gasta uma ação padrão e 2 PM pra inspirar: você e aliados em alcance curto ganham +1 em testes de perícia até o fim da cena. A cada 4 níveis, pode gastar +2 PM extras pra aumentar o bônus em +1.",
+    "nome": "Inspiração",
+    "fonte": "Classe: Bardo"
+   }
+  ],
+  "_liturgiaMagicaAtiva": false,
+  "origemPoderCategoria": null,
+  "_descansoBonusPendente": {
+   "pm": 0,
+   "pv": 0
+  }
+ }
+]

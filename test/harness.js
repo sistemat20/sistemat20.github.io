@@ -33,7 +33,7 @@ const EXPOSTOS = [
   'limiteCargaPartes', 'vestirLinha', 'ITENS_GERAIS', 'ARMAS', 'ARMADURAS', 'usarDoCinto', 'infoServePraMim', 'forjarLinhaDaMochila',
   'motivoMelhoriaBloqueada', 'motivoMaterialBloqueado', 'espacoFinalForja', 'essenciasDoCatalogo', 'abrirOficina', 'criarItemDaOficina',
   // em jogo e notas (13/11/2026)
-  'coletarPoderes', 'coletarHabilidades', 'iniciarWizard', 'passosWizard', 'abrirLevelUp', 'mesclarFichasPendentes', 'envioPendente', 'marcarEnvioPendente', 'renderOpcaoInstalar', 'origemAtributosWizard', 'espacoDivergente', 'renderConfiraLevelUp', 'temaDaMagia', 'tocarFeitico', 'sigiloSVG', 'carregarInjecao', 'injetarDose', 'preparadosParaInjecao', 'temInjecao', 'guardarArmaNaMochila', 'equiparDaMochila', 'pacoteMunicao', 'addItemGeral', 'municaoDaArma', 'gastarMunicao', 'efeitosDeTela', 'atualizarEfeitoCondicoes', 'defesaSemCondicoes', 'custosParceiro', 'parceirosEmJogo', 'numerosAtaque', 'empunhados', 'trocarNaMao', 'temBandoleira', 'cabeNoCinto', 'ehConsumivel', 'usoDoItem', 'acoesItemGeral', 'classificarPoder', 'poderesEmJogo', 'usarPoderEmJogo', 'novaCena', 'aplicarDescanso', 'itensBuscaNotas',
+  'coletarPoderes', 'coletarHabilidades', 'itensVestidosAtivos', 'iniciarWizard', 'passosWizard', 'abrirLevelUp', 'mesclarFichasPendentes', 'envioPendente', 'marcarEnvioPendente', 'renderOpcaoInstalar', 'origemAtributosWizard', 'espacoDivergente', 'renderConfiraLevelUp', 'temaDaMagia', 'tocarFeitico', 'sigiloSVG', 'carregarInjecao', 'injetarDose', 'preparadosParaInjecao', 'temInjecao', 'guardarArmaNaMochila', 'equiparDaMochila', 'pacoteMunicao', 'addItemGeral', 'municaoDaArma', 'gastarMunicao', 'efeitosDeTela', 'atualizarEfeitoCondicoes', 'defesaSemCondicoes', 'custosParceiro', 'parceirosEmJogo', 'numerosAtaque', 'empunhados', 'trocarNaMao', 'temBandoleira', 'cabeNoCinto', 'ehConsumivel', 'usoDoItem', 'acoesItemGeral', 'classificarPoder', 'poderesEmJogo', 'usarPoderEmJogo', 'novaCena', 'aplicarDescanso', 'itensBuscaNotas',
   // estado e telas
   'state', 'render', 'fichaAtual', 'removerItemMochila', 'migrarMelhoriasSubstituidas',
   'aplicarMigracoesPerfis',
@@ -85,7 +85,7 @@ function carregarApp(opcoes) {
     text: async () => '{}',
   });
 
-  const scripts = [...html.matchAll(/src="([^"]+)"/g)].map((m) => m[1]).filter((s) => s.endsWith('.js'));
+  const scripts = [...html.matchAll(/src="([^"]+)"/g)].map((m) => m[1].split('?')[0]).filter((s) => s.endsWith('.js'));
   const bundle = scripts
     .map((s) => `\n/* ===== ${s} ===== */\n` + fs.readFileSync(path.join(RAIZ, s), 'utf8'))
     .join('\n');

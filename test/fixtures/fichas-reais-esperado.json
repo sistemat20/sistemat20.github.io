@@ -1,0 +1,81 @@
+{
+ "heroi-a": {
+  "defesa": 16,
+  "carga": 10,
+  "limiteCarga": 12,
+  "emJogo": [
+   "Canalizar Energia Positiva/Negativa"
+  ],
+  "temasMagia": [
+   "luz",
+   "encanto",
+   "escudo",
+   "olho",
+   "cura",
+   "olho",
+   "luz"
+  ],
+  "vestidosAtivos": 4
+ },
+ "heroi-b": {
+  "defesa": 17,
+  "carga": 12,
+  "limiteCarga": 12,
+  "emJogo": [
+   "Especialista 1PM",
+   "montaria:"
+  ],
+  "temasMagia": [],
+  "vestidosAtivos": 4
+ },
+ "heroi-c": {
+  "defesa": 11,
+  "carga": 19,
+  "limiteCarga": 19,
+  "emJogo": [
+   "Lobo Solitário",
+   "Busca Interior 1PM"
+  ],
+  "temasMagia": [
+   "olho",
+   "setas",
+   "alquimia",
+   "fogo",
+   "escudo",
+   "invocacao",
+   "vampiro"
+  ],
+  "vestidosAtivos": 4
+ },
+ "heroi-d": {
+  "defesa": 23,
+  "carga": 18,
+  "limiteCarga": 20,
+  "emJogo": [
+   "Ataque Poderoso",
+   "Golpe Pessoal 5PM",
+   "Ataque Especial 1PM 1/2PM",
+   "Durão 3PM"
+  ],
+  "temasMagia": [],
+  "vestidosAtivos": 2
+ },
+ "heroi-e": {
+  "defesa": 14,
+  "carga": 12.5,
+  "limiteCarga": 9,
+  "emJogo": [
+   "Inspiração 2PM 2/4PM",
+   "Eclético 1PM",
+   "pm:1"
+  ],
+  "temasMagia": [
+   "encanto",
+   "sono",
+   "ilusao",
+   "encanto",
+   "ilusao"
+  ],
+  "vestidosAtivos": 3
+ }
+}

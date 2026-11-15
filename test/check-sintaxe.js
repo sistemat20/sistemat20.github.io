@@ -30,7 +30,7 @@ for (const pasta of PASTAS) {
 
 // Todo arquivo de js/ e data/ precisa estar declarado no index.html, senão não carrega no site.
 const html = fs.readFileSync(path.join(RAIZ, 'index.html'), 'utf8');
-const declarados = new Set([...html.matchAll(/src="([^"]+)"/g)].map((m) => m[1]));
+const declarados = new Set([...html.matchAll(/src="([^"]+)"/g)].map((m) => m[1].split('?')[0])); // sem o ?v= da versão
 for (const pasta of ['js', 'data']) {
   for (const nome of fs.readdirSync(path.join(RAIZ, pasta))) {
     if (!nome.endsWith('.js')) continue;
