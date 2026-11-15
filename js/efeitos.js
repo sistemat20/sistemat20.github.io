@@ -17,6 +17,21 @@ function movimentoReduzido(){
   try{ return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){ return false; }
 }
 
+// iPhone: o Safari só libera som depois de um toque e, com a chave do silencioso ligada, cala o
+// Web Audio. audioSession 'playback' (iOS 17+) faz os sons tocarem como mídia; e no primeiro toque
+// o contexto de áudio é criado e destravado com um som mudo, para os próximos tocarem na hora.
+function destravarAudioNoPrimeiroToque(){
+  if(typeof window==='undefined' || window.__T20_TESTE) return;
+  try{ if(navigator.audioSession) navigator.audioSession.type = 'playback'; }catch(e){}
+  const destravar = ()=>{
+    try{
+      const a = Som.contexto(); if(!a) return;
+      const b = a.createBuffer(1, 1, 22050); const s = a.createBufferSource(); s.buffer = b; s.connect(a.destination); s.start(0);
+      if(a.state==='running'){ ['touchend','pointerup','keydown'].forEach(ev=> window.removeEventListener(ev, destravar, true)); }
+    }catch(e){}
+  };
+  ['touchend','pointerup','keydown'].forEach(ev=> window.addEventListener(ev, destravar, true));
+}
 const Som = (()=>{
   let ctx = null;
   const c = ()=>{
@@ -39,6 +54,7 @@ const Som = (()=>{
     brilho(){ const t=c().currentTime; [1760,2217,2637,3520].forEach((f,i)=>tom(f,'sine',t+i*.05,.003,.4,.05)); },
   };
   return {
+    contexto: c,
     tocar(nome){
       if(!sonsAtivos() || window.__T20_TESTE) return;
       try{ if(c() && S[nome]) S[nome](); }catch(e){}

@@ -307,7 +307,7 @@ function alternarNotificacaoSom(){
 }
 function tocarSomNotificacao(){
   try{
-    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const ctx = Som.contexto(); if(!ctx) return;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain); gain.connect(ctx.destination);
@@ -333,7 +333,7 @@ function notificarComSom(msg){
 function tocarSomLevelUp(){
   if(!notificacaoSomAtiva()) return;
   try{
-    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const ctx = Som.contexto(); if(!ctx) return;
     [523.25, 659.25, 783.99].forEach((freq, i)=>{ // Dó-Mi-Sol, um acorde maior clássico de "conquista"
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -350,7 +350,7 @@ function tocarSomLevelUp(){
 function tocarSomSalvar(){
   if(!notificacaoSomAtiva()) return;
   try{
-    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const ctx = Som.contexto(); if(!ctx) return;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain); gain.connect(ctx.destination);

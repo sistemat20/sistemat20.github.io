@@ -70,7 +70,9 @@
     --pm-accent: #1f5a8a;
   }
   *{box-sizing:border-box;}
-  html,body{margin:0;padding:0; overflow-x:hidden; width:100%;}
+  html,body{margin:0;padding:0; width:100%;}
+  body{overflow-x:hidden;}
+  @supports (overflow-x:clip){ body{overflow-x:clip;} }
   body{
     background:
       radial-gradient(ellipse 700px 420px at 12% 6%, rgba(179,53,47,0.16), transparent 60%),

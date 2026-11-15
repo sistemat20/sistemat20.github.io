@@ -19,6 +19,18 @@ const h = require('./harness');
     h.ok('o service worker não guarda nada do Supabase nem envios', /supabase\\.co/.test(sw) && sw.includes("req.method!=='GET'"));
   }
 
+  h.secao('iPhone: bordas, barra fixa e som');
+  {
+    const html = fs.readFileSync(path.join(RAIZ, 'index.html'), 'utf8');
+    h.ok('viewport-fit=cover (sem isso as folgas do entalhe valem 0)', html.includes('viewport-fit=cover'));
+    const estilo = fs.readFileSync(path.join(RAIZ, 'css/style.css'), 'utf8');
+    h.ok('html não tem overflow-x (no iPhone isso solta a barra de baixo)', !/html,body\{[^}]*overflow-x/.test(estilo));
+    const kit = fs.readFileSync(path.join(RAIZ, 'css/kit.css'), 'utf8');
+    h.ok('topo e menu respeitam a folga do aparelho', kit.includes('.topo-compacto{ padding-top:calc(8px + env(safe-area-inset-top') && kit.includes('.menu-overlay{ padding-top:calc(18px + env(safe-area-inset-top'));
+    const ficha = fs.readFileSync(path.join(RAIZ, 'js/ficha.js'), 'utf8');
+    h.ok('os avisos usam um só contexto de som (o iPhone cala contexto novo)', !ficha.includes('new (window.AudioContext') && typeof w.Som.contexto === 'function');
+  }
+
   h.secao('O que foi feito sem internet não se perde');
   {
     w.marcarEnvioPendente(true);

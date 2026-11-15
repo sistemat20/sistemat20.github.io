@@ -18,6 +18,7 @@ function ehIphone(){ return /iphone|ipad|ipod/i.test((navigator && navigator.use
 
 function iniciarModoOffline(){
   if(typeof window==='undefined' || /jsdom/i.test((navigator && navigator.userAgent)||'')) return;
+  if(typeof destravarAudioNoPrimeiroToque==='function') destravarAudioNoPrimeiroToque();
   if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
     navigator.serviceWorker.register('./sw.js').catch(e=> console.warn('Service worker não registrou:', e));
   }
@@ -36,20 +37,21 @@ function iniciarModoOffline(){
 function renderOpcaoInstalar(){
   if(estaInstalado()) return null;
   if(_pedidoInstalacao){
-    return el('button',{class:'menu-item', onclick: async ()=>{
+    return el('button',{class:'linha-menu', onclick: async ()=>{
       const pedido = _pedidoInstalacao; _pedidoInstalacao = null;
       pedido.prompt();
       try{ await pedido.userChoice; }catch(e){}
       state._menuAberto = false; render();
-    }}, el('span',{class:'ico'}, '📲'), el('span',{}, 'Instalar o app'));
+    }}, el('span',{class:'ico'}, '📲'), el('span',{}, 'Instalar o app'), el('span',{class:'vl'}, '▸'));
   }
   if(ehIphone()){
     const aberto = !!state._dicaIphone;
     return el('div',{},
-      el('button',{class:'menu-item', onclick:()=>{ state._dicaIphone = !aberto; render(); }}, el('span',{class:'ico'}, '📲'), el('span',{}, 'Instalar no iPhone')),
+      el('button',{class:'linha-menu', onclick:()=>{ state._dicaIphone = !aberto; render(); }}, el('span',{class:'ico'}, '📲'), el('span',{}, 'Instalar no iPhone'), el('span',{class:'vl'}, aberto ? '▾' : '▸')),
       aberto ? el('div',{class:'dica-iphone'},
-        el('div',{}, el('b',{}, '1. '), 'No Safari, toque em ', el('span',{class:'ic-compartilhar'}, '⬆︎'), ' Compartilhar (embaixo da tela).'),
-        el('div',{}, el('b',{}, '2. '), 'Role e toque em ', el('b',{}, 'Adicionar à Tela de Início'), '.'),
+        el('div',{}, el('b',{}, '1. '), 'Toque em ', el('span',{class:'ic-compartilhar'}, '⬆︎'), ' Compartilhar. No iOS mais novo ele fica dentro do botão ', el('b',{}, '⋯'), ' ao lado do endereço.'),
+        el('div',{}, el('b',{}, '2. '), 'Role e toque em ', el('b',{}, 'Adicionar à Tela de Início'), ' e confirme.'),
+        el('div',{}, el('b',{}, '3. '), 'Abra pelo ícone novo na tela. Esta opção some quando o app já está instalado.'),
         el('div',{class:'meta-ej'}, 'Instalado, ele abre pelo ícone em tela cheia e funciona sem internet. Sem instalar, o iPhone pode apagar a cópia do aparelho depois de uns 7 dias sem uso.')) : null);
   }
   return null;
