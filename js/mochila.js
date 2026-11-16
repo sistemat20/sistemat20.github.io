@@ -136,10 +136,6 @@ function beneficioVestido(f, fonte){
   }
   return partes.join(', ');
 }
-function iniciaisItem(nome){
-  const palavras = nomeBaseItem(nome).replace(/\(.*?\)/g,'').split(/\s+/).filter(p=>p.length>2 || /^[A-ZÁÉÍÓÚ]/.test(p));
-  return ((palavras[0]||'?')[0] + ((palavras[1]||'')[0]||'')).toUpperCase();
-}
 function podeForjarLinha(row){
   if(row.superior) return false;
   if(['arma','armadura','escudo','esoterico'].includes(row.tipo)) return true;
@@ -361,6 +357,17 @@ function renderPersonagemMochila(){
 }
 
 // ---- Medalhões (itens vestidos) ----
+// Medalhão de Vestindo com o ícone do item (js/itens-icones.js) no lugar das iniciais.
+function discoComIcone(fonte){
+  const disco = el('span',{class:'disco com-icone'});
+  const nome = fonte.row ? nomeCatalogoDaLinha(fonte.row) : fonte.nome;
+  const magico = !!(fonte.row && (fonte.row.superior || fonte.row.melhoriasTxt || (fonte.row.essencias && fonte.row.essencias.length)));
+  const r = iconeItemSVG(nomeBaseItem(nome), fonte.tipo==='armadura' ? 'armadura' : (fonte.row && fonte.row.tipo), magico);
+  disco.style.setProperty('--c', r.cor);
+  disco.innerHTML = r.svg;
+  if(r.magico) disco.classList.add('magico');
+  return disco;
+}
 function renderPainelVestidos(f){
   const todos = itensVestidosTodos(f);
   const limite = limiteItensVestidos(f);
@@ -373,7 +380,7 @@ function renderPainelVestidos(f){
     const entrou = fonte.row && state._medalhaoEntrou===fonte.row;
     const marcado = sel!=null && sel===i;
     meds.appendChild(el('button',{class:'medalhao cheio'+(entrou?' entra':'')+(marcado?' marcado':''), onclick:()=>{ state._medalhaoSel = marcado ? null : i; render(); }},
-      el('span',{class:'disco'}, fonte.tipo==='armadura' ? '🛡' : iniciaisItem(fonte.nome)),
+      discoComIcone(fonte),
       el('b',{}, nomeLimpoComSelos(fonte.row || {item:fonte.nome}).nome),
       el('small',{}, beneficioVestido(f, fonte))));
   }
@@ -489,7 +496,8 @@ function renderCinto(f){
     const q = quantidadeNoInventario(f, nome);
     const bt = el('button',{class:'bolsinho'+(aberto===nome?' sel':'')+(state._catalisadorPronto===nome?' pronto':'')+(q?'':' acabou'), 'data-cinto':nome, style:'color:'+cor+';', onclick:()=>{ state._cintoAberto = aberto===nome ? null : nome; state._cintoValor = null; render(); }},
       el('span',{class:'q'}, String(q)), el('b',{}, nome.replace(/\s*\(.*\)$/,'')));
-    bt.insertAdjacentHTML('afterbegin', '<svg viewBox="0 0 22 28" aria-hidden="true"><path d="M8 2 H14 V8 Q20 11 20 18 Q20 26 11 26 Q2 26 2 18 Q2 11 8 8 Z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 17 Q11 14 18 17 Q18 24 11 24 Q4 24 4 17Z" fill="currentColor" opacity=".75"/></svg>');
+    // O ícone do próprio item (frasco na cor da magia, bomba, catalisador...).
+    bt.insertAdjacentHTML('afterbegin', iconeItemSVG(nome, row.tipo).svg);
     bolsos.appendChild(bt);
   });
   const partes = [el('div',{class:'rot-mini', style:'text-align:center;'},'Cinto · sacar é ação livre'), bolsos];

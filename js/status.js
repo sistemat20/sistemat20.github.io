@@ -106,7 +106,8 @@ function renderMao(f, s, k){
   const abrir = ()=>{ state._maoAberta = sel ? null : k; render(); };
   if(!e) return el('button',{class:'mao livre'+(sel?' sel':''), onclick:abrir}, el('span',{class:'q'}, s.rotulo), el('span',{class:'d'}, '+ empunhar algo da mochila'));
   const it = e.item;
-  const filhos = [el('span',{class:'q'}, s.rotulo), el('span',{class:'it'}, nomeBaseItem(it.nome)+(e.tipo==='esoterico'?' 🔮':''))];
+  const base = it.refBase || it.ref || nomeBaseItem(it.nome);
+  const filhos = [el('span',{class:'q'}, s.rotulo), el('span',{class:'it com-ladrilho'}, ladrilhoItem(base, e.tipo, !!(it.superior || it.melhoriasTxt)), nomeBaseItem(it.nome))];
   let mod = false;
   if(e.tipo==='arma'){
     const n = numerosAtaque(f, it);

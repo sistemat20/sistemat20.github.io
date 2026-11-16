@@ -84,6 +84,7 @@ const h = require('./harness');
     h.ok('poção sai na cor da magia, com o ícone da magia dentro', svgPocao.svg.includes('translate(70 92)') && svgPocao.cor === '#8ee3a0');
     h.ok('item personalizado usa o desenho padrão do tipo', w.iconeItemSVG('Amuleto da vovó', 'geral').svg.includes('M48 84 L100 60') && w.iconeItemSVG('Lâmina do Zé', 'arma').svg.includes('M100 22 L112 40'));
     h.ok('item mágico ganha a estrelinha', w.ladrilhoItem('Anel da proteção').classList.contains('magico') && !w.ladrilhoItem('Corda (10m)').classList.contains('magico'));
+    h.ok('medalhões de Vestindo mostram o ícone do item', [...w.document.querySelectorAll('.medalhao.cheio .disco')].every((d) => d.querySelector('svg')));
     h.ok('sem marcas sobrando nos desenhos', desenhosItens.every((d) => !/\{[SsFD]\}/.test(d)));
     h.ok('as melhorias viram selos', [...w.document.querySelectorAll('.selo-item')].some((s) => s.textContent === 'Potencializador'));
     h.ok('presente vira um selo só', [...w.document.querySelectorAll('.selo-presente')].some((s) => s.textContent === 'presente de Aeon'));

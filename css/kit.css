@@ -183,3 +183,9 @@ input[type="search"].busca-notas::placeholder, input[type="search"]#cond-busca::
 .nome-limpo.com-ladrilho{ display:grid; grid-template-columns:auto minmax(0,1fr); column-gap:10px; row-gap:3px; align-items:center; text-align:left; }
 .nome-limpo.com-ladrilho > .ladrilho-item{ grid-row:1 / span 2; }
 .cat-abre .ladrilho-item{ margin-right:2px; }
+/* Ícones nos medalhões de Vestindo, no cinto e nas mãos */
+.medalhao .disco.com-icone svg{ width:38px; height:38px; filter:drop-shadow(0 0 3px var(--c)); }
+.medalhao .disco.com-icone.magico{ overflow:visible; }
+.medalhao .disco.com-icone.magico::before{ content:"✦"; position:absolute; right:-4px; top:-6px; font-size:.75rem; color:#f2cf6b; text-shadow:0 0 6px #f2cf6b; }
+.bolsinho svg{ width:28px; height:28px; }
+.mao .it.com-ladrilho{ display:flex; align-items:center; gap:8px; }
