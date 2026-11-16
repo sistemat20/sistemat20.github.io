@@ -108,13 +108,21 @@ function corpoArmaCatalogo(f, w, semProf){
 }
 
 // ---- Linha do catálogo: toque abre a gaveta; o + guarda ----
+// Ícone da linha do catálogo pelo tipo da prateleira (js/itens-icones.js).
+function ladrilhoDaEntrada(e){
+  const k = e.chave||'', nome = e.busca||e.nome;
+  if(k.startsWith('enc-a-')) return ladrilhoItem('', 'arma', true);
+  if(k.startsWith('enc-d-')) return ladrilhoItem('', 'armadura', true);
+  const tipo = k.startsWith('arma-') ? 'arma' : k.startsWith('def-') ? 'armadura' : k.startsWith('eso-') ? 'esoterico' : 'geral';
+  return ladrilhoItem(nome, tipo, /^(esp-|ace-)/.test(k));
+}
 function linhaCatalogo(f, e){
   if(!state._acordeaoAberto) state._acordeaoAberto = {};
   const aberto = state._acordeaoAberto.catalogo === e.chave;
   const marca = e.info ? el('span',{class:'marca-serve'}, '✦ '+e.info.marca) : null;
   const linha = el('div',{class:'cat-linha'+(aberto?' sel':'')+(e.aviso?' aviso':'')},
     el('button',{class:'cat-abre', 'aria-expanded': aberto ? 'true' : 'false', onclick:()=>{ state._acordeaoAberto.catalogo = aberto ? null : e.chave; render(); }},
-      el('span',{class:'ic', 'aria-hidden':'true'}, e.ic),
+      ladrilhoDaEntrada(e),
       el('span',{class:'nm'}, e.nome+(e.aviso?' ⚠':''), marca, el('small',{}, e.det))),
     e.guardar ? botaoQueVoa('+', 'cat-mais', e.busca||e.nome, 'mochila', e.guardar) : el('span',{class:'cat-mais vazio'}, aberto?'▾':'▸'));
   if(e.guardar){ const b = linha.lastChild; b.setAttribute('aria-label', 'Guardar '+(e.busca||e.nome)+' na mochila'); b.title = 'Guardar na mochila'; }

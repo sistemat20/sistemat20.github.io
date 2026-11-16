@@ -175,3 +175,11 @@ input[type="search"].busca-notas::placeholder, input[type="search"]#cond-busca::
 .conhecidas-linha{ border-top-style:dashed; margin-top:10px; }
 .aprim-lista{ display:grid; gap:4px; font-size:.7rem; }
 .catalogo-novo .meta-ej, .aprender-magias .meta-ej{ font-size:.7rem; line-height:1.4; }
+
+/* ---- Ícones dos itens (js/itens-icones.js): ladrilho quadrado; magia fica no círculo ---- */
+.ladrilho-item{ width:32px; height:32px; flex:none; border-radius:9px; border:1.5px solid var(--c); display:inline-grid; place-items:center; background:rgba(0,0,0,.3); box-shadow:0 0 10px -4px var(--c); position:relative; vertical-align:middle; }
+.ladrilho-item svg{ width:26px; height:26px; }
+.ladrilho-item.magico::after{ content:"✦"; position:absolute; right:-5px; top:-7px; font-size:.68rem; color:#f2cf6b; text-shadow:0 0 6px #f2cf6b; }
+.nome-limpo.com-ladrilho{ display:grid; grid-template-columns:auto minmax(0,1fr); column-gap:10px; row-gap:3px; align-items:center; text-align:left; }
+.nome-limpo.com-ladrilho > .ladrilho-item{ grid-row:1 / span 2; }
+.cat-abre .ladrilho-item{ margin-right:2px; }

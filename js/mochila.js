@@ -315,7 +315,7 @@ function linhaMochila(f, row, idx){
   const {nome, selos} = nomeLimpoComSelos(row);
   const rotulo = {arma:'Arma', armadura:'Armadura', escudo:'Escudo', esoterico:'Esotérico', geral:'Item'}[row.tipo] || 'Item';
   const e = espacoUnidade(f, row);
-  const titulo = el('span',{class:'nome-limpo'}, nome, selos.length ? el('span',{class:'selos-item'}, selos.map(s=> el('span',{class:'selo-item '+(s.classe||'')}, s.txt))) : null);
+  const titulo = el('span',{class:'nome-limpo com-ladrilho'}, ladrilhoDaLinha(row, nome), nome, selos.length ? el('span',{class:'selos-item'}, selos.map(s=> el('span',{class:'selo-item '+(s.classe||'')}, s.txt))) : null);
   const aberto = !!(state._itensExpandidos && state._itensExpandidos['mochila-'+idx]);
   const parar = (fn)=> (ev)=>{ ev.stopPropagation(); fn(); };
   const qtd = aberto

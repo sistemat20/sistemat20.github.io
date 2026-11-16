@@ -143,7 +143,7 @@ function iconeMagiaSVG(s, cor, anel){
   const desenho = desenhoIconeMagia(s);
   if(!desenho) return sigiloSVG(TEMAS_FEITICO[temaDaMagia(s)].sigilo, cor);
   const base = 'stroke="'+cor+'" fill="none" stroke-linecap="round" stroke-linejoin="round"';
-  const corpo = desenho.replace(/\{S\}/g, base+' stroke-width="3" class="trac"').replace(/\{s\}/g, base+' stroke-width="1.8" class="trac"')
+  const corpo = desenho.replace(/\{S\} stroke-width="([\d.]+)"/g, base+' stroke-width="$1" class="trac"').replace(/\{S\}/g, base+' stroke-width="3" class="trac"').replace(/\{s\}/g, base+' stroke-width="1.8" class="trac"')
     .replace(/\{D\}/g, base+' stroke-width="2.4" stroke-dasharray="6 7"').replace(/\{F\}/g, 'fill="'+cor+'"');
   const moldura = anel ? '<circle cx="100" cy="100" r="92" '+base+' stroke-width="1.6" class="trac" opacity=".7"/><circle cx="100" cy="100" r="86" '+base+' stroke-width="1" class="trac" opacity=".4"/>' : '';
   return '<svg viewBox="0 0 200 200" aria-hidden="true">'+moldura+corpo+'</svg>';

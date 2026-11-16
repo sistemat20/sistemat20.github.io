@@ -69,7 +69,22 @@ const h = require('./harness');
     const cabs = [...w.document.querySelectorAll('.secao-moch .cab')].map((c) => c.textContent);
     h.ok('separa Consumíveis e Equipamento', cabs.some((c) => c.startsWith('Consumíveis')) && cabs.some((c) => c.startsWith('Equipamento')));
     h.ok('barra de carga em fatias', w.document.querySelectorAll('.barra-carga span').length >= 2);
-    h.ok('o nome perde os parênteses das melhorias', [...w.document.querySelectorAll('.nome-limpo')].some((n) => n.firstChild.textContent === 'Orbe cristalino'));
+    h.ok('o nome perde os parênteses das melhorias', [...w.document.querySelectorAll('.nome-limpo')].some((n) => [...n.childNodes].some((c) => c.nodeType === 3 && c.textContent === 'Orbe cristalino')));
+    h.ok('cada item da mochila tem o ladrilho com o ícone', [...w.document.querySelectorAll('.nome-limpo')].every((n) => n.querySelector('.ladrilho-item svg')));
+    // Ícones dos itens (16/11/2026): todo item do livro tem desenho próprio.
+    const nomesItens = [].concat(w.ARMAS.map((x) => x.n), w.ARMADURAS.map((x) => x.n), w.ESCUDOS.map((x) => x.n), w.ITENS_GERAIS.map((x) => x.n), w.ITENS_ESOTERICOS.map((x) => x.n),
+      [w.ARMAS_ESPECIFICAS, w.ARMADURAS_ESPECIFICAS, w.ACESSORIOS_MENORES, w.ACESSORIOS_MEDIOS, w.ACESSORIOS_MAIORES, w.ARTEFATOS].flatMap((l) => l.map((x) => x.nome)));
+    const semIconeItem = nomesItens.filter((n) => !w.ICONE_DO_ITEM[n] && !w.ICONE_DO_ITEM_2[n]);
+    h.igual('todo item do livro tem ícone próprio (' + semIconeItem.slice(0, 8).join(', ') + ')', semIconeItem.length, 0);
+    const desenhosItens = nomesItens.map((n) => w.iconeItemSVG(n).svg);
+    h.igual('nenhum ícone de item repetido', new Set(desenhosItens).size, desenhosItens.length);
+    const pocao = w.iconeItemSVG('Poção de Curar Ferimentos (2d8+2 PV)');
+    const nomePocao = w.POCOES_MAGICAS.find((p) => p.magia === 'Curar Ferimentos').nome;
+    const svgPocao = w.iconeItemSVG(nomePocao);
+    h.ok('poção sai na cor da magia, com o ícone da magia dentro', svgPocao.svg.includes('translate(70 92)') && svgPocao.cor === '#8ee3a0');
+    h.ok('item personalizado usa o desenho padrão do tipo', w.iconeItemSVG('Amuleto da vovó', 'geral').svg.includes('M48 84 L100 60') && w.iconeItemSVG('Lâmina do Zé', 'arma').svg.includes('M100 22 L112 40'));
+    h.ok('item mágico ganha a estrelinha', w.ladrilhoItem('Anel da proteção').classList.contains('magico') && !w.ladrilhoItem('Corda (10m)').classList.contains('magico'));
+    h.ok('sem marcas sobrando nos desenhos', desenhosItens.every((d) => !/\{[SsFD]\}/.test(d)));
     h.ok('as melhorias viram selos', [...w.document.querySelectorAll('.selo-item')].some((s) => s.textContent === 'Potencializador'));
     h.ok('presente vira um selo só', [...w.document.querySelectorAll('.selo-presente')].some((s) => s.textContent === 'presente de Aeon'));
     h.ok('não aparece preço', !/T\$\s*\d+[.,]?\d*\s*(·|$)/.test(w.document.querySelector('.secao-moch').textContent));
