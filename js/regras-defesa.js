@@ -105,6 +105,8 @@ function bonusDefesaPoderes(f){
     ['Inexpugnável','Fanático'].forEach(nome=>{ if(nomes.includes(nome)) bonus += 2; });
   }
   if(nomes.includes('Estilo de Uma Arma') && usandoUmaArmaSoNaMao(f)) bonus += 2;
+  // Escudeiro (Cavaleiro): "sua armadura concede +1 na Defesa".
+  if(nomesPoderesConhecidos(f).includes('Escudeiro') && f.armadura && f.armadura.equipado!==false) bonus += 1;
   // Pele de Ferro (poder de classe do Bárbaro — NUNCA existiu como poder geral, só de classe,
   // achado numa auditoria: a checagem antiga usava poderesAtivos, que só pega poder de classe se
   // foi TROCADO por um slot geral — pra um Bárbaro que pegou normal, nunca funcionava). Pele de
@@ -339,6 +341,7 @@ function deslocamentoEfetivo(f){
     d = Math.max(0, d);
   }
   if(poderesAtivos(f).includes('Atlético')) d += 3;
+  if(nomesPoderesConhecidos(f).includes('Fúria da Savana')) d += 3; // Bárbaro: "Seu deslocamento aumenta em +3m"
   d = Math.floor(d * multiplicadorCondicoesDeslocamento(f));
   return Math.max(0, d);
 }
@@ -422,4 +425,28 @@ function cargaUsada(f){
     total += espacoDaLinha(it, porUnidade);
   });
   return Math.round(total*100)/100;
+}
+
+
+// Redução de dano dos poderes (revisão de 16/11/2026). Lista para a conta da Defesa: cada
+// item é {valor, tipo, fonte}; tipo vazio é RD geral (vale contra qualquer dano).
+function reducaoDanoPoderes(f){
+  const rd = [];
+  const nomes = nomesPoderesConhecidos(f);
+  const pesada = usaArmaduraPesada(f);
+  if(pesada && nomes.includes('Especialização em Armadura')) rd.push({valor:5, tipo:'', fonte:'Especialização em Armadura'});
+  if(pesada && nomes.includes('Bastião')) rd.push({valor:5, tipo:'', fonte:'Bastião'});
+  const concedidos = (typeof listaPoderesConcedidos==='function' ? listaPoderesConcedidos(f) : []).map(p=> p && p.nome);
+  if(concedidos.includes('Fulgor Solar')){ rd.push({valor:5, tipo:'frio', fonte:'Fulgor Solar'}); rd.push({valor:5, tipo:'trevas', fonte:'Fulgor Solar'}); }
+  if(concedidos.includes('Habitante do Deserto')) rd.push({valor:10, tipo:'fogo', fonte:'Habitante do Deserto'});
+  return rd;
+}
+// Resumo curto para a tela: "RD 10 · fogo 10" (RD geral somada; por tipo, a maior de cada).
+function resumoReducaoDano(f){
+  const rd = reducaoDanoPoderes(f);
+  if(!rd.length) return '';
+  const geral = rd.filter(r=> !r.tipo).reduce((t,r)=> t+r.valor, 0);
+  const porTipo = {};
+  rd.filter(r=> r.tipo).forEach(r=>{ porTipo[r.tipo] = Math.max(porTipo[r.tipo]||0, r.valor); });
+  return [geral ? 'RD '+geral : null].concat(Object.keys(porTipo).map(t=> t+' '+porTipo[t])).filter(Boolean).join(' · ');
 }

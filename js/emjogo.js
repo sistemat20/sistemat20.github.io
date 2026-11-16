@@ -70,6 +70,7 @@ function limiteDoPoder(desc){
 // Como o poder entra na mesa: 'auto' (o app soma), 'pm', 'pmvar', 'modo', 'uso' ou null (só leitura).
 function classificarPoder(f, e){
   if(PODERES_AUTOMATIZADOS.has(e.chaveBase)) return {tipo:'auto'};
+  if(typeof PODERES_EM_PARTE!=='undefined' && PODERES_EM_PARTE[e.chaveBase]) return {tipo:'parte', nota: PODERES_EM_PARTE[e.chaveBase]};
   const limite = limiteDoPoder(e.desc);
   if(e.chaveBase==='Golpe Pessoal' && e.indicePoderesClasse!=null){
     const g = (f.poderesClasse[e.indicePoderesClasse]||{}).golpeConstruido;
@@ -83,7 +84,7 @@ function classificarPoder(f, e){
     const porCarisma = /limitad[oa] pel[oa] seu Carisma/i.test(desc);
     return {tipo:'pmvar', limite, maxPm: porCarisma ? Math.max(1, atributoEfetivo(f, 'car')) : null};
   }
-  const m = desc.match(/gast\w*\s+(?:[a-zà-ú]+\s+){0,5}?\+?(\d+)\s*PM/i);
+  const m = desc.match(/(?:gast|pag)\w*\s+(?:[a-zà-ú]+\s+){0,5}?\+?(\d+)\s*PM/i);
   if(m){
     const base = parseInt(m[1]);
     // Habilidade que cresce com o nível ("A cada quatro níveis, pode gastar +1 PM"): em T20 o
@@ -130,7 +131,7 @@ function coletarHabilidades(f){
 }
 function poderesEmJogo(f){
   return coletarPoderes(f).concat(coletarHabilidades(f)).map(e=> Object.assign({}, e, classificarPoder(f, e)))
-    .filter(p=> p.tipo && p.tipo!=='auto');
+    .filter(p=> p.tipo && p.tipo!=='auto' && p.tipo!=='parte');
 }
 function modoLigado(f, nome){ return !!(f.modosAtivos && f.modosAtivos[nome]); }
 function alternarModoPoder(f, nome){

@@ -89,15 +89,15 @@ function renderPoderesNotas(f){
     if(entradas.length===0) return [el('div',{class:'empty'},'Nenhum poder registrado ainda.')];
     const mostrarAuto = !!state._notasMostrarAuto;
     const corpo = entradas.filter(e=> e.tipo!=='auto' || mostrarAuto).map((entrada, idx)=>{
-      const ativa = entrada.tipo && entrada.tipo!=='auto';
+      const ativa = entrada.tipo && entrada.tipo!=='auto' && entrada.tipo!=='parte';
       const usado = entrada.limite ? poderFoiUsado(f, entrada.chaveBase) : false;
       const ehGolpePessoal = entrada.chaveBase==='Golpe Pessoal' && entrada.indicePoderesClasse!=null;
       const golpeRow = ehGolpePessoal ? f.poderesClasse[entrada.indicePoderesClasse] : null;
       const golpeJaConstruido = golpeRow && golpeRow.golpeConstruido && golpeRow.golpeConstruido.arma;
-      const selo = entrada.tipo==='auto' ? el('span',{class:'selo-poder auto'}, 'automático') : ativa ? el('span',{class:'selo-poder'}, 'ativa') : null;
+      const selo = entrada.tipo==='auto' ? el('span',{class:'selo-poder auto'}, 'automático') : entrada.tipo==='parte' ? el('span',{class:'selo-poder auto'}, 'em parte') : ativa ? el('span',{class:'selo-poder'}, 'ativa') : null;
       return renderItemColapsavel('poder-'+idx+'-'+entrada.nome, el('span',{}, entrada.nome+(usado?' (usado)':''), selo ? ' ' : null, selo), entrada.fonte, [
         el('div',{class:'meta', style:'margin-bottom:4px;'+(entrada.tipo==='auto'?'color:var(--gold);':'')},
-          entrada.tipo==='auto' ? '⚡ Já calculado na ficha automaticamente' : ativa ? '🎯 Está no "Em jogo", no painel Status da Ficha' : '📖 Só referência: acompanhe o efeito na mesa'
+          entrada.tipo==='auto' ? '⚡ Já calculado na ficha automaticamente' : entrada.tipo==='parte' ? '⚡ '+entrada.nota : ativa ? '🎯 Está no "Em jogo", no painel Status da Ficha' : '📖 Só referência: acompanhe o efeito na mesa'
         ),
         el('div',{class:'desc'}, entrada.desc),
         ehGolpePessoal ? el('div',{style:'margin-top:8px;'},

@@ -150,5 +150,36 @@ const h = require('./harness');
     h.igual('a correção do espaço roda uma vez só', f.equip[0].carga, '0');
   }
 
+  h.secao('Mais poderes automáticos (revisão de 16/11/2026)');
+  {
+    const cls = (nome, desc) => w.classificarPoder(h.fichaBase(), { chaveBase: nome, desc }).tipo;
+    h.igual('"Pague 2 PM" vira botão de PM', cls('Dom da Verdade', 'Pague 2 PM: +5 em Intuição até o fim da cena.'), 'pm');
+    h.igual('Olhos Vermelhos sai como "em parte" (o número já está na ficha)', cls('Olhos Vermelhos', 'Visão no escuro.'), 'parte');
+    h.igual('Carapaça já calculada sai como automático', cls('Carapaça', ''), 'auto');
+    h.igual('Aumento de Atributo sai como automático', cls('Aumento de Atributo', ''), 'auto');
+    const armaduraPesada = { nome: 'Armadura completa', def: 10, pen: -5, cat: 'Pesada', equipado: true };
+    const guerreiro = h.fichaBase({ classesNiveis: [{ classe: 'Guerreiro', nivel: 6 }], armadura: armaduraPesada,
+      poderesClasse: [{ classe: 'Guerreiro', nome: 'Especialização em Armadura', nivel: 4 }] });
+    h.usarFicha(w, guerreiro);
+    h.igual('Especialização em Armadura dá RD 5 com armadura pesada', w.resumoReducaoDano(guerreiro), 'RD 5');
+    guerreiro.armadura = null;
+    h.igual('e nada sem armadura pesada', w.resumoReducaoDano(guerreiro), '');
+    const deserto = h.fichaBase({ poderConcedido: { nome: 'Habitante do Deserto', deus: 'Azgher' } });
+    h.igual('Habitante do Deserto: redução de fogo 10', w.resumoReducaoDano(deserto), 'fogo 10');
+    const barbaro = h.fichaBase({ classesNiveis: [{ classe: 'Bárbaro', nivel: 3 }], poderesClasse: [{ classe: 'Bárbaro', nome: 'Fúria da Savana', nivel: 2 }] });
+    h.usarFicha(w, barbaro);
+    h.igual('Fúria da Savana: +3m de deslocamento', w.deslocamentoEfetivo(barbaro), 12);
+    const pistola = Object.assign({}, w.ARMAS.find((a) => a.n === 'Pistola'), { nome: 'Pistola' });
+    const bucaneiro = h.fichaBase({ classesNiveis: [{ classe: 'Bucaneiro', nivel: 3 }], armas: [pistola], poderesClasse: [{ classe: 'Bucaneiro', nome: 'Pistoleiro', nivel: 2 }] });
+    h.usarFicha(w, bucaneiro);
+    h.ok('Pistoleiro dá proficiência com armas de fogo', w.proficienteComArma(bucaneiro, pistola));
+    const semPistoleiro = h.fichaBase({ classesNiveis: [{ classe: 'Bucaneiro', nivel: 3 }], armas: [pistola] });
+    const dano = (f) => w.numerosAtaque(f, pistola).dano;
+    h.ok('e +2 no dano com armas de fogo', dano(bucaneiro) !== dano(semPistoleiro) && /\+2$/.test(dano(bucaneiro)));
+    const katana = Object.assign({}, w.ARMAS.find((a) => a.n === 'Katana'), { nome: 'Katana' });
+    const devoto = h.fichaBase({ poderConcedido: { nome: 'Tradição de Lin-Wu', deus: 'Lin-Wu' } });
+    h.ok('Tradição de Lin-Wu: katana conta como simples', w.proficienteComArma(devoto, katana) && !w.proficienteComArma(h.fichaBase(), katana));
+  }
+
   h.resumo();
 })();

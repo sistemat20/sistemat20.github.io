@@ -253,3 +253,5 @@
 .dica-iphone{ display:grid; gap:6px; margin:4px 0 10px 33px; padding:9px 11px; border:1px solid var(--gold-deep); border-radius:12px; background:rgba(216,189,116,.06); font-size:.76rem; color:var(--ink-soft); }
 .dica-iphone b{ color:var(--ink); }
 .ic-compartilhar{ display:inline-grid; place-items:center; width:20px; height:20px; border:1px solid var(--gold); border-radius:5px; color:var(--gold); font-size:.7rem; }
+/* Redução de dano dos poderes, logo abaixo do escudo da Defesa (revisão de 16/11/2026) */
+.esc-rd{ position:absolute; left:50%; bottom:-15px; transform:translateX(-50%); white-space:nowrap; font:700 .55rem 'Inter',sans-serif; color:var(--gold); background:var(--card-2); border:1px solid var(--gold-deep); border-radius:999px; padding:1px 6px; }

@@ -591,4 +591,23 @@ const PODERES_AUTOMATIZADOS = new Set([
   'Pernas do Mar','Etiqueta','Pajem','Força dos Penhascos','Liberdade da Pradaria',
   'Tranquilidade dos Lagos','Gatuno','Sombra','Elo com a Natureza',
   'Especialista em Escola','Fortalecimento Arcano',
+  // Revisão de 16/11/2026: já eram calculados, mas apareciam como "só referência".
+  'Antenas','Articulações Flexíveis','Carapaça','Mãos Membranosas','Aumento de Atributo','Treinamento em Perícia',
+  'Proficiência','Foco em Arma','Estilo de Duas Mãos','Estilo de Arremesso','Especialização em Arma','Acuidade com Arma',
+  'Estilo de Disparo','Arremesso Potente','Escamas Dracônicas','Bênção do Mana','Dom da Esperança',
+  // Calculados a partir desta revisão.
+  'Especialização em Armadura','Bastião','Pistoleiro','Couraceiro','Arsenal das Profundezas','Armas da Ambição',
+  'Tradição de Lin-Wu','Habitante do Deserto',
 ]);
+// Em parte: o número já entra na ficha, mas sobra um efeito para a mesa (visão no escuro, um
+// bônus situacional...). Na lista de Poderes aparecem com o selo "em parte".
+const PODERES_EM_PARTE = {
+  'Olhos Vermelhos':'O +1 em Intimidação já está na ficha. A visão no escuro você usa na mesa.',
+  'Acrobático':'Atletismo já usa Destreza na ficha. Terreno difícil não reduzir o deslocamento é na mesa.',
+  'Estilo de Arma Longa':'O +2 no ataque com armas alongadas já está na ficha. Atacar adjacentes é na mesa.',
+  'Fúria da Savana':'Os +3m de deslocamento já estão na ficha. O bônus da Fúria em armas de arremesso é na mesa.',
+  'Escudeiro':'O +1 no dano das armas e o +1 na Defesa da armadura já estão na ficha. A ajuda em combate (1 PM) é na mesa.',
+  'Armeiro':'A proficiência com armas marciais corpo a corpo já está na ficha. Trocar Força por Inteligência é na mesa.',
+  'Balística':'A proficiência já está na ficha. Trocar Destreza por Inteligência é na mesa.',
+  'Fulgor Solar':'A redução de frio e trevas 5 já está na ficha. O clarão (1 PM) é na mesa.',
+};

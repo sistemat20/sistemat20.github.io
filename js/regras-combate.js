@@ -89,7 +89,7 @@ function danoEfetivoArma(f, arma){
 // Toda classe é proficiente em armas simples e armaduras leves. O resto depende da classe,
 // de poderes (Proficiência) ou de exceções raciais (ex: Anão com machados/martelos, Sereia com tridente).
 function proficienciasDaClasse(f){
-  const result = {armasMarciais:false, armasFogo:false, armadurasPesadas:false, escudos:false};
+  const result = {armasMarciais:false, armasFogo:false, armadurasPesadas:false, escudos:false, marciaisCorpo:false, marciaisDistancia:false};
   (f.classesNiveis||[]).forEach(c=>{
     const pc = PROFICIENCIAS_CLASSE[c.classe];
     if(!pc) return;
@@ -113,6 +113,13 @@ function proficienciasDePoderes(f){
     if(sub==='Armaduras pesadas') result.armadurasPesadas = true;
     if(sub==='Escudos') result.escudos = true;
   });
+  // Poderes de classe que dão proficiência (revisão de 16/11/2026).
+  const conhecidos = nomesPoderesConhecidos(f);
+  if(conhecidos.includes('Pistoleiro')) result.armasFogo = true;
+  if(conhecidos.includes('Couraceiro')){ result.armadurasPesadas = true; result.escudos = true; }
+  if(conhecidos.includes('Armeiro')) result.marciaisCorpo = true;
+  const bal = (f.poderesClasse||[]).find(p=> p.nome==='Balística');
+  if(bal){ if(/fogo/i.test(bal.sub||'')) result.armasFogo = true; else result.marciaisDistancia = true; }
   return result;
 }
 
@@ -124,6 +131,7 @@ function proficienciasPersonagem(f){
     armasFogo: p.armasFogo,
     armadurasPesadas: c.armadurasPesadas || p.armadurasPesadas,
     escudos: c.escudos || p.escudos,
+    marciaisCorpo: p.marciaisCorpo, marciaisDistancia: p.marciaisDistancia,
   };
 }
 
@@ -139,8 +147,10 @@ function proficienteComArma(f, arma){
   const racaObj = getRacaObj(f);
   if(racaObj && racaObj.armasComoSimples && racaObj.armasComoSimples.includes(arma.n||arma.nome)) return true;
   if(arma.cat==='Simples') return true;
+  // Tradição de Lin-Wu (concedido): "Katana conta como arma simples pra você".
+  if((arma.n||arma.nome)==='Katana' && typeof listaPoderesConcedidos==='function' && listaPoderesConcedidos(f).some(p=> p && p.nome==='Tradição de Lin-Wu')) return true;
   const prof = proficienciasPersonagem(f);
-  if(arma.cat==='Marcial') return prof.armasMarciais;
+  if(arma.cat==='Marcial') return prof.armasMarciais || (arma.distancia ? prof.marciaisDistancia : prof.marciaisCorpo);
   if(arma.cat==='Arma de Fogo') return prof.armasFogo;
   return false; // Exótica: nunca tem proficiência automática, só via poder específico (não modelado)
 }
@@ -183,7 +193,9 @@ function testeAtaqueArma(f, arma){
   // Toque de Tibar (maldição, Ameaças de Arton pág. 362): "armas impõem –2 em testes de ataque e
   // rolagens de dano" — tudo que você veste ou empunha vira pirita enquanto amaldiçoado.
   const penalidadeTibar = maldicoesAtivas(f).includes('Toque de Tibar') ? -2 : 0;
-  return (proficienteComArma(f, arma) ? base : base - 5) + bonusMelhoria + bonusUmaArma + bonusFocoArma + bonusRaca + bonusArmaLonga + penalidadeTibar + bonusAtaqueParceiros(f);
+  // Armas da Ambição (concedido, Valkaria): +1 em ataques com armas nas quais é proficiente.
+  const ambicao = (typeof listaPoderesConcedidos==='function' && listaPoderesConcedidos(f).some(p=> p && p.nome==='Armas da Ambição') && proficienteComArma(f, arma)) ? 1 : 0;
+  return ambicao + (proficienteComArma(f, arma) ? base : base - 5) + bonusMelhoria + bonusUmaArma + bonusFocoArma + bonusRaca + bonusArmaLonga + penalidadeTibar + bonusAtaqueParceiros(f);
 }
 
 // Bônus de dano = Força somada em armas corpo a corpo e de arremesso (não em armas de disparo,
@@ -202,6 +214,13 @@ function bonusDanoArma(f, arma){
   const nomeArma = arma.nome || arma.n;
   const bonusEspecializacao = armasComPoderEscolhido(f, 'Especialização em Arma').includes(nomeArma) ? 2 : 0;
   const bonusRacaDano = bonusRacaCategoriaArma(f, nomeArma).dano;
+  // Revisão de 16/11/2026: Pistoleiro (+2 com armas de fogo), Escudeiro (+1 em todas as armas) e
+  // Arsenal das Profundezas (concedido de Oceano: +2 com azagaias, lanças e tridentes).
+  const conhecidosDano = nomesPoderesConhecidos(f);
+  const concedidosDano = (typeof listaPoderesConcedidos==='function' ? listaPoderesConcedidos(f) : []).map(p=> p && p.nome);
+  const bonusPoderesNovos = (conhecidosDano.includes('Pistoleiro') && arma.cat==='Arma de Fogo' ? 2 : 0)
+    + (conhecidosDano.includes('Escudeiro') ? 1 : 0)
+    + (concedidosDano.includes('Arsenal das Profundezas') && ['Azagaia','Lança','Tridente'].includes(nomeArma) ? 2 : 0);
 
   let bonusAtributo;
   if(!arma.distancia){
@@ -215,5 +234,5 @@ function bonusDanoArma(f, arma){
   }
   // Toque de Tibar (maldição): mesma penalidade de -2 também no dano, não só no ataque.
   const penalidadeTibarDano = maldicoesAtivas(f).includes('Toque de Tibar') ? -2 : 0;
-  return bonusAtributo + bonusMelhoria + bonusDuasMaos + bonusArremesso + bonusEspecializacao + bonusRacaDano + penalidadeTibarDano;
+  return bonusAtributo + bonusMelhoria + bonusDuasMaos + bonusArremesso + bonusEspecializacao + bonusRacaDano + bonusPoderesNovos + penalidadeTibarDano;
 }

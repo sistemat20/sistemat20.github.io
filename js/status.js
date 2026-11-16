@@ -14,6 +14,8 @@ function renderVidaDefesaMana(f){
   const escudo = el('button',{class:'escudo-def'+(aberta?' aberto':'')+(afetado?' afetado':''), 'aria-label':'Defesa '+defesaTotal(f)+', tocar para ver a conta', onclick:()=>{ state._defesaAberta = aberta ? null : f.id; render(); }});
   escudo.innerHTML = '<svg viewBox="0 0 58 64" aria-hidden="true"><path d="M29 3 L53 11 V30 C53 45 42 56 29 61 C16 56 5 45 5 30 V11 Z" class="esc-fundo"/><path d="M29 8 L48 14.5 V30 C48 42 39.5 51 29 55.5" class="esc-brilho"/></svg>';
   escudo.appendChild(el('span',{class:'esc-num'}, String(defesaTotal(f)), el('small',{}, 'DEFESA')));
+  const rdCurto = typeof resumoReducaoDano==='function' ? resumoReducaoDano(f) : '';
+  if(rdCurto) escudo.appendChild(el('span',{class:'esc-rd'}, rdCurto));
   return el('div',{},
     el('div',{class:'vdm'}, renderAnel(f, 'pv'), renderAnel(f, 'pm'), escudo),
     aberta ? renderGavetaDefesa(f) : null,
@@ -45,6 +47,8 @@ function renderGavetaDefesa(f){
       el('span',{}, 'Outros'),
       el('b',{}, el('span',{class:'qtd-step'}, el('button',{'aria-label':'menos um', onclick:()=>mudarOutros(-1)}, '−'), el('b',{class:'num'}, sinal(outros)), el('button',{'aria-label':'mais um', onclick:()=>mudarOutros(1)}, '+'))),
       el('span',{class:'tot'}, 'Total'), el('b',{class:'tot'}, String(total)))];
+  const rdTxt = typeof resumoReducaoDano==='function' ? resumoReducaoDano(f) : '';
+  if(rdTxt) filhos.push(el('div',{}, el('b',{}, 'Redução de dano: '+rdTxt+'. '), reducaoDanoPoderes(f).map(r=> r.fonte+(r.tipo ? ' ('+r.tipo+')' : '')).filter((v,i,a)=> a.indexOf(v)===i).join(', ')+'. Tire esse valor de cada dano que sofrer.'));
   const pen = penalidadeTotal(f);
   if(pen) filhos.push(el('div',{}, el('b',{}, 'Penalidade '+pen+'. '), (pesada ? 'Armadura pesada: sem Destreza na Defesa'+(getRacaObj(f)&&getRacaObj(f).deslocamentoImune?'':' e −3m de deslocamento')+'. ' : '')+'Vale em Acrobacia, Furtividade, Ladinagem e natação.'+(penalidadeArmaduraRaca(f) ? ' Inclui '+penalidadeArmaduraRaca(f)+' fixo do corpo de '+f.raca+'.' : '')));
   if(f.armadura) filhos.push(el('div',{class:'linha-equip'}, el('span',{}, '🛡️ '+nomeBaseItem(f.armadura.nome)+' +'+f.armadura.def, f.armadura.superior && f.armadura.melhoriasTxt ? el('small',{}, f.armadura.melhoriasTxt) : null), el('button',{class:'link-editar-item', onclick:guardarArmaduraNaMochila}, 'guardar')));
