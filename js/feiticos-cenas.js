@@ -30,7 +30,7 @@ const SILHUETAS_FEITICO = {
   arma: 'M48 0 L52 0 L55 68 L68 68 L68 75 L55 75 L55 90 L60 100 L40 100 L45 90 L45 75 L32 75 L32 68 L45 68 Z',
   objeto: 'M20 40 L50 24 L80 40 L80 80 L50 96 L20 80 Z',
 };
-const OLHOS_SILHUETA = { monstro:[[38,46],[62,46]], lobo:[[60,46]], espirito:[[42,40],[58,40]], elemental:[[44,24],[56,24]], cavalo:[[60,30]], esqueleto:[[45,17],[55,17]] };
+const OLHOS_SILHUETA = { monstro:[[38,46],[62,46]], lobo:[[60,46]], espirito:[[42,40],[58,40]], elemental:[[44,24],[56,24]], cavalo:[[60,30]], esqueleto:[[45,17],[55,17]], objeto:[[40,58],[60,58]] };
 const _caminhos = {};
 function caminhoSilhueta(nome){ if(!_caminhos[nome] && typeof Path2D!=='undefined') _caminhos[nome] = new Path2D(SILHUETAS_FEITICO[nome] || SILHUETAS_FEITICO.monstro); return _caminhos[nome]; }
 
