@@ -123,4 +123,15 @@ const CENAS_FEITICO = {
     ctx.globalAlpha = _some(f, 90, 30); ctx.strokeStyle = '#f0d9b0'; ctx.lineWidth = 2.6; ctx.shadowColor = cfg.cor; ctx.shadowBlur = 8; const prog = _sobe(f/26);
     mem.rachas.forEach(pts=>{ const fim = Math.ceil((pts.length-1)*prog); ctx.beginPath(); for(let i=0;i<=fim;i++) i ? ctx.lineTo(pts[i][0], pts[i][1]) : ctx.moveTo(pts[i][0], pts[i][1]); ctx.stroke(); }); ctx.shadowBlur = 0;
     if(f%6===0 && f<40) for(let i=0;i<5;i++) P.push({x:cx+(Math.random()-.5)*W*.8, y:base, vx:(Math.random()-.5)*2, vy:-(4+Math.random()*5), g:.35, vida:0, max:40, tam:3+Math.random()*4, cor:cfg.cores[Math.floor(Math.random()*cfg.cores.length)], forma:'pedra', rot:0, vr:.2}); } },
+  // Estacas: pontas brotam do chão uma após a outra (Erupção Glacial, Muralha Elemental).
+  estacas:{ classe:'c-treme', desenhar(ctx, W, H, f, est, cfg, P, mem){ const base = H*.74, a = _some(f, 95, 25);
+    if(!mem.estacas){ mem.estacas = []; const n = 9; for(let i=0;i<n;i++){ const pal = est.elementos ? ['fogo','frio','acido','raio'].map(k=> TEMAS_FEITICO[k].cor)[i%4] : cfg.cores[(i%2)+1]; mem.estacas.push({x:W*(.08+.84*i/(n-1))+(Math.random()-.5)*14, alt:H*(.22+Math.random()*.2)*(i%2 ? .75 : 1), larg:W*.09+Math.random()*10, ini:Math.abs(i-(n-1)/2)*3, cor:pal}); } }
+    mem.estacas.forEach(e=>{ const t = _sobe((f-e.ini)/10); if(t<=0) return; const topo = base-e.alt*t; ctx.globalAlpha = .85*a; const g = ctx.createLinearGradient(0, topo, 0, base); g.addColorStop(0, '#ffffff'); g.addColorStop(.25, e.cor); g.addColorStop(1, 'rgba(0,0,0,.3)'); ctx.fillStyle = g; ctx.shadowColor = e.cor; ctx.shadowBlur = 12;
+      ctx.beginPath(); ctx.moveTo(e.x-e.larg/2, base); ctx.lineTo(e.x, topo); ctx.lineTo(e.x+e.larg/2, base); ctx.closePath(); ctx.fill(); }); ctx.shadowBlur = 0; } },
+  // Tentáculos: saem de um círculo escuro no chão e balançam (Tentáculos de Trevas).
+  tentaculos:{ classe:'c-chao', desenhar(ctx, W, H, f, est, cfg){ const cx = W/2, chao = H*.58, a = _some(f, 100, 26), R = Math.min(W*.4, 170);
+    ctx.globalAlpha = Math.min(1, f/10)*a; ctx.fillStyle = 'rgba(10,4,18,.75)'; ctx.beginPath(); ctx.ellipse(cx, chao, R, R*.26, 0, 0, 6.283); ctx.fill();
+    ctx.strokeStyle = cfg.cor; ctx.lineCap = 'round'; ctx.shadowColor = cfg.cor; ctx.shadowBlur = 14;
+    for(let k=0;k<6;k++){ const t = _sobe((f-6-k*4)/24); if(t<=0) continue; const x0 = cx+(k-2.5)*R*.3, alt = H*(.28+(k%3)*.06)*t; ctx.lineWidth = 9-k%3*2; ctx.beginPath(); ctx.moveTo(x0, chao);
+      for(let s=1;s<=12;s++){ const y = chao-alt*s/12, onda = Math.sin(s*.6+f*.12+k)*18*(s/12); ctx.lineTo(x0+onda, y); } ctx.stroke(); } ctx.shadowBlur = 0; ctx.lineCap = 'butt'; } },
 };
