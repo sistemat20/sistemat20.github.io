@@ -74,3 +74,27 @@
 #feitico.parado .sigilo-feitico, #feitico.parado .sigilo-feitico svg, #feitico.parado .trac, #feitico.parado .nome-feitico, #feitico.parado .clarao, #feitico.parado .pupila{ animation:none !important; stroke-dashoffset:0; opacity:1; }
 #feitico.parado .clarao{ opacity:0 !important; }
 @media (prefers-reduced-motion: reduce){ #feitico::before,  #feitico .sigilo-feitico, #feitico .sigilo-feitico svg, #feitico .trac, #feitico .nome-feitico, #feitico .clarao{ animation:none !important; stroke-dashoffset:0; opacity:1; } }
+
+/* ---- Cenas de cada magia (js/feiticos-cenas.js) ---- */
+/* Convocações: o símbolo deita no chão e a criatura sobe de dentro dele */
+#feitico.c-chao .sigilo-feitico{ top:58%; animation-name:sigilo-chao; }
+#feitico.c-chao .nome-feitico{ top:calc(58% + 100px); }
+/* Imagem Espelhada: duas cópias saem e trocam de lugar */
+#feitico .sigilo-feitico.copia{ opacity:.45; }
+#feitico.c-espelhos .sigilo-feitico.copia.c1{ animation:espelho-e 2.1s ease-in-out both; }
+#feitico.c-espelhos .sigilo-feitico.copia.c2{ animation:espelho-d 2.1s ease-in-out both; }
+@keyframes espelho-e{ 0%{ opacity:0; transform:translate(-50%,-50%); } 30%{ opacity:.5; transform:translate(-125%,-50%) scale(.8); } 60%{ transform:translate(-20%,-50%) scale(.8); } 85%{ opacity:.5; transform:translate(-125%,-50%) scale(.8); } 100%{ opacity:0; transform:translate(-125%,-50%) scale(.8); } }
+@keyframes espelho-d{ 0%{ opacity:0; transform:translate(-50%,-50%); } 30%{ opacity:.5; transform:translate(25%,-50%) scale(.8); } 60%{ transform:translate(-80%,-50%) scale(.8); } 85%{ opacity:.5; transform:translate(25%,-50%) scale(.8); } 100%{ opacity:0; transform:translate(25%,-50%) scale(.8); } }
+/* Buraco Negro: o símbolo é puxado para dentro, girando */
+#feitico.c-sugar .sigilo-feitico{ animation:sugar 2.1s ease-in forwards; }
+@keyframes sugar{ 0%{ opacity:0; transform:translate(-50%,-50%) scale(1.4) rotate(0); } 25%{ opacity:1; } 100%{ opacity:0; transform:translate(-50%,-50%) scale(.15) rotate(-260deg); } }
+/* Rachar: o símbolo treme com o chão */
+#feitico.c-treme .sigilo-feitico svg{ animation:sigilo-treme .09s linear 12 .2s; }
+/* Sono: balança devagar */
+#feitico.c-sono .sigilo-feitico svg{ animation:sigilo-balanca 2.1s ease-in-out forwards; }
+/* Correntes: o símbolo aperta quando as correntes chegam */
+#feitico.c-fecha .sigilo-feitico svg{ animation:sigilo-fecha .5s ease-in .55s; }
+@keyframes sigilo-fecha{ 50%{ transform:scale(.86); } 100%{ transform:scale(1); } }
+/* Sumir: o símbolo se apaga e sobra só o brilho */
+#feitico.c-sumir .sigilo-feitico svg{ animation:sigilo-sumir 2.1s ease-in-out forwards; }
+@keyframes sigilo-sumir{ 0%, 35%{ opacity:1; } 70%{ opacity:.08; } 100%{ opacity:.08; } }

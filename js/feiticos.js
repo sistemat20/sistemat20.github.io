@@ -3,7 +3,9 @@
 //  · data/temas-magia.js      grupo, movimento e intenção de cada magia do livro (uma a uma);
 //  · js/feiticos.js (este)    os temas (cor, símbolo, som, partícula), as intenções das pílulas,
 //                             os símbolos SVG, o símbolo pequeno das listas e tocarFeitico();
+//  · data/icones-magia*.js     o ícone próprio de cada magia;
 //  · js/feiticos-particulas.js os movimentos na tela (projétil, coluna, chuva, onda, portal...);
+//  · js/feiticos-cenas.js     a cena de cada magia (esfera, teia, correntes, criatura que surge...);
 //  · css/feiticos.css         o símbolo grande, o nome e o clarão de cada tema e movimento.
 // Os sons de cada tema ficam no banco de sons do app (Som, em js/efeitos.js).
 // Quem desenha telas usa só: estiloDaMagia, temaDaMagia, intencaoDaMagia, sigiloMagiaPequeno,
@@ -77,11 +79,13 @@ function estiloDaMagia(s){
   const partes = linha.split(/\s+/).filter(Boolean);
   const tema = TEMAS_FEITICO[partes[0]] ? partes[0] : temaPorRegra(s);
   const cfg = TEMAS_FEITICO[tema];
-  const est = {tema, mov: cfg.mov, qtd:1, grande:false, raios:false, elementos:false, intencao: cfg.i};
+  const est = {nome: s.n||'', tema, mov: cfg.mov, qtd:1, grande:false, raios:false, elementos:false, intencao: cfg.i, cena:null, cenaParam:null, cor:null};
   partes.slice(1).forEach(p=>{
     if(typeof MOVIMENTOS_FEITICO!=='undefined' && MOVIMENTOS_FEITICO.includes(p)) est.mov = p;
     else if(/^x\d$/.test(p)) est.qtd = parseInt(p.slice(1), 10);
     else if(p.startsWith('i:')) est.intencao = p.slice(2);
+    else if(p.startsWith('c:')){ const [, nome, det] = p.split(':'); est.cena = nome; est.cenaParam = det || null; }
+    else if(/^#[0-9a-f]{6}$/i.test(p)) est.cor = p;
     else if(p==='grande' || p==='raios' || p==='elementos') est[p] = true;
   });
   if(!linha && tema==='raio') est.raios = true;
@@ -130,11 +134,26 @@ function sigiloSVG(tipo, cor){
 }
 const SIGILOS_FEITICO = ['pentagrama','hexagono','olho','alquimia','floco','chamas','estrela','relampago','sol','lua','eclipse','folha','espiral','prisma','bolhas','caveira','gota','arvore','montanha','ondas','redemoinho','portal','somonda','tormenta','ampulheta'];
 
-// Símbolo pequeno e colorido do tema, usado nas linhas de Minhas magias e de Aprender magias.
+// Cor da magia: a do grupo, ou a própria quando o livro descreve uma (Âncora: esmeralda).
+function corDaMagia(s){ const est = estiloDaMagia(s); return est.cor || TEMAS_FEITICO[est.tema].cor; }
+function desenhoIconeMagia(s){ return (typeof ICONE_DA_MAGIA!=='undefined' && ICONE_DA_MAGIA[s.n]) || (typeof ICONE_DA_MAGIA_2!=='undefined' && ICONE_DA_MAGIA_2[s.n]) || null; }
+// Ícone próprio da magia (data/icones-magia*.js) ou, se não tiver, o símbolo do grupo.
+// anel: true no símbolo grande do efeito; o pequeno das listas já tem a borda redonda.
+function iconeMagiaSVG(s, cor, anel){
+  const desenho = desenhoIconeMagia(s);
+  if(!desenho) return sigiloSVG(TEMAS_FEITICO[temaDaMagia(s)].sigilo, cor);
+  const base = 'stroke="'+cor+'" fill="none" stroke-linecap="round" stroke-linejoin="round"';
+  const corpo = desenho.replace(/\{S\}/g, base+' stroke-width="3" class="trac"').replace(/\{s\}/g, base+' stroke-width="1.8" class="trac"')
+    .replace(/\{D\}/g, base+' stroke-width="2.4" stroke-dasharray="6 7"').replace(/\{F\}/g, 'fill="'+cor+'"');
+  const moldura = anel ? '<circle cx="100" cy="100" r="92" '+base+' stroke-width="1.6" class="trac" opacity=".7"/><circle cx="100" cy="100" r="86" '+base+' stroke-width="1" class="trac" opacity=".4"/>' : '';
+  return '<svg viewBox="0 0 200 200" aria-hidden="true">'+moldura+corpo+'</svg>';
+}
+
+// Símbolo pequeno e colorido da magia, usado nas linhas de Minhas magias e de Aprender magias.
 function sigiloMagiaPequeno(s){
-  const cfg = TEMAS_FEITICO[temaDaMagia(s)];
-  const e = el('span',{class:'sigilo-mini', style:'color:'+cfg.cor+';border-color:'+cfg.cor+';', 'aria-hidden':'true'});
-  e.innerHTML = sigiloSVG(cfg.sigilo, cfg.cor);
+  const cor = corDaMagia(s);
+  const e = el('span',{class:'sigilo-mini', style:'color:'+cor+';border-color:'+cor+';', 'aria-hidden':'true'});
+  e.innerHTML = iconeMagiaSVG(s, cor, false);
   return e;
 }
 
@@ -142,13 +161,18 @@ function sigiloMagiaPequeno(s){
 function tocarFeitico(s){
   if(typeof document==='undefined' || (typeof window!=='undefined' && window.__T20_TESTE)) return;
   const est = estiloDaMagia(s);
-  const cfg = TEMAS_FEITICO[est.tema];
+  const base = TEMAS_FEITICO[est.tema];
+  // A cor própria da magia (quando tem) também pinta as partículas.
+  const cfg = est.cor ? Object.assign({}, base, {cor: est.cor, cores: ['#ffffff', est.cor, est.cor, base.cores[base.cores.length-1]]}) : base;
+  const cena = (typeof CENAS_FEITICO!=='undefined' && est.cena) ? CENAS_FEITICO[est.cena] : null;
   const velho = document.getElementById('feitico'); if(velho) velho.remove();
   const camada = document.createElement('div');
-  camada.id = 'feitico'; camada.className = 'feitico tema-'+est.tema+' mov-'+est.mov+(est.grande ? ' grande' : ''); camada.setAttribute('aria-hidden','true');
+  camada.id = 'feitico'; camada.className = 'feitico tema-'+est.tema+' mov-'+est.mov+(est.grande ? ' grande' : '')+(cena && cena.classe ? ' '+cena.classe : '')+(est.cena ? ' cena-'+est.cena : ''); camada.setAttribute('aria-hidden','true');
   camada.style.setProperty('--cor-feitico', cfg.cor);
   const parado = typeof movimentoReduzido==='function' && movimentoReduzido();
-  camada.innerHTML = '<div class="clarao"></div><div class="sigilo-feitico">'+sigiloSVG(cfg.sigilo, cfg.cor)+'</div><div class="nome-feitico">'+String(s.n||'').replace(/[<>&]/g,'')+'</div>';
+  const icone = iconeMagiaSVG(s, cfg.cor, true);
+  const copias = cena && cena.clones ? Array.from({length:cena.clones}, (_,i)=> '<div class="sigilo-feitico copia c'+(i+1)+'">'+icone+'</div>').join('') : '';
+  camada.innerHTML = '<div class="clarao"></div>'+copias+'<div class="sigilo-feitico">'+icone+'</div><div class="nome-feitico">'+String(s.n||'').replace(/[<>&]/g,'')+'</div>';
   if(parado) camada.classList.add('parado');
   document.body.appendChild(camada);
   if(typeof Som!=='undefined') Som.tocar(cfg.som);
@@ -156,5 +180,5 @@ function tocarFeitico(s){
   setTimeout(()=> camada.remove(), DURACAO_FEITICO);
   if(parado) return;
   if(/jsdom/i.test((navigator&&navigator.userAgent)||'')) return; // sem canvas no ambiente de testes
-  animarParticulasFeitico(camada, est, cfg);
+  animarParticulasFeitico(camada, est, cfg, cena);
 }

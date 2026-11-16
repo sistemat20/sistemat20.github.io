@@ -129,7 +129,7 @@ function desenharExtrasFeitico(ctx, est, cfg, W, H, quadro){
 }
 
 // Canvas por cima da camada do efeito, um quadro por vez até acabar a duração.
-function animarParticulasFeitico(camada, est, cfg){
+function animarParticulasFeitico(camada, est, cfg, cena){
   const canvas = document.createElement('canvas');
   let ctx = null; try{ ctx = canvas.getContext('2d'); }catch(e){}
   if(!ctx) return;
@@ -137,7 +137,7 @@ function animarParticulasFeitico(camada, est, cfg){
   canvas.width = W*dpr; canvas.height = H*dpr; canvas.style.width = W+'px'; canvas.style.height = H+'px';
   ctx.scale(dpr, dpr);
   camada.insertBefore(canvas, camada.firstChild);
-  const P = []; let quadro = 0; const inicio = performance.now();
+  const P = [], mem = {}; let quadro = 0; const inicio = performance.now();
   const passo = (agora)=>{
     if(!camada.isConnected || agora - inicio > DURACAO_FEITICO) return;
     ctx.clearRect(0, 0, W, H);
@@ -156,6 +156,7 @@ function animarParticulasFeitico(camada, est, cfg){
       desenharParticula(ctx, q);
     }
     desenharExtrasFeitico(ctx, est, cfg, W, H, quadro);
+    if(cena){ ctx.globalCompositeOperation = 'source-over'; try{ cena.desenhar(ctx, W, H, quadro, est, cfg, P, mem); }catch(e){} ctx.globalAlpha = 1; ctx.shadowBlur = 0; }
     quadro++;
     requestAnimationFrame(passo);
   };
